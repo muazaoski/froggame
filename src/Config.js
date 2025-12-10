@@ -1,0 +1,143 @@
+export const Config = {
+    // Physics
+    gravity: -21.39,
+    friction: 0.0,
+    restitution: 0.336,
+
+    // Movement
+    moveSpeed: 1143.7,
+    jumpVelocity: 15.08,
+    rotationSpeed: 9.323,
+    airControl: 0.5,
+
+    // Animation
+    hopHeight: 0.545,
+    hopSpeed: 11.817,
+    talkSpeed: 4.335,
+
+    // Physics Details
+    linearDamping: 0.93,
+
+    // Leg Animation
+    legKickForce: 0.889,
+    legKickDecay: 6.1093,
+    walkLegSpeed: 1.0424,
+    walkLegHeight: 0.754,
+
+    // Environment
+    sunIntensity: 3.65,
+    ambientIntensity: 1.262,
+
+    // Shadows
+    shadowEnabled: true,
+    shadowMapSize: 4096,
+    shadowType: 'Basic',
+    shadowRadius: 9.024,
+    shadowBlurSamples: 15,
+    shadowBias: -0.00032,
+    shadowNormalBias: 0,
+    shadowIntensity: 0.374,
+    shadowCameraNear: 1.6444,
+    shadowCameraFar: 119.27,
+    shadowCameraSize: 55.03,
+    shadowCameraLeft: -50,
+    shadowCameraRight: 50,
+    shadowCameraTop: 50,
+    shadowCameraBottom: -50,
+    shadowAutoUpdate: true,
+    shadowCascades: 1,
+
+    // Shader FX - Post Processing
+    useShader: true,
+
+    // Color Grading
+    shaderSaturation: 1.424,
+    shaderBrightness: 0.107,
+    shaderContrast: 1.1,
+    shaderGamma: 1.0,
+
+    // Color Tint / Temperature
+    shaderTintR: 1.058,
+    shaderTintG: 1.084,
+    shaderTintB: 1.24,
+    shaderTemperature: -0.256,
+
+    // Vignette Effect
+    vignetteEnabled: false,
+    vignetteIntensity: 0.3,
+    vignetteRadius: 0.75,
+    vignetteSoftness: 0.45,
+
+    // Chromatic Aberration
+    chromaticEnabled: false,
+    chromaticIntensity: 0.01042,
+    chromaticRadial: true,
+
+    // Film Grain
+    grainEnabled: true,
+    grainIntensity: 0.0252,
+    grainSpeed: 0.1,
+    grainSize: 3.5285,
+
+    // Sharpen Filter
+    sharpenEnabled: true,
+    sharpenIntensity: 0.454,
+
+    // Bloom (glow effect)
+    bloomEnabled: true,
+    bloomIntensity: 0.556,
+    bloomThreshold: 0.061,
+    bloomRadius: 0.088,
+
+    // Camera
+    cameraHeight: 15,
+    cameraDistance: 16.34,
+    cameraLerp: 0.15471,
+
+    // Camera Controls
+    cameraMinDistance: 4.591,
+    cameraMaxDistance: 20,
+    cameraZoomSpeed: 1.7555,
+    cameraRotateSpeed: 0.006662,
+    cameraMinPitch: 0.1,
+    cameraMaxPitch: 1.4,
+    cameraOrbitAngle: 0,
+    cameraPitchAngle: 0.6,
+
+    // Jiggle Physics (Ass)
+    jiggleEnabled: true,
+    jiggleIntensity: 0.15,
+    jiggleSpeed: 12,
+    jiggleDamping: 5,
+    jiggleBounce: 0.8,
+    jiggleMovementResponse: 1.0,
+    jiggleWalkWobble: 0.1968,
+    jiggleWalkSpeed: 10,
+    jiggleReturnSpeed: 8,
+
+    // Punch/Kick Animation
+    punchSwingDistance: 2.537,
+    punchSwingSpeed: 6.35,
+    punchReturnSpeed: 9.38,
+    punchCooldown: 0.3,
+    punchLegRotation: 0.1,
+    punchHitRadius: 2.0,           // Collision radius for punch hits
+
+    // VFX Settings
+    vfxEnabled: true,
+    vfxDustCount: 3,
+    vfxDustSize: 0.0905,
+    vfxDustLife: 0.6,
+    vfxImpactCount: 16,
+    vfxImpactSize: 0.372,
+    vfxImpactLife: 0.4915,
+    vfxWalkInterval: 0.12,
+
+    // Combat Settings
+    maxHealth: 100,
+    punchDamage: 25,
+    knockbackForce: 15,
+    knockbackUpward: 8,
+    respawnTime: 3.0,
+    deathFadeDuration: 1.0,
+};

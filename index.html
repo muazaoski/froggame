@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Frog Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #chat-input {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            padding: 10px;
+            border-radius: 20px;
+            border: 2px solid #4CAF50;
+            outline: none;
+            display: none;
+            /* Hidden by default, toggle with Enter */
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+        }
+
+        .chat-bubble {
+            background: white;
+            padding: 5px 10px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0.9;
+            max-width: 150px;
+            word-wrap: break-word;
+            text-align: center;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+            pointer-events: none;
+        }
+
+        /* Health Bar */
+        .health-bar-container {
+            pointer-events: none;
+            transform: translateX(-50%);
+            /* Center above frog */
+        }
+
+        .health-bar-bg {
+            width: 60px;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .health-bar-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #4ade80, #22c55e);
+            transition: width 0.2s ease-out;
+            border-radius: 3px;
+        }
+
+        .health-bar-fill.low {
+            background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+        }
+
+        .health-bar-fill.critical {
+            background: linear-gradient(to bottom, #f87171, #ef4444);
+        }
+
+        /* Damage Toast */
+        .damage-toast {
+            position: absolute;
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 18px;
+            text-shadow: 2px 2px 0 black, -1px -1px 0 black;
+            pointer-events: none;
+            animation: damage-float 1s ease-out forwards;
+        }
+
+        @keyframes damage-float {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1.2);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.8);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+    <div id="instructions">
+        WASD / Arrow Keys to Move<br>
+        SPACE to Jump<br>
+        LEFT CLICK to Attack<br>
+        ENTER to Chat
+    </div>
+    <input type="text" id="chat-input" placeholder="Type a message..." maxlength="50">
+    <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
