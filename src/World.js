@@ -4,6 +4,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as CANNON from 'cannon-es';
 import { Physics } from './Physics.js';
 import { Frog } from './Frog.js';
+import { Ball } from './Ball.js';
+import { Scooter } from './Scooter.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -34,6 +36,13 @@ export class World {
         this.shakeTimer = 0;
         this.shakeOffset = new THREE.Vector3();
 
+        // Tongue mechanics - grapple hooks
+        this.grappleHooks = [];
+
+        // Tongue cursor indicator
+        this.tongueCursorIndicator = null;
+        this.createTongueCursorIndicator();
+
         // RENDERER
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -44,11 +53,12 @@ export class World {
         this.renderer.shadowMap.autoUpdate = Config.shadowAutoUpdate;
         this.container.appendChild(this.renderer.domElement);
 
-        // LABEL RENDERER (Chat bubbles)
+        // LABEL RENDERER (Chat bubbles, damage toasts, health bars)
         this.labelRenderer = new CSS2DRenderer();
         this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
         this.labelRenderer.domElement.style.position = 'absolute';
         this.labelRenderer.domElement.style.top = '0px';
+        this.labelRenderer.domElement.style.left = '0px';
         this.labelRenderer.domElement.style.pointerEvents = 'none'; // Click through
         this.container.appendChild(this.labelRenderer.domElement);
 
@@ -87,6 +97,12 @@ export class World {
         // ENTITIES
         this.frogs = {}; // Map socketId -> Frog
         this.localFrog = null;
+        this.isBallAuthority = false; // Whether this client controls ball physics sync
+
+        // SCOOTERS
+        this.scooters = [];
+        this.scooterSpawnZones = []; // Positions where scooters can spawn
+        this.playerHasScooter = {}; // Track which players have spawned scooters
 
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
@@ -309,6 +325,9 @@ export class World {
 
         // Initialize Particle System for VFX
         this.particles = new ParticleSystem(this.scene);
+
+        // Initialize Soccer Ball - spawn from sky so it falls down
+        this.ball = new Ball(this.physics, this.scene, { x: 5, y: 30, z: 0 });
     }
 
     getShadowMapType(type) {
@@ -328,6 +347,8 @@ export class World {
 
     loadLevel() {
         const loader = new GLTFLoader();
+        this.wallMeshes = []; // Track walls for camera occlusion
+
         loader.load('/models/world.glb', (gltf) => {
             const level = gltf.scene;
             this.scene.add(level);
@@ -337,10 +358,47 @@ export class World {
                     child.castShadow = true;
                     child.receiveShadow = true;
 
+                    // Make material support transparency for camera occlusion
+                    if (child.material) {
+                        child.material.transparent = true;
+                        child.material.opacity = 1;
+                        child.userData.originalOpacity = 1;
+                        child.userData.targetOpacity = 1;
+                    }
+
+                    // Track as wall for camera occlusion (exclude ground)
+                    if (!child.name.toLowerCase().includes('ground') &&
+                        !child.name.toLowerCase().includes('floor')) {
+                        this.wallMeshes.push(child);
+                    }
+
+                    // Detect scooter spawn zones - plate hidden but scooters still spawn
+                    if (child.name.toLowerCase().includes('scooterspawn')) {
+                        // Hide the spawn plate visual
+                        child.visible = false;
+                        child.userData.isSpawnPlate = true;
+
+                        // Get spawn position and spawn scooter
+                        const worldPos = new THREE.Vector3();
+                        child.getWorldPosition(worldPos);
+                        const zone = {
+                            position: worldPos,
+                            mesh: child
+                        };
+                        this.scooterSpawnZones.push(zone);
+
+                        // Spawn a scooter at this zone
+                        setTimeout(() => {
+                            this.spawnScooterAtZone(zone);
+                        }, 100);
+
+                        console.log('Found scooter spawn zone at:', worldPos);
+                    }
+
                     // Physics Generation
                     if (child.name.startsWith('Ghost_')) {
                         // Pass (No physics)
-                    } else {
+                    } else if (!child.name.toLowerCase().includes('scooterspawn')) {
                         this.createPhysicsForMesh(child);
                     }
                 }
@@ -361,7 +419,169 @@ export class World {
             groundBody.addShape(groundShape);
             groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
             this.physics.world.addBody(groundBody);
+
+            // Spawn grapple hooks after level loads
+            this.spawnGrappleHooks();
         });
+    }
+
+    spawnGrappleHooks() {
+        // Create several grapple points around the map
+        const hookPositions = [
+            { x: -10, y: 8, z: -10 },
+            { x: 10, y: 10, z: -10 },
+            { x: -10, y: 7, z: 10 },
+            { x: 10, y: 9, z: 10 },
+            { x: 0, y: 12, z: 0 },
+            { x: -15, y: 6, z: 0 },
+            { x: 15, y: 6, z: 0 },
+            { x: 0, y: 8, z: -15 },
+            { x: 0, y: 8, z: 15 },
+        ];
+
+        hookPositions.forEach(pos => {
+            // Create hook visual
+            const hookGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const hookMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffd700, // Gold color
+                metalness: 0.8,
+                roughness: 0.2,
+                emissive: 0xffd700,
+                emissiveIntensity: 0.3
+            });
+            const hook = new THREE.Mesh(hookGeometry, hookMaterial);
+            hook.position.set(pos.x, pos.y, pos.z);
+            hook.castShadow = true;
+
+            // Add a hanging rope visual
+            const ropeGeometry = new THREE.CylinderGeometry(0.03, 0.03, 2, 8);
+            const ropeMaterial = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+            const rope = new THREE.Mesh(ropeGeometry, ropeMaterial);
+            rope.position.y = 1;
+            hook.add(rope);
+
+            this.scene.add(hook);
+            this.grappleHooks.push(hook);
+        });
+
+        console.log(`Spawned ${this.grappleHooks.length} grapple hooks`);
+    }
+
+    createTongueCursorIndicator() {
+        // Create a ring indicator that shows where tongue will hit
+        const ringGeometry = new THREE.RingGeometry(0.3, 0.4, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: Config.tongueColor,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8,
+            depthTest: false // Render on top
+        });
+
+        this.tongueCursorIndicator = new THREE.Mesh(ringGeometry, ringMaterial);
+        this.tongueCursorIndicator.visible = false;
+
+        // Add a glow effect (inner filled circle)
+        const glowGeometry = new THREE.CircleGeometry(0.3, 32);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: Config.tongueColor,
+            transparent: true,
+            opacity: 0.3,
+            depthTest: false
+        });
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        this.tongueCursorIndicator.add(glow);
+
+        this.scene.add(this.tongueCursorIndicator);
+    }
+
+    updateTongueCursorIndicator(input) {
+        if (!this.tongueCursorIndicator || !this.localFrog) {
+            return;
+        }
+
+        // Get mouse world position
+        const mouseWorldPos = this.getMouseIntersection(input);
+        if (!mouseWorldPos) {
+            this.tongueCursorIndicator.visible = false;
+            return;
+        }
+
+        // Get frog's forward direction
+        const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.localFrog.mesh.quaternion);
+        const frogPos = this.localFrog.mesh.position;
+
+        // Calculate direction to mouse
+        const toMouse = new THREE.Vector3().subVectors(mouseWorldPos, frogPos);
+        const horizontalToMouse = new THREE.Vector3(toMouse.x, 0, toMouse.z).normalize();
+        const horizontalForward = new THREE.Vector3(frogForward.x, 0, frogForward.z).normalize();
+
+        // Check if within frontal cone (45 degrees from center)
+        const angle = Math.acos(Math.max(-1, Math.min(1, horizontalToMouse.dot(horizontalForward))));
+        const maxAngle = Math.PI / 4; // 45 degrees
+
+        if (angle > maxAngle || isNaN(angle)) {
+            this.tongueCursorIndicator.visible = false;
+            return;
+        }
+
+        // Raycast from frog mouth to find surface
+        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
+        mouthOffset.applyQuaternion(this.localFrog.mesh.quaternion);
+        const tongueStart = frogPos.clone().add(mouthOffset);
+
+        // Direction (clamped to cone if needed)
+        let targetDir = new THREE.Vector3().subVectors(mouseWorldPos, tongueStart).normalize();
+
+        // Use physics raycast
+        const from = new CANNON.Vec3(tongueStart.x, tongueStart.y, tongueStart.z);
+        const to = new CANNON.Vec3(
+            tongueStart.x + targetDir.x * Config.tongueRange,
+            tongueStart.y + targetDir.y * Config.tongueRange,
+            tongueStart.z + targetDir.z * Config.tongueRange
+        );
+
+        const result = new CANNON.RaycastResult();
+        const ray = new CANNON.Ray(from, to);
+        ray.intersectWorld(this.physics.world, { result });
+
+        if (result.hasHit) {
+            const hitPoint = new THREE.Vector3(
+                result.hitPointWorld.x,
+                result.hitPointWorld.y,
+                result.hitPointWorld.z
+            );
+            const hitNormal = result.hitNormalWorld;
+
+            // Check if ground
+            const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+
+            if (!isGround) {
+                // Show indicator at hit point
+                this.tongueCursorIndicator.position.copy(hitPoint);
+
+                // Orient the ring to face the surface normal
+                const normal = new THREE.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
+                this.tongueCursorIndicator.quaternion.setFromUnitVectors(
+                    new THREE.Vector3(0, 0, 1),
+                    normal
+                );
+
+                // Offset slightly from surface to prevent z-fighting
+                this.tongueCursorIndicator.position.add(normal.multiplyScalar(0.05));
+
+                this.tongueCursorIndicator.visible = true;
+
+                // Pulse effect
+                const time = performance.now() / 1000;
+                const scale = 1 + Math.sin(time * 5) * 0.1;
+                this.tongueCursorIndicator.scale.set(scale, scale, 1);
+                return;
+            }
+        }
+
+        // If no valid hit, hide
+        this.tongueCursorIndicator.visible = false;
     }
 
     createPhysicsForMesh(mesh) {
@@ -369,67 +589,159 @@ export class World {
         const geometry = mesh.geometry;
 
         // Ensure vertex position data is present
-        if (!geometry.attributes.position) return;
-
-        // Apply world scale/rotation/position to the physics body? 
-        // No, Trimesh assumes local coords? 
-        // Actually, easiest to make a Body matching the Mesh's world transform.
-        // Or bake transform into the vertices.
-
-        // Simplest: Create a Trimesh
-        const vertices = [];
-        const indices = []; // Trimesh needs indices
+        if (!geometry || !geometry.attributes || !geometry.attributes.position) {
+            console.warn(`Skipping physics for mesh "${mesh.name}": no position attributes`);
+            return;
+        }
 
         const posAttr = geometry.attributes.position;
         const indexAttr = geometry.index;
 
+        // Skip if no vertices
+        if (!posAttr || posAttr.count === 0) {
+            console.warn(`Skipping physics for mesh "${mesh.name}": empty vertices`);
+            return;
+        }
+
+        // Need at least 3 vertices to form a triangle
+        if (posAttr.count < 3) {
+            console.warn(`Skipping physics for mesh "${mesh.name}": not enough vertices (${posAttr.count})`);
+            return;
+        }
+
         // Scale vertices by mesh scale
         const scale = mesh.getWorldScale(new THREE.Vector3());
 
-        for (let i = 0; i < posAttr.count; i++) {
-            vertices.push(posAttr.getX(i) * scale.x);
-            vertices.push(posAttr.getY(i) * scale.y);
-            vertices.push(posAttr.getZ(i) * scale.z);
+        // Validate scale - skip if mesh has zero scale
+        if (scale.x === 0 || scale.y === 0 || scale.z === 0) {
+            console.warn(`Skipping physics for mesh "${mesh.name}": zero scale`);
+            return;
         }
 
-        if (indexAttr) {
+        const vertices = [];
+        const indices = [];
+
+        for (let i = 0; i < posAttr.count; i++) {
+            const x = posAttr.getX(i) * scale.x;
+            const y = posAttr.getY(i) * scale.y;
+            const z = posAttr.getZ(i) * scale.z;
+
+            // Skip if any vertex contains NaN or Infinity
+            if (!isFinite(x) || !isFinite(y) || !isFinite(z)) {
+                console.warn(`Skipping physics for mesh "${mesh.name}": invalid vertex at index ${i}`);
+                return;
+            }
+
+            vertices.push(x, y, z);
+        }
+
+        if (indexAttr && indexAttr.count > 0) {
+            // Need at least 3 indices to form a triangle
+            if (indexAttr.count < 3) {
+                console.warn(`Skipping physics for mesh "${mesh.name}": not enough indices (${indexAttr.count})`);
+                return;
+            }
+
             for (let i = 0; i < indexAttr.count; i++) {
-                indices.push(indexAttr.getX(i));
+                const idx = indexAttr.getX(i);
+                // Validate index is within bounds
+                if (idx < 0 || idx >= posAttr.count) {
+                    console.warn(`Skipping physics for mesh "${mesh.name}": index out of bounds at ${i}`);
+                    return;
+                }
+                indices.push(idx);
             }
         } else {
-            // Unindexed geometry - make dummy indices
+            // Unindexed geometry - make sequential indices
+            // Need vertex count to be divisible by 3 for triangles
+            if (posAttr.count % 3 !== 0) {
+                console.warn(`Skipping physics for mesh "${mesh.name}": vertex count not divisible by 3`);
+                return;
+            }
             for (let i = 0; i < posAttr.count; i++) {
                 indices.push(i);
             }
         }
 
-        const shape = new CANNON.Trimesh(vertices, indices);
-        const body = new CANNON.Body({
-            mass: 0,
-            material: this.physics.groundMaterial // Ensure low friction
-        });
-        body.addShape(shape);
+        // Final validation - need at least one complete triangle
+        if (vertices.length < 9 || indices.length < 3) {
+            console.warn(`Skipping physics for mesh "${mesh.name}": insufficient data for triangles`);
+            return;
+        }
 
-        // Position/Rotation
-        const pos = mesh.getWorldPosition(new THREE.Vector3());
-        const quat = mesh.getWorldQuaternion(new THREE.Quaternion());
+        try {
+            const shape = new CANNON.Trimesh(vertices, indices);
 
-        body.position.copy(pos);
-        body.quaternion.copy(quat);
+            // Additional CANNON.js specific validation
+            if (!shape.vertices || shape.vertices.length === 0 ||
+                !shape.indices || shape.indices.length === 0) {
+                console.warn(`Skipping physics for mesh "${mesh.name}": Trimesh creation resulted in empty data`);
+                return;
+            }
 
-        this.physics.world.addBody(body);
+            const body = new CANNON.Body({
+                mass: 0,
+                material: this.physics.groundMaterial
+            });
+            body.addShape(shape);
+
+            // Position/Rotation
+            const pos = mesh.getWorldPosition(new THREE.Vector3());
+            const quat = mesh.getWorldQuaternion(new THREE.Quaternion());
+
+            body.position.copy(pos);
+            body.quaternion.copy(quat);
+
+            this.physics.world.addBody(body);
+        } catch (error) {
+            console.error(`Failed to create physics for mesh "${mesh.name}":`, error);
+        }
     }
 
     getMouseIntersection(input) {
         if (!input) return null;
+
+        // Setup raycaster from camera through mouse position
         this.raycaster.setFromCamera(input.mouse, this.camera);
-        const target = new THREE.Vector3();
-        this.raycaster.ray.intersectPlane(this.mousePlane, target);
-        // If looking at sky (no intersection with ground), project far out
-        if (!target) {
-            return this.raycaster.ray.at(50, target);
+
+        // First try to hit actual scene geometry (walls, objects)
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+
+        // Filter to only include valid targets (not tongue, not particles, etc)
+        for (const hit of intersects) {
+            // Skip invisible objects
+            if (!hit.object.visible) continue;
+            // Skip tongue visuals
+            if (hit.object.parent && hit.object.parent.type === 'Line') continue;
+            // Skip particles (very small meshes)
+            if (hit.object.geometry && hit.object.geometry.type === 'BoxGeometry') {
+                const box = hit.object.geometry.boundingBox || hit.object.geometry.computeBoundingBox();
+                if (box) {
+                    const size = new THREE.Vector3();
+                    hit.object.geometry.boundingBox.getSize(size);
+                    if (size.x < 0.3 && size.y < 0.3 && size.z < 0.3) continue; // Skip small particles
+                }
+            }
+
+            // Valid hit!
+            return hit.point.clone();
         }
-        return target;
+
+        // If no geometry hit, use a smart plane that follows the frog
+        // This gives a reasonable target when clicking on sky/empty space
+        if (this.localFrog) {
+            const frogY = this.localFrog.mesh.position.y;
+            const dynamicPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -frogY);
+            const target = new THREE.Vector3();
+            this.raycaster.ray.intersectPlane(dynamicPlane, target);
+            if (target) {
+                return target;
+            }
+        }
+
+        // Last fallback: project ray forward
+        const target = new THREE.Vector3();
+        return this.raycaster.ray.at(15, target);
     }
 
     addLocalFrog(id, color, startData) {
@@ -437,6 +749,7 @@ export class World {
         frog.world = this; // Give access to world for screen shake
         if (startData) {
             frog.body.position.set(startData.x, startData.y, startData.z);
+            if (startData.name) frog.setName(startData.name);
         }
         this.scene.add(frog.mesh);
         this.localFrog = frog;
@@ -447,14 +760,23 @@ export class World {
 
         // Punch collision callback
         frog.onPunchHit = (position, direction, radius) => {
-            this.checkPunchCollision(id, position, direction, radius);
+            return this.checkPunchCollision(id, position, direction, radius); // Return result
         };
 
         return frog;
     }
 
     addRemoteFrog(id, data) {
+        // Guard: Don't create duplicate if frog already exists
+        if (this.frogs[id]) {
+            console.log(`Frog ${id} already exists, updating instead`);
+            // Update existing frog's data if needed
+            if (data.name) this.frogs[id].setName(data.name);
+            return this.frogs[id];
+        }
+
         const frog = new Frog(id, data.color, this.physics, false);
+        if (data.name) frog.setName(data.name);
         frog.updatePosition(
             { x: data.x, y: data.y, z: data.z },
             { qx: data.qx, qy: data.qy, qz: data.qz, qw: data.qw }
@@ -480,20 +802,35 @@ export class World {
             const distance = position.distanceTo(targetFrog.mesh.position);
 
             if (distance < radius) {
-                // Calculate knockback
-                const knockback = direction.clone().multiplyScalar(Config.knockbackForce);
-                knockback.y = Config.knockbackUpward;
+                // Calculate critical hit
+                const isCritical = Math.random() < Config.criticalChance;
 
-                // Apply damage with knockback
-                console.log(`HIT! Applying ${Config.punchDamage} damage to frog ${id}. Distance: ${distance.toFixed(2)}, Radius: ${radius}`);
-                targetFrog.takeDamage(Config.punchDamage, knockback);
+                // Random damage from ranges
+                let damage;
+                if (isCritical) {
+                    damage = Math.floor(Math.random() * (Config.criticalDamageMax - Config.criticalDamageMin + 1)) + Config.criticalDamageMin;
+                } else {
+                    damage = Math.floor(Math.random() * (Config.punchDamageMax - Config.punchDamageMin + 1)) + Config.punchDamageMin;
+                }
 
-                // Spawn impact VFX at hit location (ONLY on hit)
+                // Calculate knockback (stronger for critical)
+                const knockbackMult = isCritical ? 1.5 : 1;
+                const knockback = direction.clone().multiplyScalar(Config.knockbackForce * knockbackMult);
+                knockback.y = Config.knockbackUpward * knockbackMult;
+
+                // NETWORKED COMBAT:
+                // Don't apply damage locally yet. Send to server, wait for 'playerDamaged' event.
+                // This ensures consistency (all clients apply damage at same time).
+                if (this.network) {
+                    this.network.sendHit(id, damage, knockback, isCritical);
+                }
+
+                // Spawn impact VFX immediately for feedback
                 if (this.particles) {
                     this.particles.spawnPunchImpact(targetFrog.mesh.position, direction);
                 }
 
-                console.log(`Frog ${attackerId} hit frog ${id} for ${Config.punchDamage} damage!`);
+                console.log(`Frog ${attackerId} hit frog ${id} for ${damage} damage!${isCritical ? ' CRITICAL!' : ''}`);
                 hit = true;
             } else {
                 // Debug: log near misses
@@ -502,17 +839,139 @@ export class World {
                 }
             }
         }
+
+        // Check if kick hit the ball
+        if (this.ball && this.ball.mesh) {
+            const ballDistance = position.distanceTo(this.ball.mesh.position);
+            const ballKickRadius = radius + this.ball.radius; // Extend radius to account for ball size
+
+            if (ballDistance < ballKickRadius) {
+                // Kick the ball!
+                this.ball.kick(direction, 12);
+
+                // Spawn impact VFX at ball position
+                if (this.particles) {
+                    this.particles.spawnPunchImpact(this.ball.mesh.position, direction);
+                }
+
+                console.log(`Frog ${attackerId} kicked the ball!`);
+                hit = true;
+
+                // Send ball state to network for sync
+                if (this.network) {
+                    this.network.sendBallKick(this.ball.getSyncState());
+                }
+            }
+        }
+
         return hit;
     }
 
     removeFrog(id) {
         if (this.frogs[id]) {
-            this.scene.remove(this.frogs[id].mesh);
-            if (this.frogs[id].body) {
-                this.physics.world.removeBody(this.frogs[id].body);
+            const frog = this.frogs[id];
+            const frogName = frog.name || `Frog ${id.substr(0, 4)}`;
+
+            // Call dispose to clean up CSS2D elements
+            if (frog.dispose) {
+                frog.dispose();
+            }
+
+            this.scene.remove(frog.mesh);
+            if (frog.body) {
+                this.physics.world.removeBody(frog.body);
             }
             delete this.frogs[id];
+
+            // Show leave toast
+            this.showToast(`${frogName} left the game`, 'leave');
         }
+    }
+
+    showToast(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                pointer-events: none;
+            `;
+            document.body.appendChild(container);
+        }
+
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `game-toast toast-${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${type === 'join' ? '🐸' : type === 'leave' ? '👋' : 'ℹ️'}</span>
+            <span class="toast-message">${message}</span>
+        `;
+        toast.style.cssText = `
+            background: ${type === 'join' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
+                type === 'leave' ? 'linear-gradient(135deg, #f87171, #ef4444)' :
+                    'linear-gradient(135deg, #3b82f6, #2563eb)'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toast-slide-in 0.3s ease-out;
+            transform-origin: right center;
+        `;
+
+        // Add animation keyframes if not already added
+        if (!document.getElementById('toast-styles')) {
+            const style = document.createElement('style');
+            style.id = 'toast-styles';
+            style.textContent = `
+                @keyframes toast-slide-in {
+                    from {
+                        opacity: 0;
+                        transform: translateX(100%);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+                @keyframes toast-slide-out {
+                    from {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                    to {
+                        opacity: 0;
+                        transform: translateX(100%);
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        container.appendChild(toast);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+            toast.style.animation = 'toast-slide-out 0.3s ease-in forwards';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
     }
 
     updateCamera(input) {
@@ -561,6 +1020,53 @@ export class World {
 
         // Always look at the frog
         this.camera.lookAt(targetPos);
+
+        // Camera occlusion - fade walls between camera and player
+        this.updateWallOcclusion(targetPos);
+    }
+
+    updateWallOcclusion(playerPos) {
+        if (!this.wallMeshes || this.wallMeshes.length === 0) return;
+
+        // Raycast from camera to player
+        const direction = new THREE.Vector3().subVectors(playerPos, this.camera.position).normalize();
+        const distance = this.camera.position.distanceTo(playerPos);
+
+        this.raycaster.set(this.camera.position, direction);
+        this.raycaster.far = distance;
+
+        // Only intersect with wall meshes directly (not recursive to avoid accidental hits)
+        const intersects = this.raycaster.intersectObjects(this.wallMeshes, false);
+
+        // Create a set of objects that are blocking
+        const blockingObjects = new Set();
+        for (const hit of intersects) {
+            if (hit.distance < distance - 0.5) { // Ensure it's between camera and player
+                blockingObjects.add(hit.object);
+            }
+        }
+
+        // Update wall opacity - only affect walls, never frogs
+        for (const wall of this.wallMeshes) {
+            // Skip if this isn't actually from world.glb
+            if (!wall.userData.originalOpacity) continue;
+
+            const isBlocking = blockingObjects.has(wall);
+            wall.userData.targetOpacity = isBlocking ? 0.2 : 1;
+
+            // Smooth fade
+            if (wall.material) {
+                const current = wall.material.opacity;
+                const target = wall.userData.targetOpacity;
+                const speed = 5; // Fade speed
+
+                if (Math.abs(current - target) > 0.01) {
+                    wall.material.opacity = THREE.MathUtils.lerp(current, target, speed * 0.016);
+                } else {
+                    wall.material.opacity = target;
+                }
+            }
+        }
     }
 
     step(dt, input) {
@@ -570,6 +1076,43 @@ export class World {
         // Update Particles (VFX)
         if (this.particles) {
             this.particles.update(dt);
+        }
+
+        // Update Ball
+        if (this.ball) {
+            this.ball.update(dt);
+
+            // If we're the ball authority, send updates to other players
+            if (this.isBallAuthority && this.network && this.ball.body) {
+                // Only send if ball is moving
+                const vel = this.ball.body.velocity;
+                const isMoving = Math.abs(vel.x) > 0.1 || Math.abs(vel.y) > 0.1 || Math.abs(vel.z) > 0.1;
+                if (isMoving) {
+                    this.network.sendBallUpdate(this.ball.getSyncState());
+                }
+            }
+        }
+
+        // Update Scooters
+        for (const scooter of this.scooters) {
+            scooter.update(dt, input);
+        }
+
+        // Check scooter spawn zones for highlighting
+        this.checkScooterSpawnZones();
+
+        // E key to mount/dismount
+        if (input && input.consumeDismount && input.consumeDismount()) {
+            if (this.localFrog && this.localFrog.isRidingScooter) {
+                // Dismount
+                if (this.localFrog.currentScooter) {
+                    this.localFrog.currentScooter.dismount();
+                    this.showToast("Dismounted! 🐸");
+                }
+            } else {
+                // Try to mount a nearby scooter
+                this.tryMountScooter();
+            }
         }
 
         // Update Screen Shake
@@ -587,6 +1130,9 @@ export class World {
 
         // Update Camera (Orbital follow)
         this.updateCamera(input);
+
+        // Update Tongue Cursor Indicator
+        this.updateTongueCursorIndicator(input);
 
         // Render
         if (Config.useShader && this.composer) {
@@ -658,5 +1204,109 @@ export class World {
         if (this.customPass && this.customPass.uniforms.uResolution) {
             this.customPass.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
         }
+    }
+
+    checkScooterSpawnZones() {
+        if (!this.localFrog || !this.localFrog.mesh) return;
+
+        const frogPos = this.localFrog.mesh.position;
+
+        // Check proximity to existing scooters for mounting
+        for (const scooter of this.scooters) {
+            if (scooter.rider) continue; // Already has rider
+
+            const distance = frogPos.distanceTo(scooter.mesh.position);
+            const isNearby = distance < Config.scooterSpawnRadius;
+
+            // Update highlight
+            scooter.setHighlight(isNearby && !this.localFrog.isRidingScooter);
+        }
+    }
+
+    // Called when E key is pressed
+    tryMountScooter() {
+        if (!this.localFrog || this.localFrog.isRidingScooter) return false;
+
+        const frogPos = this.localFrog.mesh.position;
+
+        // Find nearest unmounted scooter
+        for (const scooter of this.scooters) {
+            if (scooter.rider) continue;
+
+            const distance = frogPos.distanceTo(scooter.mesh.position);
+            if (distance < Config.scooterSpawnRadius) {
+                scooter.mount(this.localFrog);
+                this.showToast("Vroom! 🛴 (Jump to dismount)");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Spawn scooter at zone (called when zone loads)
+    spawnScooterAtZone(zone) {
+        // Random bright color
+        const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+
+        const scooter = new Scooter(
+            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            randomColor,
+            this.scene,
+            this.physics
+        );
+
+        // Random position around center (-10 to 10 on X and Z)
+        const randomX = (Math.random() - 0.5) * 20; // -10 to 10
+        const randomZ = (Math.random() - 0.5) * 20; // -10 to 10
+        const spawnY = 1.5; // Above ground
+
+        scooter.mesh.position.set(randomX, spawnY, randomZ);
+        if (scooter.body) {
+            scooter.body.position.set(randomX, spawnY, randomZ);
+        }
+
+        // Give scooter access to particles
+        scooter.particles = this.particles;
+
+        // Add to tracking
+        this.scooters.push(scooter);
+
+        console.log(`Scooter spawned at: (${randomX.toFixed(1)}, ${spawnY}, ${randomZ.toFixed(1)})`);
+    }
+
+    showToast(message) {
+        // Create or reuse toast element
+        let toast = document.getElementById('game-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'game-toast';
+            toast.style.cssText = `
+                position: fixed;
+                top: 20%;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 10px;
+                font-size: 18px;
+                font-weight: bold;
+                z-index: 9999;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+            document.body.appendChild(toast);
+        }
+
+        toast.textContent = message;
+        toast.style.opacity = '1';
+
+        // Hide after 2 seconds
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        this.toastTimeout = setTimeout(() => {
+            toast.style.opacity = '0';
+        }, 2000);
     }
 }

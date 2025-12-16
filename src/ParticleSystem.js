@@ -257,6 +257,57 @@ export class ParticleSystem {
         }
     }
 
+    // Spawn Death Disperse (Exploding chunks)
+    spawnDeathDisperse(position, color) {
+        if (!Config.vfxEnabled) return;
+
+        const count = 30;
+        for (let i = 0; i < count; i++) {
+            const particle = this.getDustParticle();
+            if (!particle) return;
+
+            // Start inside the body approx (0.5 radius)
+            particle.position.set(
+                position.x + this.randRange(-0.3, 0.3),
+                position.y + this.randRange(0, 0.5),
+                position.z + this.randRange(-0.3, 0.3)
+            );
+
+            particle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            particle.visible = true;
+
+            // Color like the frog
+            particle.material.color.setHex(color || 0x4CAF50);
+            particle.material.opacity = 0.9;
+
+            const size = 0.2 * this.randRange(0.5, 1.5);
+            particle.scale.setScalar(0.01);
+
+            // Explode outwards
+            const speed = this.randRange(2, 8);
+            const angle = Math.random() * Math.PI * 2;
+            const yForce = this.randRange(2, 10);
+
+            this.particles.push({
+                mesh: particle,
+                velocity: new THREE.Vector3(
+                    Math.cos(angle) * speed,
+                    yForce,
+                    Math.sin(angle) * speed
+                ),
+                angularVelocity: new THREE.Vector3(
+                    this.randRange(-10, 10),
+                    this.randRange(-10, 10),
+                    this.randRange(-10, 10)
+                ),
+                targetScale: size,
+                life: 1.5,
+                maxLife: 1.5,
+                type: 'dust'
+            });
+        }
+    }
+
     update(dt) {
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];

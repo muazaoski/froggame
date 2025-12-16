@@ -113,6 +113,15 @@ export const Config = {
     jiggleMovementResponse: 1.0,
     jiggleWalkWobble: 0.1968,
     jiggleWalkSpeed: 10,
+
+    // Tongue Mechanics
+    tongueRange: 15,            // Max tongue reach
+    tongueSpeed: 40,            // Extension/retraction speed
+    tongueGrappleForce: 25,     // Pull force when grappling
+    tongueGrabForce: 15,        // Pull force on frogs
+    tongueCooldown: 0.5,        // Seconds between tongue uses
+    tongueColor: '#ff6b9d',     // Pink tongue color
+    tongueTipSize: 0.15,        // Size of tongue tip
     jiggleReturnSpeed: 8,
 
     // Punch/Kick Animation
@@ -135,9 +144,44 @@ export const Config = {
 
     // Combat Settings
     maxHealth: 100,
-    punchDamage: 25,
+    punchDamageMin: 6,         // Base damage min
+    punchDamageMax: 10,        // Base damage max
+    criticalDamageMin: 15,     // Critical damage min
+    criticalDamageMax: 20,     // Critical damage max
+    criticalChance: 0.15,      // 15% chance for critical hit
     knockbackForce: 15,
     knockbackUpward: 8,
-    respawnTime: 3.0,
-    deathFadeDuration: 1.0,
+    respawnTime: 2.035,
+    deathFadeDuration: 1.0025,
+
+    // Ball Settings
+    ballRadius: 0.8282,
+    ballMass: 0.6225,
+    ballLinearDamping: 0.533,
+    ballAngularDamping: 0.975,
+    ballBounciness: 0.7,
+    ballFriction: 0.422,
+    ballKickForce: 21.4,
+    ballKickUpward: 6.885,
+    ballSpawnHeight: 30,
+    ballResetHeight: -20,
+
+    // Scooter Settings
+    scooterSpeed: 18,              // Movement speed on scooter
+    scooterTurnSpeed: 3,           // How fast turns
+    scooterMaxTurn: 0.5,           // Max handle rotation (radians)
+    scooterWheelSpeed: 15,         // Wheel rotation speed
+    scooterAcceleration: 8,        // How fast it speeds up
+    scooterDeceleration: 5,        // How fast it slows down
+    scooterSpawnRadius: 2,         // Radius of spawn area trigger
+    scooterDismountKey: 'KeyE',    // Key to dismount
+
+    // Scooter Rider Position (frog on scooter)
+    scooterRiderY: 0.75,           // Y offset of frog above scooter
+    scooterLegOffsetX: 0.0,        // Left/Right offset of legs
+    scooterLegOffsetY: 0.0,        // Up/Down offset of legs
+    scooterLegOffsetZ: -0.75,      // Forward/Back offset of legs
+    scooterLegRotationX: 1.15840734641021,   // Leg rotation on X axis (radians)
+    scooterLegRotationY: 0.0584073464102071, // Leg rotation on Y axis (radians)
+    scooterLegRotationZ: 0.0584073464102071, // Leg rotation on Z axis (radians)
 };

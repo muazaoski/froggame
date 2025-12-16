@@ -3,7 +3,9 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Multiplayer Frog Game</title>
     <style>
         body {
@@ -34,6 +36,16 @@
             font-size: 16px;
         }
 
+        .chat-container {
+            display: flex;
+            flex-direction: column-reverse;
+            /* Stack from bottom up */
+            align-items: center;
+            width: 200px;
+            pointer-events: none;
+            /* Container doesn't need height, it grows up */
+        }
+
         .chat-bubble {
             background: white;
             padding: 5px 10px;
@@ -41,19 +53,165 @@
             border: 1px solid #ccc;
             font-size: 12px;
             pointer-events: none;
-            opacity: 0.9;
+            opacity: 1;
+            /* Start visible */
             max-width: 150px;
             word-wrap: break-word;
             text-align: center;
+            margin-bottom: 5px;
+            /* Space between bubbles */
+
+            /* Animation for floating/fading */
+            animation: chat-float 10s linear forwards;
         }
 
-        #instructions {
-            position: absolute;
-            top: 20px;
+        @keyframes chat-float {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-20px);
+                /* Move up 1 bit */
+            }
+        }
+
+        /* Chat Panel */
+        #chat-panel {
+            position: fixed;
+            top: 75px;
             left: 20px;
+            width: 280px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            border-radius: 10px;
+            padding: 10px;
+            z-index: 100;
+            pointer-events: auto;
+        }
+
+        /* Offline Overlay */
+        #offline-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
             color: white;
-            text-shadow: 1px 1px 2px black;
-            pointer-events: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #offline-overlay.visible {
+            display: flex;
+        }
+
+        .offline-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .offline-title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #ff6b6b;
+        }
+
+        .offline-message {
+            font-size: 18px;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        .offline-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            color: #ffa500;
+        }
+
+        .offline-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 165, 0, 0.3);
+            border-top-color: #ffa500;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.95);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .chat-history {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: 180px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+            pointer-events: auto;
+        }
+
+        .chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .chat-message {
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            word-wrap: break-word;
+        }
+
+        .chat-message .chat-name {
+            font-weight: bold;
+            margin-right: 6px;
+        }
+
+        .chat-message.system {
+            color: #888;
+            font-style: italic;
+            background: transparent;
         }
 
         /* Health Bar */
@@ -90,38 +248,617 @@
 
         /* Damage Toast */
         .damage-toast {
-            position: absolute;
-            color: #ff4444;
-            font-weight: bold;
+            color: #ffffff;
+            font-weight: 900;
             font-size: 18px;
-            text-shadow: 2px 2px 0 black, -1px -1px 0 black;
             pointer-events: none;
+            white-space: nowrap;
+            /* Black Stroke / Outline effect like name tag */
+            text-shadow:
+                -1px -1px 0 #000,
+                1px -1px 0 #000,
+                -1px 1px 0 #000,
+                1px 1px 0 #000,
+                0 2px 4px rgba(0, 0, 0, 0.5);
             animation: damage-float 1s ease-out forwards;
+        }
+
+        .damage-toast.critical {
+            color: #ff4444;
+            font-size: 24px;
         }
 
         @keyframes damage-float {
             0% {
                 opacity: 1;
-                transform: translateY(0) scale(1.2);
+                margin-top: 0px;
             }
 
             100% {
                 opacity: 0;
-                transform: translateY(-50px) scale(0.8);
+                margin-top: -50px;
             }
+        }
+
+        /* Name Tag */
+        .name-tag {
+            background: transparent;
+            color: white;
+            padding: 0;
+            font-size: 14px;
+            font-weight: 900;
+            font-family: 'Segoe UI', sans-serif;
+            pointer-events: none;
+            white-space: nowrap;
+            /* Black Stroke / Outline effect */
+            text-shadow:
+                -1px -1px 0 #000,
+                1px -1px 0 #000,
+                -1px 1px 0 #000,
+                1px 1px 0 #000,
+                0 2px 4px rgba(0, 0, 0, 0.5);
+            transform: translateX(-50%);
+        }
+
+        /* Login Modal */
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #87CEEB, #4CAF50);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+
+        .login-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .color-picker-label {
+            display: block;
+            margin: 10px 0 5px;
+            color: #666;
+            font-weight: bold;
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            border-radius: 30px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: transform 0.1s, background 0.2s;
+            font-weight: bold;
+        }
+
+        .btn-start:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+
+        /* Death Screen Overlay */
+        #death-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease, background 0.5s ease;
+        }
+
+        #death-screen.active {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.85);
+            pointer-events: auto;
+        }
+
+        #death-screen .death-text {
+            color: #800000;
+            font-size: 6rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            text-shadow:
+                0 0 20px rgba(128, 0, 0, 0.5),
+                0 0 40px rgba(128, 0, 0, 0.3),
+                4px 4px 0 #400000;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+            font-family: 'Georgia', serif;
+        }
+
+        #death-screen.active .death-text {
+            transform: scale(1);
+        }
+
+        #death-screen .respawn-text {
+            position: absolute;
+            bottom: 30%;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+        }
+
+        /* Player Table */
+        #player-table {
+            position: fixed;
+            top: 20px;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 10px 0 0 10px;
+            padding: 15px 20px;
+            min-width: 180px;
+            z-index: 100;
+            transform: translateX(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-right: none;
+        }
+
+        #player-table.hidden {
+            transform: translateX(100%);
+        }
+
+        #player-table .table-header {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            flex-wrap: wrap;
+        }
+
+        #player-table .table-hint {
+            font-size: 10px;
+            font-weight: normal;
+            opacity: 0.6;
+            margin-left: auto;
+        }
+
+        #player-table .player-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #player-table .player-item {
+            color: white;
+            padding: 6px 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #player-table .player-icon {
+            display: flex;
+            align-items: center;
+        }
+
+        #player-table .player-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        #player-table .player-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #player-table .player-ping {
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        #player-table .tab-hint {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 10px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        /* Settings Button */
+        #settings-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #settings-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #settings-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Settings Overlay */
+        #settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #settings-overlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Settings Panel */
+        #settings-panel {
+            background: rgba(30, 30, 40, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px 40px;
+            min-width: 320px;
+            max-width: 400px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+        }
+
+        #settings-overlay.visible #settings-panel {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .settings-title {
+            color: white;
+            font-size: 24px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-close {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-close:hover {
+            background: rgba(255, 100, 100, 0.3);
+            color: #ff6b6b;
+        }
+
+        .settings-section {
+            margin-bottom: 20px;
+        }
+
+        .settings-section-title {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .settings-btn-action {
+            width: 100%;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-align: left;
+        }
+
+        .settings-btn-action:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.1));
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .settings-btn-action:active {
+            transform: translateY(0);
+        }
+
+        .settings-btn-action.primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: none;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .settings-btn-action.primary:hover {
+            background: linear-gradient(135deg, #5dbf61, #4CAF50);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .settings-btn-icon {
+            font-size: 20px;
+            width: 28px;
+            text-align: center;
+        }
+
+        .settings-options {
+            display: flex;
+            gap: 10px;
+        }
+
+        .settings-option {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .settings-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .settings-option.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+            color: white;
+        }
+
+        .settings-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+
+        .control-key {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: monospace;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .control-action {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+        }
+
+        .settings-hint {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            margin-top: 20px;
         }
     </style>
 </head>
 
 <body>
-    <div id="canvas-container"></div>
-    <div id="instructions">
-        WASD / Arrow Keys to Move<br>
-        SPACE to Jump<br>
-        LEFT CLICK to Attack<br>
-        ENTER to Chat
+    <!-- Login Screen -->
+    <div id="login-modal">
+        <div class="login-card">
+            <div class="login-title">🐸 Frog Battle</div>
+            <p>Enter your name to join!</p>
+
+            <input type="text" id="player-name" class="login-input" placeholder="Your Name" maxlength="12" autofocus>
+
+            <label class="color-picker-label">Pick your color:</label>
+            <input type="color" id="player-color" class="login-input" value="#4CAF50"
+                style="height: 50px; cursor: pointer;">
+
+            <button id="btn-join" class="btn-start">JOIN GAME</button>
+        </div>
     </div>
-    <input type="text" id="chat-input" placeholder="Type a message..." maxlength="50">
+
+    <div id="canvas-container"></div>
+
+    <!-- Death Screen -->
+    <div id="death-screen">
+        <div class="death-text">YOU DIED</div>
+        <div class="respawn-text">Respawning...</div>
+    </div>
+
+    <!-- Player Table -->
+    <div id="player-table">
+        <div class="table-header">Players</div>
+        <ul class="player-list" id="player-list">
+            <!-- Players will be added here dynamically -->
+        </ul>
+        <div class="tab-hint">Press TAB to hide</div>
+    </div>
+
+    <!-- Settings Button -->
+    <button id="settings-btn" title="Settings (ESC)">⚙️</button>
+
+    <!-- Settings Overlay -->
+    <div id="settings-overlay">
+        <div id="settings-panel">
+            <div class="settings-header">
+                <div class="settings-title">⚙️ Settings</div>
+                <button class="settings-close" id="settings-close">✕</button>
+            </div>
+
+            <div class="settings-section">
+                <button class="settings-btn-action primary" id="btn-respawn">
+                    <span class="settings-btn-icon">🔄</span>
+                    Respawn Character
+                </button>
+            </div>
+
+            <div class="settings-section">
+                <div class="settings-section-title">Controls</div>
+                <div class="settings-controls">
+                    <div class="control-item">
+                        <span class="control-action">Move</span>
+                        <span class="control-key">WASD</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Jump</span>
+                        <span class="control-key">SPACE</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Kick</span>
+                        <span class="control-key">CLICK</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Tongue</span>
+                        <span class="control-key">RMB</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Camera</span>
+                        <span class="control-key">Mouse</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Chat</span>
+                        <span class="control-key">ENTER</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Players</span>
+                        <span class="control-key">TAB</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Mount</span>
+                        <span class="control-key">E</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-hint">Press ESC to close</div>
+        </div>
+    </div>
+
+    <!-- Chat History Panel -->
+    <div id="chat-panel">
+        <div class="chat-history" id="chat-history">
+            <!-- Chat messages will appear here -->
+        </div>
+    </div>
+
+    <input type="text" id="chat-input" placeholder="Press ENTER to chat..." maxlength="50">
+
+    <!-- Offline Overlay -->
+    <div id="offline-overlay">
+        <div class="offline-icon">🐸</div>
+        <div class="offline-title">Connection Lost</div>
+        <div class="offline-message">The game server is currently unavailable</div>
+        <div class="offline-status">
+            <div class="offline-spinner"></div>
+            <span>Attempting to reconnect...</span>
+        </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
 </body>
 

@@ -3,6 +3,7 @@ import * as CANNON from 'cannon-es';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Config } from './Config.js';
+import { Scooter } from './Scooter.js';
 
 export class Frog {
     static modelGeometry = null;
@@ -47,12 +48,11 @@ export class Frog {
 
         // Chat Bubble Support
         this.chatBubbleDiv = document.createElement('div');
-        this.chatBubbleDiv.className = 'chat-bubble';
-        this.chatBubbleDiv.style.opacity = '0'; // Hidden initially
+        this.chatBubbleDiv.className = 'chat-container';
         this.chatBubble = new CSS2DObject(this.chatBubbleDiv);
         this.chatBubble.position.set(0, 1.5, 0);
         this.mesh.add(this.chatBubble);
-        this.chatTimer = null;
+        this.chatTimer = null; // Used for mouth animation only now
 
         // PHYSICS
         if (physicsWorld) {
@@ -89,6 +89,10 @@ export class Frog {
         this.facingAngle = 0;
         this.moveAnimTimer = 0; // For hopping animation
 
+        // Scooter riding state
+        this.isRidingScooter = false;
+        this.currentScooter = null;
+
         // Jiggle physics state
         this.jiggleVelocity = 0;
         this.jiggleOffset = 0;
@@ -110,10 +114,27 @@ export class Frog {
         this.isDead = false;
         this.deathTimer = 0;
         this.respawnTimer = 0;
+        this.healthBarVisibleTimer = 0; // Timer for health bar visibility
+        this.healthBarVisible = false;
+
+        // Tongue mechanics
+        this.tongueActive = false;
+        this.tongueProgress = 0;        // 0 to 1 for extension
+        this.tongueTarget = null;       // Target position or object
+        this.tongueState = 'idle';      // idle, extending, retracting, grappling
+        this.tongueHitObject = null;    // What the tongue hit
+        this.tongueStartPos = new THREE.Vector3();
+        this.tongueEndPos = new THREE.Vector3();
+        this.grappleVelocity = new THREE.Vector3();
+        this.flies = 0;                 // Currency
+        this.tongueLine = null;         // Visual line
+        this.tongueTip = null;          // Visual tip sphere
 
         // Health Bar UI
         this.healthBarContainer = document.createElement('div');
         this.healthBarContainer.className = 'health-bar-container';
+        this.healthBarContainer.style.opacity = '0'; // Hidden by default
+        this.healthBarContainer.style.transition = 'opacity 0.3s ease';
         this.healthBarContainer.innerHTML = `
             <div class="health-bar-bg">
                 <div class="health-bar-fill"></div>
@@ -126,19 +147,37 @@ export class Frog {
 
         // Damage Toast Container
         this.damageToasts = [];
+
+        // Name Tag
+        this.nameTagDiv = document.createElement('div');
+        this.nameTagDiv.className = 'name-tag';
+        this.nameTagDiv.textContent = `Frog ${id.substr(0, 4)}`;
+        this.nameTag = new CSS2DObject(this.nameTagDiv);
+        this.nameTag.position.set(0, 1.2, 0); // Above head, below health bar
+        this.mesh.add(this.nameTag);
+    }
+
+    setName(name) {
+        this.name = name;
+        this.nameTagDiv.textContent = name;
     }
 
     update(dt, input, lookTarget, cameraOrbitAngle = 0) {
+        // Handle scooter riding state FIRST (before body checks, since body may be removed from world)
+        if (this.isRidingScooter && this.currentScooter) {
+            // Update health bar and jiggle even while riding
+            this.updateHealthBar();
+            this.updateHealthBarVisibility(dt);
+            this.updateJiggle(dt, Math.abs(this.currentScooter.velocity) > 1);
+            return; // Scooter controls the frog position - exit early
+        }
+
+        // Body check
         if (!this.body) return;
 
         // Handle death state
         if (this.isDead) {
             this.deathTimer += dt;
-
-            // Fade out
-            const fadeProgress = Math.min(this.deathTimer / Config.deathFadeDuration, 1);
-            this.setMeshOpacity(1 - fadeProgress);
-
             // Respawn timer
             this.respawnTimer -= dt;
             if (this.respawnTimer <= 0) {
@@ -149,6 +188,7 @@ export class Frog {
 
         // Update health bar
         this.updateHealthBar();
+        this.updateHealthBarVisibility(dt);
 
         // Sync Mesh Position to Body
         this.mesh.position.copy(this.body.position);
@@ -285,6 +325,7 @@ export class Frog {
 
         // Update Eyes
         if (lookTarget) {
+            this.lookTarget = lookTarget; // Store for network sync
             this.updateEyes(lookTarget);
         }
 
@@ -297,6 +338,9 @@ export class Frog {
 
         // Update Punch/Kick Animation
         this.updatePunch(dt, input);
+
+        // Update Tongue
+        this.updateTongue(dt);
 
         // Animate Mouth
         if (this.isTalking && this.mouthMesh && this.mouthBaseScale) {
@@ -326,55 +370,403 @@ export class Frog {
         }
     }
 
+    // --- Network Sync Methods ---
+
+    getSyncState() {
+        if (!this.body) return null;
+
+        // When riding scooter, use mesh position (body position is stale)
+        const pos = this.isRidingScooter ? this.mesh.position : this.body.position;
+        const vel = this.isRidingScooter ? { x: 0, y: 0, z: 0 } : this.body.velocity;
+
+        // Get steer amount from scooter if riding
+        const steerAmount = (this.isRidingScooter && this.currentScooter)
+            ? this.currentScooter.steerAmount
+            : 0;
+
+        // Encode tongue state: 0=idle, 1=extending, 2=retracting, 3=grappling
+        let tongueStateCode = 0;
+        if (this.tongueState === 'extending') tongueStateCode = 1;
+        else if (this.tongueState === 'retracting') tongueStateCode = 2;
+        else if (this.tongueState === 'grappling') tongueStateCode = 3;
+
+        return {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z,
+            qx: this.mesh.quaternion.x,
+            qy: this.mesh.quaternion.y,
+            qz: this.mesh.quaternion.z,
+            qw: this.mesh.quaternion.w,
+            vx: vel.x,
+            vy: vel.y,
+            vz: vel.z,
+            lookX: this.lookTarget?.x || 0,
+            // Encode scooter color in lookY if riding (add 1Billion)
+            lookY: (this.isRidingScooter && this.currentScooter)
+                ? (1000000000 + parseInt(this.currentScooter.color.replace('#', ''), 16))
+                : (this.lookTarget?.y || 0),
+            // Encode steer amount in lookZ if riding (multiply by 10, add 1000 offset)
+            lookZ: (this.isRidingScooter && this.currentScooter)
+                ? (1000 + steerAmount * 10)
+                : (this.lookTarget?.z || 0),
+            isGrounded: this.onGround,
+            isTalking: this.isTalking,
+            isPunching: this.isPunching,
+            // Encode scooter riding in punchProgress (add 100) because server filters new properties
+            // Also encode tongue state (add 10 * tongueStateCode)
+            punchProgress: this.punchProgress + (this.isRidingScooter ? 100 : 0) + (tongueStateCode * 10),
+            // Tongue target (for remote visualization)
+            tongueTargetX: this.tongueTarget?.x || 0,
+            tongueTargetY: this.tongueTarget?.y || 0,
+            tongueTargetZ: this.tongueTarget?.z || 0,
+            tongueProgress: this.tongueProgress || 0
+        };
+    }
+
+    applySyncState(state) {
+        // Target Position & Rotation
+        this.targetPos = new THREE.Vector3(state.x, state.y, state.z);
+        this.targetRot = new THREE.Quaternion(state.qx, state.qy, state.qz, state.qw);
+
+        // Velocity (Important for Jiggle & Animation prediction)
+        this.remoteVelocity = new THREE.Vector3(state.vx, state.vy, state.vz);
+
+        // Look Target & Scooter Color/Steer Decode
+        if (state.lookX !== undefined) {
+            let lookY = state.lookY;
+            let lookZ = state.lookZ;
+
+            // Decode scooter color from lookY
+            if (lookY >= 1000000000) {
+                const colorInt = lookY - 1000000000;
+                this.remoteScooterColor = '#' + colorInt.toString(16).padStart(6, '0');
+                lookY = 0; // Default look height
+            }
+
+            // Decode steer amount from lookZ (1000 + steer*10)
+            if (lookZ >= 990 && lookZ <= 1010) {
+                this.remoteSteerAmount = (lookZ - 1000) / 10;
+                lookZ = 0; // Default look z
+            } else {
+                this.remoteSteerAmount = 0;
+            }
+
+            this.targetLook = new THREE.Vector3(state.lookX, lookY, lookZ);
+        }
+
+        // Ground Status
+        this.isRemoteGrounded = state.isGrounded;
+
+        // Talking Status
+        this.isRemoteTalking = state.isTalking;
+
+        this.isRemotePunching = state.isPunching;
+
+        // Decode scooter state from punchProgress (>= 100 means riding)
+        // Also decode tongue state (10, 20, 30 added for extending, retracting, grappling)
+        let rawPunchProgress = state.punchProgress || 0;
+        let isRiding = false;
+        let tongueStateCode = 0;
+
+        // First extract riding flag
+        if (rawPunchProgress >= 100) {
+            isRiding = true;
+            rawPunchProgress -= 100;
+        }
+
+        // Then extract tongue state (encoded as 10, 20, 30)
+        if (rawPunchProgress >= 30) {
+            tongueStateCode = 3; // grappling
+            rawPunchProgress -= 30;
+        } else if (rawPunchProgress >= 20) {
+            tongueStateCode = 2; // retracting
+            rawPunchProgress -= 20;
+        } else if (rawPunchProgress >= 10) {
+            tongueStateCode = 1; // extending
+            rawPunchProgress -= 10;
+        }
+
+        this.remotePunchProgress = rawPunchProgress;
+        this.remoteTongueStateCode = tongueStateCode;
+
+        // Tongue target for remote visualization
+        if (state.tongueTargetX !== undefined) {
+            this.remoteTongueTarget = new THREE.Vector3(
+                state.tongueTargetX,
+                state.tongueTargetY,
+                state.tongueTargetZ
+            );
+            this.remoteTongueProgress = state.tongueProgress || 0;
+        }
+
+        // Scooter Status
+        if (this.isRemoteRidingScooter !== isRiding) {
+            this.isRemoteRidingScooter = isRiding;
+
+            if (this.isRemoteRidingScooter && !this.remoteScooter) {
+                // Create visual scooter for remote player
+                // We pass 'this.mesh' as the scene so it attaches to the frog
+                this.remoteScooter = new Scooter(
+                    `scooter_remote_${this.id}`,
+                    this.remoteScooterColor || this.color, // Use synced color or fallback to frog color
+                    this.mesh, // Attach to frog mesh
+                    null // No physics
+                );
+                this.remoteScooter.particles = this.particles; // Helper for dust
+                this.remoteScooter.mesh.position.set(0, -0.6, 0);
+                this.remoteScooter.rider = this; // Set rider for leg animations
+            } else if (!this.isRemoteRidingScooter && this.remoteScooter) {
+                // Remove scooter and reset leg positions
+                this.remoteScooter.dispose();
+                this.remoteScooter = null;
+
+                // Reset leg positions and rotations
+                if (this.leftLeg && this._originalLeftLegX !== undefined) {
+                    this.leftLeg.position.x = this._originalLeftLegX;
+                    this.leftLeg.position.y = this._originalLeftLegY;
+                    this.leftLeg.position.z = this._originalLeftLegZ;
+                    this.leftLeg.rotation.x = 0;
+                    this.leftLeg.rotation.y = 0;
+                    this.leftLeg.rotation.z = 0;
+                }
+                if (this.rightLeg && this._originalRightLegX !== undefined) {
+                    this.rightLeg.position.x = this._originalRightLegX;
+                    this.rightLeg.position.y = this._originalRightLegY;
+                    this.rightLeg.position.z = this._originalRightLegZ;
+                    this.rightLeg.rotation.x = 0;
+                    this.rightLeg.rotation.y = 0;
+                    this.rightLeg.rotation.z = 0;
+                }
+            }
+        }
+
+        // Sync Physics Body (Immediate snap)
+        if (this.body) {
+            this.body.position.set(state.x, state.y, state.z);
+            // We don't snap velocity on kinematic bodies usually, but we store it for logic
+        }
+    }
+
     updateRemote(dt) {
         if (!this.targetPos) return;
 
         // Interpolate Position
-        this.mesh.position.lerp(this.targetPos, 10 * dt);
+        this.mesh.position.lerp(this.targetPos, 15 * dt); // Snappier lerp
 
         // Interpolate Rotation
         if (this.targetRot) {
-            this.mesh.quaternion.slerp(this.targetRot, 10 * dt);
+            this.mesh.quaternion.slerp(this.targetRot, 15 * dt);
         }
 
-        // Animation based on movement speed
-        const dist = this.mesh.position.distanceTo(this.targetPos);
-        const isMoving = dist > 0.05;
+        // --- VISUALS & ANIMATION SYNC ---
 
-        // Use the shared animation logic
-        // We need to estimate "Grounded" for remote. 
-        // If Y velocity is positive or high off ground?
-        // Simple heuristic: If Y > 0.1, we are in air.
-        const isGrounded = this.mesh.position.y < 0.1;
+        // 1. EYES
+        if (this.targetLook) {
+            this.updateEyes(this.targetLook);
+        }
 
-        // Trigger jump kick for remote?
-        // If Y went up suddenly? Hard to track without synced events.
-        // For now, remote walk juice is good enough.
+        // 2. MOVEMENT & ANIMATION
+        // Use received velocity to determine movement state
+        const vel = this.remoteVelocity || new THREE.Vector3();
+        const speed = vel.length();
+        const isMoving = speed > 0.1;
 
+        // Use received ground state (fallback to Y check if missing)
+        const isGrounded = (this.isRemoteGrounded !== undefined)
+            ? this.isRemoteGrounded
+            : (this.mesh.position.y < 0.1);
+
+        // Detect Jump Start (sudden upward velocity while previously grounded-ish)
+        // Or just if not grounded and moving up?
+        if (!isGrounded && vel.y > 2.0 && this.wasRemoteGrounded) {
+            // Trigger Jump Kick locally
+            this.jumpKickAmount = 1.0;
+            if (this.particles) this.particles.spawnJumpDust(this.mesh.position, 0xccaa88);
+        }
+
+        // Landing Dust
+        if (isGrounded && !this.wasRemoteGrounded) {
+            if (this.particles && Math.abs(this.lastRemoteVelY) > 2) {
+                this.particles.spawnLandingDust(this.mesh.position, Math.abs(this.lastRemoteVelY), 0xccaa88);
+            }
+        }
+
+        // Store history
+        this.wasRemoteGrounded = isGrounded;
+        this.lastRemoteVelY = vel.y;
+
+        // Update Leg Animations
         this.updateAnimations(dt, isMoving, isGrounded);
 
-        if (isMoving) {
+        // Update Punch Animation (Input null, just processes existing global punch state)
+        this.updatePunch(dt, null);
+
+        // Animate Mouth (Remote)
+        if (this.isRemoteTalking && this.mouthMesh && this.mouthBaseScale) {
+            const talkSpeed = Config.talkSpeed;
+            const openAmount = 0.5 + Math.sin(Date.now() / 100 * talkSpeed) * 0.5;
+            this.mouthMesh.scale.y = this.mouthBaseScale.y * (1 + openAmount * 0.5);
+        } else if (this.mouthMesh && this.mouthBaseScale) {
+            // Close mouth if not talking
+            this.mouthMesh.scale.lerp(this.mouthBaseScale, dt * 10);
+        }
+
+        // Update Hop Bobbing (Procedural)
+        if (isMoving && isGrounded) {
             this.moveAnimTimer = (this.moveAnimTimer || 0) + 15 * dt;
-            const hopY = Math.abs(Math.sin(this.moveAnimTimer)) * Config.hopHeight; // Use Config
+            const hopY = Math.abs(Math.sin(this.moveAnimTimer)) * Config.hopHeight;
             this.bodyMesh.position.y = hopY;
+
+            // Walking dust VFX for remote players
+            if (this.particles) {
+                this.walkDustTimer = (this.walkDustTimer || 0) - dt;
+                if (this.walkDustTimer <= 0) {
+                    this.particles.spawnWalkDust(this.mesh.position, 0xccaa88);
+                    this.walkDustTimer = Config.vfxWalkInterval;
+                }
+            }
         } else {
             this.moveAnimTimer = 0;
             this.bodyMesh.position.y = THREE.MathUtils.lerp(this.bodyMesh.position.y, 0, dt * 10);
         }
+
+        // 3. JIGGLE PHYSICS
+        // We need to simulate the velocity on the body for updateJiggle to work, 
+        // OR we pass the remote velocity manualy.
+        // updateJiggle reads `this.body.velocity.y`.
+        // Let's hack it: temporarily set body velocity if kinematic
+        if (this.body) {
+            this.body.velocity.copy(vel);
+            this.updateJiggle(dt, isMoving);
+        }
+
+        // 4. REMOTE SCOOTER STEER ANIMATION
+        if (this.isRemoteRidingScooter && this.remoteScooter) {
+            const steer = this.remoteSteerAmount || 0;
+            this.remoteScooter.steerAmount = steer;
+
+            // Rotate handle
+            if (this.remoteScooter.handle) {
+                this.remoteScooter.handle.rotation.y = steer * Config.scooterMaxTurn;
+            }
+
+            // Animate legs with steering (don't call updateRiderPosition - it moves frog position!)
+            const steerRotation = steer * 0.3;
+            if (this.leftLeg && this._originalLeftLegZ !== undefined) {
+                this.leftLeg.position.x = this._originalLeftLegX + Config.scooterLegOffsetX;
+                this.leftLeg.position.y = this._originalLeftLegY + Config.scooterLegOffsetY;
+                this.leftLeg.position.z = this._originalLeftLegZ + Config.scooterLegOffsetZ;
+                this.leftLeg.rotation.x = Config.scooterLegRotationX;
+                this.leftLeg.rotation.y = Config.scooterLegRotationY + steerRotation;
+                this.leftLeg.rotation.z = Config.scooterLegRotationZ;
+            }
+            if (this.rightLeg && this._originalRightLegZ !== undefined) {
+                this.rightLeg.position.x = this._originalRightLegX - Config.scooterLegOffsetX;
+                this.rightLeg.position.y = this._originalRightLegY + Config.scooterLegOffsetY;
+                this.rightLeg.position.z = this._originalRightLegZ + Config.scooterLegOffsetZ;
+                this.rightLeg.rotation.x = Config.scooterLegRotationX;
+                this.rightLeg.rotation.y = -Config.scooterLegRotationY + steerRotation;
+                this.rightLeg.rotation.z = -Config.scooterLegRotationZ;
+            }
+
+            // Spawn dust particles for remote scooter (check position change, not velocity)
+            if (this.particles && Config.vfxEnabled) {
+                // Track last position to detect movement
+                const currentPos = this.mesh.position;
+                if (!this._lastRemoteScooterPos) {
+                    this._lastRemoteScooterPos = currentPos.clone();
+                }
+                const moveDistance = currentPos.distanceTo(this._lastRemoteScooterPos);
+                this._lastRemoteScooterPos.copy(currentPos);
+
+                if (moveDistance > 0.05) { // Moving
+                    this._remoteScooterDustTimer = (this._remoteScooterDustTimer || 0) + dt;
+                    if (this._remoteScooterDustTimer > 0.1) {
+                        this._remoteScooterDustTimer = 0;
+                        const pos = this.mesh.position.clone();
+                        pos.y = 0.1;
+                        this.particles.spawnWalkDust(pos, this.color || '#ffffff');
+                    }
+                }
+            }
+        }
+
+        // 5. HEALTH BAR VISIBILITY
+        this.updateHealthBarVisibility(dt);
+
+        // 6. REMOTE TONGUE VISUALIZATION
+        if (this.remoteTongueStateCode > 0 && this.remoteTongueTarget) {
+            // Create tongue visual if not exists
+            if (!this.tongueLine) {
+                this.createTongueVisual();
+            }
+
+            if (this.tongueLine && this.tongueTip) {
+                this.tongueLine.visible = true;
+                this.tongueTip.visible = true;
+
+                // Calculate tongue start (mouth position)
+                const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
+                mouthOffset.applyQuaternion(this.mesh.quaternion);
+                const tongueStart = this.mesh.position.clone().add(mouthOffset);
+
+                // Calculate current end based on progress
+                const currentEnd = new THREE.Vector3().lerpVectors(
+                    tongueStart,
+                    this.remoteTongueTarget,
+                    this.remoteTongueProgress
+                );
+
+                // Update line geometry
+                const positions = this.tongueLine.geometry.attributes.position.array;
+                positions[0] = tongueStart.x;
+                positions[1] = tongueStart.y;
+                positions[2] = tongueStart.z;
+                positions[3] = currentEnd.x;
+                positions[4] = currentEnd.y;
+                positions[5] = currentEnd.z;
+                this.tongueLine.geometry.attributes.position.needsUpdate = true;
+
+                // Update tip position
+                this.tongueTip.position.copy(currentEnd);
+            }
+        } else if (this.tongueLine) {
+            // Hide tongue when idle
+            this.tongueLine.visible = false;
+            if (this.tongueTip) this.tongueTip.visible = false;
+        }
     }
 
     showChat(message) {
-        this.chatBubbleDiv.innerText = message;
-        this.chatBubbleDiv.style.opacity = '1';
-        this.isTalking = true;
+        // Create new bubble
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+        bubble.innerText = message;
 
+        // Add to container (Newest at bottom -> Prepend)
+        this.chatBubbleDiv.prepend(bubble);
+
+        // Limit stack size to 9
+        while (this.chatBubbleDiv.children.length > 9) {
+            this.chatBubbleDiv.removeChild(this.chatBubbleDiv.lastElementChild);
+        }
+
+        // Cleanup after animation
+        bubble.addEventListener('animationend', () => {
+            if (bubble.parentNode) {
+                bubble.remove();
+            }
+        });
+
+        // Mouth Animation Trigger
+        this.isTalking = true;
         if (this.chatTimer) clearTimeout(this.chatTimer);
 
-        // Duration: Base 2s + 0.1s per character. Max 10s.
-        const duration = Math.min(10000, Math.max(2000, message.length * 100));
+        // Constant talking time for a burst of text, or estimate based on length
+        const duration = Math.min(3000, message.length * 100);
 
         this.chatTimer = setTimeout(() => {
-            this.chatBubbleDiv.style.opacity = '0';
             this.isTalking = false;
             // Reset mouth
             if (this.mouthMesh && this.mouthBaseScale) {
@@ -414,10 +806,16 @@ export class Frog {
                 } else if (name.includes('leftleg')) {
                     this.leftLeg = child;
                     this.leftLegBasePos = child.position.clone();
+                    this._originalLeftLegX = child.position.x;
+                    this._originalLeftLegY = child.position.y;
+                    this._originalLeftLegZ = child.position.z;
                     child.material.color.set(this.color);
                 } else if (name.includes('rightleg')) {
                     this.rightLeg = child;
                     this.rightLegBasePos = child.position.clone();
+                    this._originalRightLegX = child.position.x;
+                    this._originalRightLegY = child.position.y;
+                    this._originalRightLegZ = child.position.z;
                     child.material.color.set(this.color);
                 } else if (name.includes('assleft') || name.includes('ass_left')) {
                     this.assLeft = child;
@@ -582,6 +980,11 @@ export class Frog {
             this.punchProgress = 0;
             this.punchCooldownTimer = Config.punchCooldown;
             this.punchHitChecked = false;  // Track if we've checked for hits this punch
+
+            // Send punch to network
+            if (this.isLocal && this.world && this.world.network) {
+                this.world.network.sendPunch();
+            }
         }
 
         // Animate punch
@@ -629,7 +1032,7 @@ export class Frog {
 
                     // Shake screen on successful hit or just a tiny shake on miss for juice
                     if (this.isLocal && this.world) {
-                        this.world.triggerScreenShake(hitSomething ? 0.3 : 0.05, 0.15);
+                        this.world.triggerScreenShake(hitSomething ? 1.5 : 0.3, 0.2);
                     }
                 }
             }
@@ -650,6 +1053,339 @@ export class Frog {
                 0,
                 dt * Config.punchReturnSpeed
             );
+        }
+    }
+
+    // === TONGUE MECHANICS ===
+
+    createTongueVisual() {
+        if (this.tongueLine) return; // Already created
+
+        // Create tongue line geometry
+        const tongueGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(6); // 2 points * 3 coords
+        tongueGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const tongueMaterial = new THREE.LineBasicMaterial({
+            color: Config.tongueColor,
+            linewidth: 3
+        });
+
+        this.tongueLine = new THREE.Line(tongueGeometry, tongueMaterial);
+        this.tongueLine.visible = false;
+        this.tongueLine.frustumCulled = false;
+
+        // Create tongue tip (sphere)
+        const tipGeometry = new THREE.SphereGeometry(Config.tongueTipSize, 8, 8);
+        const tipMaterial = new THREE.MeshBasicMaterial({ color: Config.tongueColor });
+        this.tongueTip = new THREE.Mesh(tipGeometry, tipMaterial);
+        this.tongueTip.visible = false;
+
+        // Add to scene (not to frog mesh, because tongue needs world coords)
+        if (this.mesh.parent) {
+            this.mesh.parent.add(this.tongueLine);
+            this.mesh.parent.add(this.tongueTip);
+        }
+    }
+
+    shootTongue(targetWorldPos, world) {
+        if (this.tongueState !== 'idle') return;
+        if (this.tongueCooldownTimer > 0) return;
+        if (this.isRidingScooter) return; // Can't use tongue while riding
+
+        // Create tongue visual if not exists
+        this.createTongueVisual();
+
+        // Get mouth position (front of frog)
+        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
+        mouthOffset.applyQuaternion(this.mesh.quaternion);
+        this.tongueStartPos.copy(this.mesh.position).add(mouthOffset);
+
+        // Get frog's forward direction
+        const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+
+        // Calculate direction to target (horizontal only for angle check)
+        let targetDir = new THREE.Vector3()
+            .subVectors(targetWorldPos, this.tongueStartPos);
+
+        // Make horizontal direction for cone check
+        const horizontalTargetDir = new THREE.Vector3(targetDir.x, 0, targetDir.z).normalize();
+        const horizontalForward = new THREE.Vector3(frogForward.x, 0, frogForward.z).normalize();
+
+        // Check angle - limit to ~45 degrees from forward (90 degree total cone)
+        const maxAngle = Math.PI / 4; // 45 degrees from center = 90 degree cone
+        let angle = Math.acos(Math.max(-1, Math.min(1, horizontalTargetDir.dot(horizontalForward))));
+
+        // Determine which side the target is on
+        const cross = new THREE.Vector3().crossVectors(horizontalForward, horizontalTargetDir);
+        const side = Math.sign(cross.y); // positive = right, negative = left
+
+        // If outside cone, clamp to edge of cone
+        if (angle > maxAngle || isNaN(angle)) {
+            // Clamp to max angle on the correct side
+            const clampedAngle = side >= 0 ? maxAngle : -maxAngle;
+            targetDir = horizontalForward.clone()
+                .applyAxisAngle(new THREE.Vector3(0, 1, 0), clampedAngle)
+                .normalize();
+            targetDir.y = 0.2; // slight upward angle
+        } else {
+            targetDir.normalize();
+        }
+
+        // FIXED RANGE: Always extend to max tongue range
+        this.tongueEndPos.copy(this.tongueStartPos).add(
+            targetDir.clone().multiplyScalar(Config.tongueRange)
+        );
+
+        // Store target info
+        this.tongueTarget = this.tongueEndPos.clone();
+        this.tongueState = 'extending';
+        this.tongueProgress = 0;
+        this.tongueHitObject = null;
+        this.world = world; // Store for raycasting
+
+        // Make tongue visible
+        if (this.tongueLine) this.tongueLine.visible = true;
+        if (this.tongueTip) this.tongueTip.visible = true;
+    }
+
+    updateTongue(dt) {
+        if (this.tongueState === 'idle') {
+            // Update cooldown
+            if (this.tongueCooldownTimer > 0) {
+                this.tongueCooldownTimer -= dt;
+            }
+            return;
+        }
+
+        // Update tongue start position (follows frog mouth)
+        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
+        mouthOffset.applyQuaternion(this.mesh.quaternion);
+        this.tongueStartPos.copy(this.mesh.position).add(mouthOffset);
+
+        const speed = Config.tongueSpeed * dt;
+
+        if (this.tongueState === 'extending') {
+            this.tongueProgress += speed / Config.tongueRange;
+
+            // Check for hits DURING extending (not just at end)
+            this.checkTongueHitDuringExtend();
+
+            if (this.tongueProgress >= 1 && this.tongueState === 'extending') {
+                this.tongueProgress = 1;
+                // If we reached max length without hitting anything special, 
+                // use the end point as a grapple point (grapple to walls/ground)
+                this.doRaycastGrapple();
+            }
+        } else if (this.tongueState === 'retracting') {
+            this.tongueProgress -= speed / Config.tongueRange * 1.5; // Retract faster
+
+            if (this.tongueProgress <= 0) {
+                this.tongueProgress = 0;
+                this.tongueState = 'idle';
+                this.tongueCooldownTimer = Config.tongueCooldown;
+
+                // Hide tongue
+                if (this.tongueLine) this.tongueLine.visible = false;
+                if (this.tongueTip) this.tongueTip.visible = false;
+            }
+        } else if (this.tongueState === 'grappling') {
+            // Pull frog toward grapple point
+            const pullDirection = new THREE.Vector3()
+                .subVectors(this.tongueHitObject.point, this.mesh.position)
+                .normalize();
+
+            const pullForce = Config.tongueGrappleForce;
+
+            if (this.body) {
+                this.body.velocity.x += pullDirection.x * pullForce * dt * 10;
+                this.body.velocity.y += pullDirection.y * pullForce * dt * 10;
+                this.body.velocity.z += pullDirection.z * pullForce * dt * 10;
+            }
+
+            // Check if close enough to release
+            const distToTarget = this.mesh.position.distanceTo(this.tongueHitObject.point);
+            if (distToTarget < 2) {
+                this.tongueState = 'retracting';
+            }
+
+            // Also retract if tongue button released (handled in input)
+        }
+
+        // Update tongue visual
+        this.updateTongueVisual();
+    }
+
+    checkTongueHitDuringExtend() {
+        if (!this.world) return;
+
+        // Calculate current tongue tip position
+        const tongueEndWorld = new THREE.Vector3().lerpVectors(
+            this.tongueStartPos,
+            this.tongueTarget,
+            this.tongueProgress
+        );
+
+        // Check for other frogs (pull them, don't grapple)
+        if (this.world.frogs) {
+            for (const frogId in this.world.frogs) {
+                if (frogId === this.id) continue; // Skip self
+                const otherFrog = this.world.frogs[frogId];
+                const dist = tongueEndWorld.distanceTo(otherFrog.mesh.position);
+                if (dist < 1.5) {
+                    this.tongueHitObject = { type: 'frog', frog: otherFrog };
+                    // Pull them toward us
+                    if (otherFrog.body) {
+                        const pullDir = new THREE.Vector3()
+                            .subVectors(this.mesh.position, otherFrog.mesh.position)
+                            .normalize();
+                        otherFrog.body.velocity.x += pullDir.x * Config.tongueGrabForce;
+                        otherFrog.body.velocity.y += pullDir.y * Config.tongueGrabForce * 0.5;
+                        otherFrog.body.velocity.z += pullDir.z * Config.tongueGrabForce;
+                    }
+                    console.log('Grabbed frog!');
+                    this.tongueState = 'retracting';
+                    return;
+                }
+            }
+        }
+
+        // Check for grapple hooks (special - trigger grapple)
+        if (this.world.grappleHooks) {
+            for (const hook of this.world.grappleHooks) {
+                const dist = tongueEndWorld.distanceTo(hook.position);
+                if (dist < 1.5) {
+                    this.tongueHitObject = { type: 'hook', point: hook.position.clone() };
+                    this.tongueState = 'grappling';
+                    console.log('Hooked onto grapple point!');
+                    return;
+                }
+            }
+        }
+
+        // Check for wall collision using THREE.js raycasting (visual geometry)
+        // This catches walls DURING extension, not just at max range
+        if (this.world.scene && this.world.camera) {
+            const raycaster = new THREE.Raycaster();
+            const rayStart = this.tongueStartPos.clone();
+            const rayDir = new THREE.Vector3()
+                .subVectors(tongueEndWorld, this.tongueStartPos)
+                .normalize();
+
+            raycaster.set(rayStart, rayDir);
+            raycaster.far = rayStart.distanceTo(tongueEndWorld) + 0.3; // Just beyond tongue tip
+
+            const intersects = raycaster.intersectObjects(this.world.scene.children, true);
+
+            for (const hit of intersects) {
+                // Skip invisible, tongue visuals, particles, frogs, flies
+                if (!hit.object.visible) continue;
+                if (hit.object.parent && hit.object.parent.type === 'Line') continue;
+                if (hit.object.name && hit.object.name.includes('frog')) continue;
+                if (hit.object.parent && hit.object.parent.name && hit.object.parent.name.includes('fly')) continue;
+
+                // Skip very small objects (particles)
+                if (hit.object.geometry && hit.object.geometry.boundingSphere) {
+                    if (hit.object.geometry.boundingSphere.radius < 0.2) continue;
+                }
+
+                // Check if it's ground (normal pointing up)
+                if (hit.face && hit.face.normal) {
+                    const worldNormal = hit.face.normal.clone();
+                    worldNormal.transformDirection(hit.object.matrixWorld);
+                    if (worldNormal.y > 0.8) continue; // Ground, skip
+                }
+
+                // Check if hit point is below ground level
+                if (hit.point.y < 0.3) continue;
+
+                // This is a valid wall hit!
+                this.tongueHitObject = { type: 'wall', point: hit.point.clone() };
+                this.tongueTarget.copy(hit.point);
+                this.tongueState = 'grappling';
+                console.log('Tongue hit wall during extension!');
+                return;
+            }
+        }
+    }
+
+    doRaycastGrapple() {
+        if (!this.world || !this.world.physics) {
+            this.tongueState = 'retracting';
+            return;
+        }
+
+        // Use physics raycasting to find walls (not ground)
+        const from = new CANNON.Vec3(
+            this.tongueStartPos.x,
+            this.tongueStartPos.y,
+            this.tongueStartPos.z
+        );
+        const to = new CANNON.Vec3(
+            this.tongueTarget.x,
+            this.tongueTarget.y,
+            this.tongueTarget.z
+        );
+
+        const result = new CANNON.RaycastResult();
+        const ray = new CANNON.Ray(from, to);
+        ray.intersectWorld(this.world.physics.world, { result });
+
+        if (result.hasHit) {
+            const hitPoint = new THREE.Vector3(
+                result.hitPointWorld.x,
+                result.hitPointWorld.y,
+                result.hitPointWorld.z
+            );
+
+            // Check if this is the ground (normal pointing up, or hit point very low)
+            const hitNormal = result.hitNormalWorld;
+            const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+
+            if (isGround) {
+                // Don't grapple to ground, just retract
+                this.tongueState = 'retracting';
+                return;
+            }
+
+            // Hit a wall! Grapple to it
+            this.tongueTarget.copy(hitPoint);
+            this.tongueHitObject = { type: 'wall', point: hitPoint };
+            this.tongueState = 'grappling';
+            console.log('Grappling to wall!');
+        } else {
+            // Nothing hit, just retract
+            this.tongueState = 'retracting';
+        }
+    }
+
+    updateTongueVisual() {
+        if (!this.tongueLine || !this.tongueTip) return;
+
+        // Calculate current tongue end based on progress
+        const currentEnd = new THREE.Vector3().lerpVectors(
+            this.tongueStartPos,
+            this.tongueState === 'grappling' ? this.tongueHitObject.point : this.tongueTarget,
+            this.tongueProgress
+        );
+
+        // Update line geometry
+        const positions = this.tongueLine.geometry.attributes.position.array;
+        positions[0] = this.tongueStartPos.x;
+        positions[1] = this.tongueStartPos.y;
+        positions[2] = this.tongueStartPos.z;
+        positions[3] = currentEnd.x;
+        positions[4] = currentEnd.y;
+        positions[5] = currentEnd.z;
+        this.tongueLine.geometry.attributes.position.needsUpdate = true;
+
+        // Update tip position
+        this.tongueTip.position.copy(currentEnd);
+    }
+
+    releaseTongue() {
+        if (this.tongueState === 'grappling') {
+            this.tongueState = 'retracting';
         }
     }
 
@@ -678,13 +1414,43 @@ export class Frog {
         });
     }
 
-    takeDamage(amount, knockback) {
+    // Trigger punch animation (visual only, for remote players)
+    remotePunch() {
+        this.punchTimer = 0;
+        this.isPunching = true;
+        this.punchProgress = 0;
+        this.punchHitChecked = false; // Doesn't matter for remote but good reset
+    }
+
+    takeDamage(amount, knockback, isNetworked = false, isCritical = false) {
         if (this.isDead) return;
 
         this.health -= amount;
 
+        // Show health bar when hit
+        this.showHealthBar();
+
         // Update health bar immediately
         this.updateHealthBar();
+
+        // Red tint effect - visible to all players
+        this.showHitTint();
+
+        // Spawn hit VFX particles
+        if (this.particles && this.mesh) {
+            const hitPos = this.mesh.position.clone();
+            hitPos.y += 0.5; // Hit at body level
+            const hitDir = knockback
+                ? new THREE.Vector3(knockback.x, knockback.y, knockback.z).normalize()
+                : new THREE.Vector3(0, 1, 0);
+            this.particles.spawnPunchImpact(hitPos, hitDir);
+        }
+
+        // Screen shake when hit (for local player)
+        if (this.isLocal && this.world) {
+            const shakeAmount = isCritical ? 2.0 : 1.0;
+            this.world.triggerScreenShake(shakeAmount, 0.50);
+        }
 
         // Apply knockback (only works on dynamic bodies, not kinematic)
         if (knockback && this.body && this.body.type !== 2) { // 2 = KINEMATIC
@@ -692,29 +1458,128 @@ export class Frog {
         }
 
         // Show damage toast
-        this.showDamageToast(amount);
+        this.showDamageToast(amount, isCritical);
 
         if (this.health <= 0) {
             this.health = 0;
-            this.die();
+            this.die(isNetworked);
         }
     }
 
-    die() {
+    showHitTint() {
+        // Store original colors and apply red tint
+        this.bodyMesh.traverse((child) => {
+            if (child.isMesh && child.material) {
+                // Store original if not stored
+                if (!child.userData.originalColor) {
+                    if (child.material.color) {
+                        child.userData.originalColor = child.material.color.clone();
+                    }
+                }
+
+                // Apply red tint by blending with red
+                if (child.material.color) {
+                    const red = new THREE.Color(0xff0000);
+                    child.material.color.lerp(red, 0.6);
+                }
+            }
+        });
+
+        // Fade back to original over 0.5s
+        if (this.hitTintTimeout) clearTimeout(this.hitTintTimeout);
+
+        this.hitTintTimeout = setTimeout(() => {
+            this.fadeHitTint();
+        }, 100); // Start fading after 100ms
+    }
+
+    fadeHitTint() {
+        let progress = 0;
+        const fadeInterval = setInterval(() => {
+            progress += 0.1;
+
+            this.bodyMesh.traverse((child) => {
+                if (child.isMesh && child.material && child.userData.originalColor) {
+                    child.material.color.lerp(child.userData.originalColor, 0.3);
+                }
+            });
+
+            if (progress >= 1) {
+                clearInterval(fadeInterval);
+                // Ensure colors are fully restored
+                this.bodyMesh.traverse((child) => {
+                    if (child.isMesh && child.material && child.userData.originalColor) {
+                        child.material.color.copy(child.userData.originalColor);
+                    }
+                });
+            }
+        }, 50); // Fade over ~500ms
+    }
+
+    showHealthBar() {
+        this.healthBarVisible = true;
+        this.healthBarVisibleTimer = 3.0; // 3 seconds
+        this.healthBarContainer.style.opacity = '1';
+    }
+
+    hideHealthBar() {
+        this.healthBarVisible = false;
+        this.healthBarContainer.style.opacity = '0';
+    }
+
+    updateHealthBarVisibility(dt) {
+        if (this.healthBarVisible && this.healthBarVisibleTimer > 0) {
+            this.healthBarVisibleTimer -= dt;
+            if (this.healthBarVisibleTimer <= 0) {
+                this.hideHealthBar();
+            }
+        }
+    }
+
+    die(isNetworked = false) {
+        if (this.isDead) return;
+
+        // Dismount from scooter if riding
+        if (this.isRidingScooter && this.currentScooter) {
+            this.currentScooter.dismount();
+        }
+
         this.isDead = true;
         this.deathTimer = 0;
         this.respawnTimer = Config.respawnTime;
 
+        // Disperse Effect
+        if (this.particles) {
+            this.particles.spawnDeathDisperse(this.mesh.position, this.color);
+        }
+
+        // Hide mesh immediately (replaced by particles)
+        this.setMeshOpacity(0);
+        this.bodyMesh.visible = false;
+
         // Disable physics temporarily
         if (this.body) {
             this.body.velocity.set(0, 0, 0);
+            // Move body away or disable collision to prevent invisible blocking?
+            // For now, simple velocity zero is fine, maybe move up high?
+            this.body.position.y = 1000;
         }
 
         // Hide health bar
         this.healthBarContainer.style.display = 'none';
+
+        // Show death screen for local player
+        if (this.isLocal && window.showDeathScreen) {
+            window.showDeathScreen();
+        }
+
+        // If this is OUR death (local frog) and NOT triggered by network event, send it
+        if (this.isLocal && !isNetworked && this.world && this.world.network) {
+            this.world.network.sendDeath();
+        }
     }
 
-    respawn() {
+    respawn(isNetworked = false) {
         this.isDead = false;
         this.health = Config.maxHealth;
         this.deathTimer = 0;
@@ -725,12 +1590,26 @@ export class Frog {
             this.body.velocity.set(0, 0, 0);
         }
 
-        // Reset opacity
+        // Reset opacity & visibility
         this.setMeshOpacity(1);
+        this.bodyMesh.visible = true;
 
-        // Show health bar
+        // Show health bar & Update it!
         this.healthBarContainer.style.display = 'block';
+        this.updateHealthBar();
+
+        // Hide death screen for local player
+        if (this.isLocal && window.hideDeathScreen) {
+            window.hideDeathScreen();
+        }
+
+        // If this is OUR respawn (local frog) and NOT triggered by network, send it
+        if (this.isLocal && !isNetworked && this.world && this.world.network) {
+            this.world.network.sendRespawn();
+        }
     }
+
+
 
     updateHealthBar() {
         if (!this.healthBarFill) return;
@@ -756,11 +1635,11 @@ export class Frog {
         });
     }
 
-    showDamageToast(amount) {
+    showDamageToast(amount, isCritical = false) {
         // Create toast as CSS2DObject so it follows the frog in 3D space
         const toastDiv = document.createElement('div');
-        toastDiv.className = 'damage-toast';
-        toastDiv.textContent = `-${amount}`;
+        toastDiv.className = 'damage-toast' + (isCritical ? ' critical' : '');
+        toastDiv.textContent = isCritical ? `CRIT! -${amount}` : `-${amount}`;
 
         const toast = new CSS2DObject(toastDiv);
         toast.position.set(
@@ -777,6 +1656,40 @@ export class Frog {
         }, 1000);
 
         console.log(`Frog ${this.id} took ${amount} damage! Health: ${this.health}/${Config.maxHealth}`);
+    }
+
+    // Cleanup method to properly dispose of CSS2D objects
+    dispose() {
+        // Remove CSS2D DOM elements
+        if (this.chatBubbleDiv && this.chatBubbleDiv.parentNode) {
+            this.chatBubbleDiv.parentNode.removeChild(this.chatBubbleDiv);
+        }
+        if (this.healthBarContainer && this.healthBarContainer.parentNode) {
+            this.healthBarContainer.parentNode.removeChild(this.healthBarContainer);
+        }
+        if (this.nameTagDiv && this.nameTagDiv.parentNode) {
+            this.nameTagDiv.parentNode.removeChild(this.nameTagDiv);
+        }
+
+        // Clear any pending timers
+        if (this.chatTimer) {
+            clearTimeout(this.chatTimer);
+            this.chatTimer = null;
+        }
+
+        // Dispose of materials and geometry if needed
+        this.bodyMesh.traverse((child) => {
+            if (child.isMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            }
+        });
     }
 }
 

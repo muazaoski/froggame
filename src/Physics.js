@@ -14,14 +14,16 @@ export class Physics {
 
         this.updateMaterials();
 
-        // Ground Box
-        const groundShape = new CANNON.Box(new CANNON.Vec3(50, 1, 50));
+        // Ground Plane - Using Plane instead of Box to avoid CANNON.js convex hull collision bugs
+        const groundShape = new CANNON.Plane();
         this.groundBody = new CANNON.Body({
             mass: 0,
-            material: this.groundMaterial,
-            shape: groundShape,
-            position: new CANNON.Vec3(0, -1, 0)
+            material: this.groundMaterial
         });
+        this.groundBody.addShape(groundShape);
+        // Rotate plane to face up (planes face +Z by default)
+        this.groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+        this.groundBody.position.set(0, 0, 0);
         this.world.addBody(this.groundBody);
     }
 
