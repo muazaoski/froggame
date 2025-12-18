@@ -1,25 +1,21 @@
 /**
  * Client-Side Prediction & Reconciliation System
  * 
- * FLOW:
- * 1. Client captures input → assigns sequence ID → stores in buffer → sends to server
- * 2. Client immediately predicts movement locally (feels instant)
- * 3. Server receives input → processes → sends back snapshot with lastProcessedSeq
- * 4. Client receives snapshot → reconciles:
- *    - Reset to server state
- *    - Remove acknowledged inputs (seq <= lastProcessedSeq)
- *    - Re-apply remaining unacknowledged inputs
+ * SIMPLIFIED APPROACH:
+ * - Client runs physics locally (instant feel)
+ * - Server sends authoritative positions
+ * - Client gently corrects towards server position
+ * - Only snap if error is very large (teleport/death)
  * 
- * RESULT: Instant feel + server authority + minimal rubber-banding
+ * This avoids jitter by NOT re-simulating inputs
  */
 
 export class InputBuffer {
     constructor() {
-        this.inputs = [];  // { seq, timestamp, input, cameraAngle }
+        this.inputs = [];
         this.sequence = 0;
     }
 
-    // Add input to buffer and return it with sequence ID
     push(input, cameraAngle) {
         const entry = {
             seq: ++this.sequence,
@@ -28,20 +24,19 @@ export class InputBuffer {
             cameraAngle: cameraAngle
         };
         this.inputs.push(entry);
+
+        // Keep buffer small - remove old entries
+        if (this.inputs.length > 60) {
+            this.inputs.shift();
+        }
+
         return entry;
     }
 
-    // Remove all inputs up to and including lastProcessedSeq
     acknowledge(lastProcessedSeq) {
         this.inputs = this.inputs.filter(i => i.seq > lastProcessedSeq);
     }
 
-    // Get all unacknowledged inputs for re-simulation
-    getUnacknowledged() {
-        return [...this.inputs];
-    }
-
-    // Clear buffer
     clear() {
         this.inputs = [];
         this.sequence = 0;
@@ -53,104 +48,46 @@ export class Predictor {
         this.config = config;
         this.inputBuffer = new InputBuffer();
         this.lastServerState = null;
-        this.lastServerSeq = 0;
-        this.correctionThreshold = 0.5;  // Snap if error > this
-        this.smoothCorrectionRate = 0.2; // Lerp rate for small corrections
+
+        // Correction settings - tuned for smooth feel
+        this.snapThreshold = 3.0;        // Only snap if error > 3 units (teleport)
+        this.correctionRate = 0.1;       // Gentle lerp (10% per frame)
+        this.ignoreThreshold = 0.15;     // Ignore tiny errors
     }
 
-    // Called every frame: predict movement locally
-    predict(body, input, cameraAngle, dt) {
-        if (!body) return null;
-
-        // Store input in buffer
-        const inputEntry = this.inputBuffer.push(input, cameraAngle);
-
-        // Apply prediction locally
-        this.applyInput(body, inputEntry.input, cameraAngle, dt);
-
-        return inputEntry;
-    }
-
-    // Apply input to physics body (same logic as server!)
-    applyInput(body, input, cameraAngle, dt) {
-        const config = this.config;
-
-        // Calculate movement direction
-        let inputX = 0, inputZ = 0;
-        if (input.forward) inputZ -= 1;
-        if (input.backward) inputZ += 1;
-        if (input.left) inputX -= 1;
-        if (input.right) inputX += 1;
-
-        const inputLen = Math.sqrt(inputX * inputX + inputZ * inputZ);
-        if (inputLen > 0) {
-            inputX /= inputLen;
-            inputZ /= inputLen;
-
-            // Rotate by camera angle
-            const cos = Math.cos(cameraAngle);
-            const sin = Math.sin(cameraAngle);
-            const moveX = inputX * cos + inputZ * sin;
-            const moveZ = -inputX * sin + inputZ * cos;
-
-            // Check if grounded (simplified)
-            const isGrounded = body.position.y < 0.6 || Math.abs(body.velocity.y) < 0.1;
-            const airMultiplier = isGrounded ? 1.0 : config.airControl;
-
-            // Apply force
-            const force = config.moveSpeed * dt * airMultiplier;
-            body.velocity.x += moveX * force * 0.001; // Simplified force application
-            body.velocity.z += moveZ * force * 0.001;
-        }
-
-        // Jump
-        if (input.jump) {
-            const isGrounded = body.position.y < 0.6;
-            if (isGrounded) {
-                body.velocity.y = config.jumpVelocity;
-            }
-        }
-    }
-
-    // Reconcile with server snapshot
+    // Reconcile with server snapshot - SIMPLIFIED
     reconcile(body, serverState) {
         if (!body || !serverState) return;
 
         this.lastServerState = serverState;
-        this.lastServerSeq = serverState.lastProcessedSeq || 0;
 
-        // Remove acknowledged inputs
-        this.inputBuffer.acknowledge(this.lastServerSeq);
+        // Acknowledge processed inputs
+        if (serverState.lastProcessedSeq) {
+            this.inputBuffer.acknowledge(serverState.lastProcessedSeq);
+        }
 
-        // Calculate position error
+        // Calculate position error (horizontal only - Y handled differently)
         const dx = serverState.x - body.position.x;
-        const dy = serverState.y - body.position.y;
         const dz = serverState.z - body.position.z;
-        const error = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const horizontalError = Math.sqrt(dx * dx + dz * dz);
 
-        if (error > this.correctionThreshold) {
-            // Large error: reset to server state and re-simulate
+        // Y error handled separately (gravity makes it tricky)
+        const dy = serverState.y - body.position.y;
+
+        if (horizontalError > this.snapThreshold) {
+            // Very large error: snap immediately (teleport/respawn)
             body.position.set(serverState.x, serverState.y, serverState.z);
             body.velocity.set(serverState.vx, serverState.vy, serverState.vz);
+        } else if (horizontalError > this.ignoreThreshold) {
+            // Normal error: gentle correction
+            body.position.x += dx * this.correctionRate;
+            body.position.z += dz * this.correctionRate;
 
-            // Re-apply unacknowledged inputs
-            const unacked = this.inputBuffer.getUnacknowledged();
-            const simulationDt = 1 / 60; // Fixed timestep for re-simulation
-
-            for (const entry of unacked) {
-                this.applyInput(body, entry.input, entry.cameraAngle, simulationDt);
+            // Y correction only if significant and player is grounded
+            if (Math.abs(dy) > 0.5 && serverState.isGrounded) {
+                body.position.y += dy * this.correctionRate;
             }
-        } else if (error > 0.1) {
-            // Small error: smooth correction
-            body.position.x += dx * this.smoothCorrectionRate;
-            body.position.y += dy * this.smoothCorrectionRate;
-            body.position.z += dz * this.smoothCorrectionRate;
         }
-        // Else: error is tiny, ignore
-    }
-
-    // Get current sequence number for sending with input
-    getSequence() {
-        return this.inputBuffer.sequence;
+        // Else: error is tiny, trust client physics
     }
 }

@@ -32,7 +32,7 @@ const Config = {
     respawnTime: 2.035,
 
     // Server settings
-    tickRate: 30, // Physics updates per second (higher = smoother but more CPU)
+    tickRate: 20, // Physics updates per second (20Hz is standard for games)
 };
 
 class ServerPhysics {
