@@ -403,8 +403,7 @@ io.on('connection', (socket) => {
             players[socket.id].isPunching = data.isPunching;
             players[socket.id].punchProgress = data.punchProgress;
 
-            // Sync to server physics (for AFK tracking)
-            serverPhysics.syncPlayerPosition(socket.id, data.x, data.y, data.z, data.facingAngle);
+            // Server physics now handles positions authoritatively
 
             // Update activity tracking for AFK detection
             if (playerActivity[socket.id]) {
