@@ -426,8 +426,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    // === SYNC PLAYER POSITION TO SERVER PHYSICS ===
-    // Client sends their position, server tracks it for AFK simulation
+    // === SERVER-AUTHORITATIVE PHYSICS ===
+    // Client sends inputs, server handles ALL physics
     socket.on('playerInput', (inputData) => {
         // Update activity tracking
         if (playerActivity[socket.id]) {
@@ -439,25 +439,23 @@ io.on('connection', (socket) => {
                 io.emit('playerAFKStatus', { id: socket.id, isAFK: false });
             }
         }
+
+        // Pass input to server physics (this is the key!)
+        serverPhysics.handleInput(socket.id, inputData);
     });
 
-    // Combat Events - client-authoritative but server tracks health for AFK
+    // Combat is now handled by server physics
+    // Client just sends punch request, server handles hit detection
     socket.on('playerPunch', () => {
-        socket.broadcast.emit('playerPunched', socket.id);
+        // Legacy support - tell server physics about punch intent
+        if (serverPhysics.players[socket.id]) {
+            serverPhysics.players[socket.id].input.punch = true;
+        }
     });
 
+    // Legacy hit event - now mostly handled by server
     socket.on('playerHit', (data) => {
-        const { targetId, damage, knockback, isCritical } = data;
-
-        // Apply to server physics (for AFK players)
-        if (serverPhysics.players[targetId]) {
-            serverPhysics.applyDamage(targetId, damage);
-            if (knockback) {
-                serverPhysics.applyKnockback(targetId, knockback.x, knockback.y, knockback.z);
-            }
-        }
-
-        // Broadcast to all clients
+        // Server physics handles this now, but keep for compatibility
         io.emit('playerDamaged', data);
     });
 

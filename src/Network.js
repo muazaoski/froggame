@@ -87,18 +87,36 @@ export class Network {
             }
         });
 
-        // === AFK PLAYER UPDATES ===
-        // Server sends position updates only for AFK players (server physics simulation)
-        this.socket.on('afkPlayerUpdate', (data) => {
-            const frog = this.world.frogs[data.id];
-            if (frog && !frog.isLocal) {
-                // Apply server position for AFK players
-                frog.targetPos = new THREE.Vector3(data.x, data.y, data.z);
-                frog.remoteVelocity = new THREE.Vector3(data.vx, data.vy, data.vz);
+        // === SERVER-AUTHORITATIVE PHYSICS STATE ===
+        // Server sends physics state for ALL players every tick
+        this.socket.on('physicsState', (worldState) => {
+            for (const socketId in worldState) {
+                const state = worldState[socketId];
+                const frog = this.world.frogs[socketId];
 
-                // Sync physics body
-                if (frog.body) {
-                    frog.body.position.set(data.x, data.y, data.z);
+                if (!frog) continue;
+
+                if (frog.isLocal) {
+                    // For local player: smooth correction to server position
+                    this.applyServerCorrection(frog, state);
+                } else {
+                    // For remote players: interpolate to server position
+                    frog.targetPos = new THREE.Vector3(state.x, state.y, state.z);
+                    frog.remoteVelocity = new THREE.Vector3(state.vx, state.vy, state.vz);
+                    frog.serverFacingAngle = state.facingAngle;
+                    frog.isRemoteGrounded = state.isGrounded;
+                    frog.isRemotePunching = state.isPunching;
+
+                    // Update health
+                    if (frog.health !== state.health) {
+                        frog.health = state.health;
+                        frog.updateHealthBar();
+                    }
+
+                    // Handle death
+                    if (state.isDead && !frog.isDead) {
+                        frog.die(true);
+                    }
                 }
             }
         });
@@ -305,6 +323,45 @@ export class Network {
         const overlay = document.getElementById('offline-overlay');
         if (overlay) {
             overlay.classList.add('visible');
+        }
+    }
+
+    // Apply server position correction to local player
+    // Uses smooth reconciliation to avoid jitter
+    applyServerCorrection(frog, serverState) {
+        if (!frog.body) return;
+
+        // Calculate difference between client and server positions
+        const dx = serverState.x - frog.body.position.x;
+        const dy = serverState.y - frog.body.position.y;
+        const dz = serverState.z - frog.body.position.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        // Only correct if difference is significant
+        if (distance > 0.3) {
+            if (distance > 5) {
+                // Large difference: snap immediately (probably teleport/respawn)
+                frog.body.position.set(serverState.x, serverState.y, serverState.z);
+                frog.body.velocity.set(serverState.vx, serverState.vy, serverState.vz);
+                frog.mesh.position.set(serverState.x, serverState.y, serverState.z);
+            } else {
+                // Small difference: smooth correction
+                const correctionStrength = 0.2;
+                frog.body.position.x += dx * correctionStrength;
+                frog.body.position.y += dy * correctionStrength;
+                frog.body.position.z += dz * correctionStrength;
+            }
+        }
+
+        // Update health from server
+        if (frog.health !== serverState.health) {
+            frog.health = serverState.health;
+            frog.updateHealthBar();
+        }
+
+        // Handle server-triggered death
+        if (serverState.isDead && !frog.isDead) {
+            frog.die(true);
         }
     }
 }

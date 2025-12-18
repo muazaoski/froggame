@@ -504,7 +504,10 @@ function animate(time) {
             world.localFrog.releaseTongue();
         }
 
-        // Send position update to server
+        // Send inputs to server for authoritative physics
+        network.sendInput(input, world.cameraOrbitAngle);
+
+        // Also send position update for legacy features (tongue, look direction, etc.)
         network.sendUpdate(world.localFrog);
     } else {
         // SPECTATOR MODE - Auto-orbit camera around world center
