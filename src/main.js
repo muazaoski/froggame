@@ -504,8 +504,8 @@ function animate(time) {
             world.localFrog.releaseTongue();
         }
 
-        // Send inputs to server for authoritative physics
-        network.sendInput(input, world.cameraOrbitAngle);
+        // Send inputs to server with sequence ID for prediction/reconciliation
+        network.sendInput(input, world.cameraOrbitAngle, world.localFrog, dt);
 
         // Also send position update for legacy features (tongue, look direction, etc.)
         network.sendUpdate(world.localFrog);

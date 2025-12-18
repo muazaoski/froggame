@@ -1,10 +1,15 @@
 import { io } from 'socket.io-client';
 import * as THREE from 'three';
+import { Predictor } from './Prediction.js';
+import { Config } from './Config.js';
 
 export class Network {
     constructor(world) {
         this.world = world;
         this.socket = io();
+
+        // Client-side prediction system
+        this.predictor = new Predictor(Config);
 
         // Connection
         this.socket.on('connect', () => {
@@ -97,8 +102,9 @@ export class Network {
                 if (!frog) continue;
 
                 if (frog.isLocal) {
-                    // For local player: smooth correction to server position
-                    this.applyServerCorrection(frog, state);
+                    // For local player: reconcile using prediction system
+                    // This removes acknowledged inputs and re-applies unacknowledged ones
+                    this.predictor.reconcile(frog.body, state);
                 } else {
                     // For remote players: interpolate to server position
                     frog.targetPos = new THREE.Vector3(state.x, state.y, state.z);
@@ -283,9 +289,15 @@ export class Network {
         this.socket.emit('playerPunch');
     }
 
-    // Send player inputs to server for authoritative physics
-    sendInput(input, cameraAngle) {
+    // Send player inputs to server with sequence ID for reconciliation
+    // Also triggers local prediction for instant feel
+    sendInput(input, cameraAngle, frog, dt) {
+        // Store input in buffer and get sequence ID
+        const inputEntry = this.predictor.inputBuffer.push(input, cameraAngle);
+
+        // Send to server with sequence
         this.socket.emit('playerInput', {
+            seq: inputEntry.seq,
             forward: input.keys.forward,
             backward: input.keys.backward,
             left: input.keys.left,
@@ -294,6 +306,8 @@ export class Network {
             punch: input.keys.punch,
             cameraAngle: cameraAngle
         });
+
+        // Local prediction happens in Frog.update() - inputs already applied
     }
 
     sendHit(targetId, damage, knockback, isCritical = false) {

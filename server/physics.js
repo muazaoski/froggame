@@ -118,7 +118,8 @@ class ServerPhysics {
             jumpCooldown: 0,
             respawnTimer: null,
             name: playerData.name,
-            color: playerData.color
+            color: playerData.color,
+            lastProcessedSeq: 0  // For client reconciliation
         };
 
         console.log(`🐸 Player ${playerData.name} joined physics simulation`);
@@ -147,6 +148,11 @@ class ServerPhysics {
             punch: inputData.punch || false
         };
         player.cameraAngle = inputData.cameraAngle || 0;
+
+        // Track sequence ID for client reconciliation
+        if (inputData.seq) {
+            player.lastProcessedSeq = inputData.seq;
+        }
     }
 
     tick(dt) {
@@ -385,7 +391,8 @@ class ServerPhysics {
                 isGrounded: p.isGrounded,
                 isPunching: p.isPunching,
                 isDead: p.isDead,
-                health: p.health
+                health: p.health,
+                lastProcessedSeq: p.lastProcessedSeq  // For client reconciliation
             };
         }
         return state;
