@@ -378,7 +378,23 @@ io.on('connection', (socket) => {
 
     socket.on('playerMove', (data) => {
         if (players[socket.id]) {
-            // Position and rotation
+            // Validate position with server physics (speed hack detection)
+            const valid = serverPhysics.updatePlayerPosition(socket.id, {
+                x: data.x,
+                y: data.y,
+                z: data.z,
+                vx: data.vx,
+                vy: data.vy,
+                vz: data.vz,
+                rotation: data.facingAngle || 0
+            });
+
+            if (!valid) {
+                // Rejected - don't relay invalid positions
+                return;
+            }
+
+            // Update local player cache
             players[socket.id].x = data.x;
             players[socket.id].y = data.y;
             players[socket.id].z = data.z;
@@ -386,38 +402,29 @@ io.on('connection', (socket) => {
             players[socket.id].qy = data.qy;
             players[socket.id].qz = data.qz;
             players[socket.id].qw = data.qw;
-
-            // Velocity
             players[socket.id].vx = data.vx;
             players[socket.id].vy = data.vy;
             players[socket.id].vz = data.vz;
-
-            // Look target
             players[socket.id].lookX = data.lookX;
             players[socket.id].lookY = data.lookY;
             players[socket.id].lookZ = data.lookZ;
-
-            // State flags
             players[socket.id].isGrounded = data.isGrounded;
             players[socket.id].isTalking = data.isTalking;
             players[socket.id].isPunching = data.isPunching;
             players[socket.id].punchProgress = data.punchProgress;
 
-            // Server physics now handles positions authoritatively
-
-            // Update activity tracking for AFK detection
+            // Update activity tracking
             if (playerActivity[socket.id]) {
                 const wasAFK = playerActivity[socket.id].isAFK;
                 playerActivity[socket.id].lastUpdate = Date.now();
                 playerActivity[socket.id].isAFK = false;
 
-                // If was AFK and now active, broadcast status change
                 if (wasAFK) {
                     io.emit('playerAFKStatus', { id: socket.id, isAFK: false });
-                    console.log(`⚡ Player ${players[socket.id]?.name || socket.id} is back from AFK`);
                 }
             }
 
+            // Relay to other players (client-authoritative movement)
             socket.broadcast.emit('playerMoved', {
                 id: socket.id,
                 ...players[socket.id]
@@ -425,10 +432,11 @@ io.on('connection', (socket) => {
         }
     });
 
-    // === SERVER-AUTHORITATIVE PHYSICS ===
-    // Client sends inputs, server handles ALL physics
+    // === CLIENT-AUTHORITATIVE MOVEMENT ===
+    // Client sends positions, server validates and relays
+    // Server does NOT simulate movement physics!
     socket.on('playerInput', (inputData) => {
-        // Update activity tracking
+        // Just update activity tracking - movement comes via playerMove
         if (playerActivity[socket.id]) {
             const wasAFK = playerActivity[socket.id].isAFK;
             playerActivity[socket.id].lastUpdate = Date.now();
@@ -438,23 +446,30 @@ io.on('connection', (socket) => {
                 io.emit('playerAFKStatus', { id: socket.id, isAFK: false });
             }
         }
-
-        // Pass input to server physics (this is the key!)
-        serverPhysics.handleInput(socket.id, inputData);
     });
 
-    // Combat is now handled by server physics
-    // Client just sends punch request, server handles hit detection
+    // === COMBAT - SERVER AUTHORITATIVE ===
     socket.on('playerPunch', () => {
-        // Legacy support - tell server physics about punch intent
-        if (serverPhysics.players[socket.id]) {
-            serverPhysics.players[socket.id].input.punch = true;
+        // Server handles hit detection and damage
+        const hits = serverPhysics.handlePunch(socket.id);
+
+        // Broadcast punch animation
+        socket.broadcast.emit('playerPunched', socket.id);
+
+        // Broadcast hit effects and knockback
+        for (const hit of hits) {
+            io.emit('playerDamaged', hit);
+
+            // Send knockback impulse to target
+            io.to(hit.targetId).emit('playerKnockback', {
+                id: hit.targetId,
+                velocity: hit.knockback
+            });
         }
     });
 
-    // Legacy hit event - now mostly handled by server
+    // Legacy hit event - kept for compatibility
     socket.on('playerHit', (data) => {
-        // Server physics handles this now, but keep for compatibility
         io.emit('playerDamaged', data);
     });
 

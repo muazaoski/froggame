@@ -1,15 +1,11 @@
 import { io } from 'socket.io-client';
 import * as THREE from 'three';
-import { Predictor } from './Prediction.js';
 import { Config } from './Config.js';
 
 export class Network {
     constructor(world) {
         this.world = world;
         this.socket = io();
-
-        // Client-side prediction system
-        this.predictor = new Predictor(Config);
 
         // Connection
         this.socket.on('connect', () => {
@@ -92,37 +88,35 @@ export class Network {
             }
         });
 
-        // === SERVER-AUTHORITATIVE PHYSICS STATE ===
-        // Server sends physics state for ALL players every tick
-        this.socket.on('physicsState', (worldState) => {
-            for (const socketId in worldState) {
-                const state = worldState[socketId];
-                const frog = this.world.frogs[socketId];
+        // === SERVER-AUTHORITATIVE KNOCKBACK ===
+        // Server sends knockback impulse when player is hit
+        this.socket.on('playerKnockback', (data) => {
+            const frog = this.world.frogs[data.id];
+            if (frog && frog.isLocal && frog.body) {
+                // Apply knockback impulse to local player's physics body
+                frog.body.velocity.x += data.velocity.x;
+                frog.body.velocity.y += data.velocity.y;
+                frog.body.velocity.z += data.velocity.z;
+            }
+        });
 
-                if (!frog) continue;
+        // === DAMAGE UPDATES ===
+        this.socket.on('playerDamaged', (data) => {
+            const frog = this.world.frogs[data.targetId];
+            if (frog) {
+                // Calculate new health
+                const newHealth = frog.health - data.damage;
+                frog.health = Math.max(0, newHealth);
+                frog.updateHealthBar();
 
-                if (frog.isLocal) {
-                    // For local player: reconcile using prediction system
-                    // This removes acknowledged inputs and re-applies unacknowledged ones
-                    this.predictor.reconcile(frog.body, state);
-                } else {
-                    // For remote players: interpolate to server position
-                    frog.targetPos = new THREE.Vector3(state.x, state.y, state.z);
-                    frog.remoteVelocity = new THREE.Vector3(state.vx, state.vy, state.vz);
-                    frog.serverFacingAngle = state.facingAngle;
-                    frog.isRemoteGrounded = state.isGrounded;
-                    frog.isRemotePunching = state.isPunching;
+                // Show damage VFX
+                if (frog.showDamageEffect) {
+                    frog.showDamageEffect(data.damage, data.isCritical);
+                }
 
-                    // Update health
-                    if (frog.health !== state.health) {
-                        frog.health = state.health;
-                        frog.updateHealthBar();
-                    }
-
-                    // Handle death
-                    if (state.isDead && !frog.isDead) {
-                        frog.die(true);
-                    }
+                // Check death
+                if (frog.health <= 0 && !frog.isDead) {
+                    frog.die(true);
                 }
             }
         });
@@ -289,15 +283,10 @@ export class Network {
         this.socket.emit('playerPunch');
     }
 
-    // Send player inputs to server with sequence ID for reconciliation
-    // Also triggers local prediction for instant feel
-    sendInput(input, cameraAngle, frog, dt) {
-        // Store input in buffer and get sequence ID
-        const inputEntry = this.predictor.inputBuffer.push(input, cameraAngle);
-
-        // Send to server with sequence
+    // Send player inputs to server (for activity tracking only)
+    // Movement is handled via sendUpdate (client-authoritative)
+    sendInput(input, cameraAngle) {
         this.socket.emit('playerInput', {
-            seq: inputEntry.seq,
             forward: input.keys.forward,
             backward: input.keys.backward,
             left: input.keys.left,
@@ -306,8 +295,6 @@ export class Network {
             punch: input.keys.punch,
             cameraAngle: cameraAngle
         });
-
-        // Local prediction happens in Frog.update() - inputs already applied
     }
 
     sendHit(targetId, damage, knockback, isCritical = false) {
@@ -340,42 +327,4 @@ export class Network {
         }
     }
 
-    // Apply server position correction to local player
-    // Uses smooth reconciliation to avoid jitter
-    applyServerCorrection(frog, serverState) {
-        if (!frog.body) return;
-
-        // Calculate difference between client and server positions
-        const dx = serverState.x - frog.body.position.x;
-        const dy = serverState.y - frog.body.position.y;
-        const dz = serverState.z - frog.body.position.z;
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        // Only correct if difference is significant
-        if (distance > 0.3) {
-            if (distance > 5) {
-                // Large difference: snap immediately (probably teleport/respawn)
-                frog.body.position.set(serverState.x, serverState.y, serverState.z);
-                frog.body.velocity.set(serverState.vx, serverState.vy, serverState.vz);
-                frog.mesh.position.set(serverState.x, serverState.y, serverState.z);
-            } else {
-                // Small difference: smooth correction
-                const correctionStrength = 0.2;
-                frog.body.position.x += dx * correctionStrength;
-                frog.body.position.y += dy * correctionStrength;
-                frog.body.position.z += dz * correctionStrength;
-            }
-        }
-
-        // Update health from server
-        if (frog.health !== serverState.health) {
-            frog.health = serverState.health;
-            frog.updateHealthBar();
-        }
-
-        // Handle server-triggered death
-        if (serverState.isDead && !frog.isDead) {
-            frog.die(true);
-        }
-    }
 }

@@ -504,10 +504,11 @@ function animate(time) {
             world.localFrog.releaseTongue();
         }
 
-        // Send inputs to server with sequence ID for prediction/reconciliation
-        network.sendInput(input, world.cameraOrbitAngle, world.localFrog, dt);
+        // Send inputs to server (for activity tracking)
+        network.sendInput(input, world.cameraOrbitAngle);
 
-        // Also send position update for legacy features (tongue, look direction, etc.)
+        // Send position update - CLIENT AUTHORITATIVE MOVEMENT
+        // Server validates and relays to other players
         network.sendUpdate(world.localFrog);
     } else {
         // SPECTATOR MODE - Auto-orbit camera around world center
