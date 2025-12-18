@@ -116,6 +116,7 @@ export class Frog {
         this.respawnTimer = 0;
         this.healthBarVisibleTimer = 0; // Timer for health bar visibility
         this.healthBarVisible = false;
+        this.isAFK = false; // AFK status (set by server)
 
         // Tongue mechanics
         this.tongueActive = false;
@@ -159,7 +160,16 @@ export class Frog {
 
     setName(name) {
         this.name = name;
-        this.nameTagDiv.textContent = name;
+        this.updateNameTag();
+    }
+
+    updateNameTag() {
+        // Build name tag HTML with optional AFK badge
+        let html = `<span>${this.name || 'Frog'}</span>`;
+        if (this.isAFK) {
+            html += '<span class="afk-badge">AFK</span>';
+        }
+        this.nameTagDiv.innerHTML = html;
     }
 
     update(dt, input, lookTarget, cameraOrbitAngle = 0) {
@@ -545,6 +555,75 @@ export class Frog {
         if (this.body) {
             this.body.position.set(state.x, state.y, state.z);
             // We don't snap velocity on kinematic bodies usually, but we store it for logic
+        }
+    }
+
+    // Apply authoritative physics state from server
+    applyServerPhysics(state) {
+        if (!state) return;
+
+        // Store server target for interpolation
+        this.serverTargetPos = { x: state.x, y: state.y, z: state.z };
+        this.serverVelocity = { x: state.vx, y: state.vy, z: state.vz };
+        this.serverFacingAngle = state.facingAngle;
+        this.serverIsGrounded = state.isGrounded;
+        this.serverIsPunching = state.isPunching;
+        this.serverIsDead = state.isDead;
+        this.serverHealth = state.health;
+
+        // Update health
+        if (this.health !== state.health) {
+            this.health = state.health;
+            this.updateHealthBar();
+            if (this.health < Config.maxHealth) {
+                this.showHealthBar();
+            }
+        }
+
+        // Handle death state
+        if (state.isDead && !this.isDead) {
+            this.die(true);
+        }
+
+        // For LOCAL player: apply server corrections smoothly
+        if (this.isLocal) {
+            // Only correct position if significantly different (reduces jitter)
+            if (this.body) {
+                const dx = state.x - this.body.position.x;
+                const dy = state.y - this.body.position.y;
+                const dz = state.z - this.body.position.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                // If position differs significantly, correct it
+                if (dist > 0.5) {
+                    // Snap correction for large differences
+                    if (dist > 3) {
+                        this.body.position.set(state.x, state.y, state.z);
+                        this.body.velocity.set(state.vx, state.vy, state.vz);
+                    } else {
+                        // Smooth correction for small differences
+                        this.body.position.x += dx * 0.3;
+                        this.body.position.y += dy * 0.3;
+                        this.body.position.z += dz * 0.3;
+                    }
+                }
+            }
+        } else {
+            // For REMOTE players: interpolate towards server position
+            this.targetPos = new THREE.Vector3(state.x, state.y, state.z);
+            this.remoteVelocity = new THREE.Vector3(state.vx, state.vy, state.vz);
+            this.isRemoteGrounded = state.isGrounded;
+            this.isRemotePunching = state.isPunching;
+
+            // Update facing angle
+            const targetRot = new THREE.Quaternion();
+            targetRot.setFromAxisAngle(new THREE.Vector3(0, 1, 0), state.facingAngle);
+            this.targetRot = targetRot;
+
+            // Sync physics body for collision
+            if (this.body) {
+                this.body.position.set(state.x, state.y, state.z);
+            }
         }
     }
 
@@ -1588,6 +1667,8 @@ export class Frog {
         if (this.body) {
             this.body.position.set(0, 10, 0);
             this.body.velocity.set(0, 0, 0);
+            // Immediately sync mesh position (important for when tab is inactive)
+            this.mesh.position.set(0, 10, 0);
         }
 
         // Reset opacity & visibility

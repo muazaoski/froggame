@@ -298,6 +298,22 @@
                 1px 1px 0 #000,
                 0 2px 4px rgba(0, 0, 0, 0.5);
             transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* AFK Badge */
+        .afk-badge {
+            background: #3b82f6;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-shadow: none;
+            font-family: 'Segoe UI', sans-serif;
+            letter-spacing: 0.5px;
         }
 
         /* Login Modal */
@@ -307,7 +323,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #87CEEB, #4CAF50);
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -315,11 +333,29 @@
             flex-direction: column;
         }
 
+        /* Blur the canvas during spectator/login mode */
+        body.spectator-mode #canvas-container canvas {
+            filter: blur(4px);
+            transition: filter 0.3s ease;
+        }
+
+        /* Hide UI elements during spectator/login mode */
+        body.spectator-mode #settings-btn,
+        body.spectator-mode #music-btn,
+        body.spectator-mode #player-table,
+        body.spectator-mode #chat-panel,
+        body.spectator-mode #chat-input,
+        body.spectator-mode .name-tag,
+        body.spectator-mode .health-bar-container {
+            display: none !important;
+        }
+
         .login-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
             padding: 2rem;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
             text-align: center;
             max-width: 400px;
             width: 90%;
@@ -365,6 +401,151 @@
         .btn-start:hover {
             background: #45a049;
             transform: scale(1.05);
+        }
+
+        .btn-start:disabled {
+            background: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Auth Tabs */
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #ddd;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            background: #f5f5f5;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            color: #666;
+        }
+
+        .auth-tab:hover {
+            background: #e8e8e8;
+        }
+
+        .auth-tab.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* Password field container */
+        .password-container {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.6;
+        }
+
+        .password-toggle:hover {
+            opacity: 1;
+        }
+
+        /* Error/Success messages */
+        .auth-message {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .auth-message.error {
+            background: #ffe0e0;
+            color: #d32f2f;
+            border: 1px solid #ffcdd2;
+            display: block;
+        }
+
+        .auth-message.success {
+            background: #e0ffe0;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+            display: block;
+        }
+
+        /* Guest button */
+        .btn-guest {
+            background: transparent;
+            color: #666;
+            border: 2px solid #ddd;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 25px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.2s;
+        }
+
+        .btn-guest:hover {
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        /* Account stats display */
+        .account-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        /* Divider */
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        .auth-divider::before,
+        .auth-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #ddd;
+        }
+
+        .auth-divider span {
+            padding: 0 10px;
+            color: #888;
+            font-size: 0.85rem;
         }
 
         /* Death Screen Overlay */
@@ -538,6 +719,106 @@
 
         #settings-btn:active {
             transform: translateY(0);
+        }
+
+        /* Music Button */
+        #music-btn {
+            position: fixed;
+            top: 20px;
+            left: 74px;
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #music-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #music-btn:active {
+            transform: translateY(0);
+        }
+
+        #music-btn.muted {
+            opacity: 0.5;
+        }
+
+        /* Volume Slider */
+        .volume-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+
+        .volume-icon {
+            font-size: 20px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .volume-icon:hover {
+            opacity: 0.8;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .volume-value {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            min-width: 35px;
+            text-align: right;
         }
 
         /* Settings Overlay */
@@ -745,20 +1026,61 @@
     </style>
 </head>
 
-<body>
+<body class="spectator-mode">
     <!-- Login Screen -->
     <div id="login-modal">
         <div class="login-card">
             <div class="login-title">🐸 Frog Battle</div>
-            <p>Enter your name to join!</p>
 
-            <input type="text" id="player-name" class="login-input" placeholder="Your Name" maxlength="12" autofocus>
+            <!-- Auth Tabs -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login">Login</button>
+                <button class="auth-tab" id="tab-register">Register</button>
+            </div>
 
+            <!-- Error/Success Message -->
+            <div id="auth-message" class="auth-message"></div>
+
+            <!-- Account Stats (shown after login) -->
+            <div id="account-stats" class="account-stats" style="display: none;">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-flies">0</div>
+                    <div class="stat-label">Flies</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-kills">0</div>
+                    <div class="stat-label">Kills</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-deaths">0</div>
+                    <div class="stat-label">Deaths</div>
+                </div>
+            </div>
+
+            <!-- Username input -->
+            <input type="text" id="player-name" class="login-input" placeholder="Username" maxlength="20" autofocus>
+
+            <!-- Password input -->
+            <div class="password-container">
+                <input type="password" id="player-password" class="login-input" placeholder="Password" maxlength="50">
+                <button class="password-toggle" id="password-toggle" type="button">👁️</button>
+            </div>
+
+            <!-- Color picker -->
             <label class="color-picker-label">Pick your color:</label>
             <input type="color" id="player-color" class="login-input" value="#4CAF50"
                 style="height: 50px; cursor: pointer;">
 
-            <button id="btn-join" class="btn-start">JOIN GAME</button>
+            <!-- Login/Register Button -->
+            <button id="btn-auth" class="btn-start">LOGIN</button>
+
+            <!-- Divider -->
+            <div class="auth-divider">
+                <span>or</span>
+            </div>
+
+            <!-- Guest Mode Button -->
+            <button id="btn-guest" class="btn-guest">Play as Guest</button>
         </div>
     </div>
 
@@ -782,6 +1104,9 @@
     <!-- Settings Button -->
     <button id="settings-btn" title="Settings (ESC)">⚙️</button>
 
+    <!-- Music Button -->
+    <button id="music-btn" title="Toggle Music (M)">🎵</button>
+
     <!-- Settings Overlay -->
     <div id="settings-overlay">
         <div id="settings-panel">
@@ -795,6 +1120,15 @@
                     <span class="settings-btn-icon">🔄</span>
                     Respawn Character
                 </button>
+            </div>
+
+            <div class="settings-section">
+                <div class="settings-section-title">Music</div>
+                <div class="volume-slider-container">
+                    <span class="volume-icon" id="volume-icon">🔊</span>
+                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="50">
+                    <span class="volume-value" id="volume-value">50%</span>
+                </div>
             </div>
 
             <div class="settings-section">
@@ -833,6 +1167,14 @@
                         <span class="control-key">E</span>
                     </div>
                 </div>
+            </div>
+
+            <div class="settings-section">
+                <button class="settings-btn-action" id="btn-logout"
+                    style="background: linear-gradient(135deg, #ff6b6b, #ee5a5a); border: none;">
+                    <span class="settings-btn-icon">🚪</span>
+                    Leave Game
+                </button>
             </div>
 
             <div class="settings-hint">Press ESC to close</div>

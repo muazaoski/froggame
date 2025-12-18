@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import * as THREE from 'three';
 
 export class Network {
     constructor(world) {
@@ -15,6 +16,9 @@ export class Network {
                 // Reload the page to show login modal
                 window.location.reload();
             }
+
+            // Request spectator mode to see current players during login screen
+            this.socket.emit('spectate');
         });
 
         // Disconnection handling
@@ -26,6 +30,12 @@ export class Network {
         this.socket.on('connect_error', (error) => {
             console.log('Connection error:', error);
             this.showOfflineOverlay();
+        });
+
+        // Kicked from session (logged in elsewhere)
+        this.socket.on('kicked', (reason) => {
+            alert('Disconnected: ' + reason);
+            window.location.reload();
         });
 
         // Initial State - other players already in the game
@@ -56,12 +66,55 @@ export class Network {
             this.world.removeFrog(id);
         });
 
-        // Player Moved
+        // Player AFK Status Change
+        this.socket.on('playerAFKStatus', ({ id, isAFK }) => {
+            const frog = this.world.frogs[id];
+            if (frog) {
+                frog.isAFK = isAFK;
+                frog.updateNameTag(); // Refresh name tag to show/hide AFK badge
+            }
+        });
+
+        // Player Moved (legacy - still used for extra state like tongue, scooter)
         this.socket.on('playerMoved', (playerInfo) => {
+            // Skip local player - they use their own physics
+            if (playerInfo.id === this.socket.id) return;
+
             const frog = this.world.frogs[playerInfo.id];
             if (frog) {
                 // Apply the full sync state (pos, rot, vel, look, etc.)
                 frog.applySyncState(playerInfo);
+            }
+        });
+
+        // === AFK PLAYER UPDATES ===
+        // Server sends position updates only for AFK players (server physics simulation)
+        this.socket.on('afkPlayerUpdate', (data) => {
+            const frog = this.world.frogs[data.id];
+            if (frog && !frog.isLocal) {
+                // Apply server position for AFK players
+                frog.targetPos = new THREE.Vector3(data.x, data.y, data.z);
+                frog.remoteVelocity = new THREE.Vector3(data.vx, data.vy, data.vz);
+
+                // Sync physics body
+                if (frog.body) {
+                    frog.body.position.set(data.x, data.y, data.z);
+                }
+            }
+        });
+
+        // Server respawned a player
+        this.socket.on('playerRespawned', (data) => {
+            const frog = this.world.frogs[data.id];
+            if (frog) {
+                frog.respawn(true);
+                frog.health = data.health;
+                // Teleport to respawn position
+                if (frog.body) {
+                    frog.body.position.set(data.x, data.y, data.z);
+                    frog.body.velocity.set(0, 0, 0);
+                }
+                frog.mesh.position.set(data.x, data.y, data.z);
             }
         });
 
@@ -210,6 +263,19 @@ export class Network {
 
     sendPunch() {
         this.socket.emit('playerPunch');
+    }
+
+    // Send player inputs to server for authoritative physics
+    sendInput(input, cameraAngle) {
+        this.socket.emit('playerInput', {
+            forward: input.keys.forward,
+            backward: input.keys.backward,
+            left: input.keys.left,
+            right: input.keys.right,
+            jump: input.keys.jump,
+            punch: input.keys.punch,
+            cameraAngle: cameraAngle
+        });
     }
 
     sendHit(targetId, damage, knockback, isCritical = false) {

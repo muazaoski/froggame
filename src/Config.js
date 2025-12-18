@@ -104,6 +104,12 @@ export const Config = {
     cameraOrbitAngle: 0,
     cameraPitchAngle: 0.6,
 
+    // Spectator Camera (login screen background)
+    spectatorDistance: 34.04,
+    spectatorPitch: 0.1,
+    spectatorSpeed: 0.22866,
+    spectatorHeight: 8.7,
+
     // Jiggle Physics (Ass)
     jiggleEnabled: true,
     jiggleIntensity: 0.15,

@@ -1,0 +1,40 @@
+services:
+  # 🐸 Frog Multiplayer Game
+  froggame:
+    build: .
+    container_name: froggame
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data # Persist SQLite database
+      - ./.env:/app/.env:ro # Environment variables
+    environment:
+      - NODE_ENV=production
+    networks:
+      - web
+
+  # 🌐 Caddy Reverse Proxy (auto HTTPS)
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+    depends_on:
+      - froggame
+
+networks:
+  web:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

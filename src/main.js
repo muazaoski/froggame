@@ -266,6 +266,14 @@ cameraFolder.add({
 }, 'resetCamera').name('🔄 Reset View');
 cameraFolder.close();
 
+// Spectator Camera (Login Screen Background)
+const spectatorFolder = gui.addFolder('Spectator Camera 👁️');
+spectatorFolder.add(Config, 'spectatorDistance', 20, 200).name('Distance');
+spectatorFolder.add(Config, 'spectatorPitch', 0.1, 1.5).name('Pitch');
+spectatorFolder.add(Config, 'spectatorSpeed', 0.01, 0.3).name('Orbit Speed');
+spectatorFolder.add(Config, 'spectatorHeight', -20, 50).name('Look At Height');
+spectatorFolder.close();
+
 // Jiggle Physics
 const jiggleFolder = gui.addFolder('Jiggle Physics 🍑');
 jiggleFolder.add(Config, 'jiggleEnabled').name('Enable Jiggle');
@@ -452,22 +460,24 @@ const exportObj = {
 gui.add(exportObj, 'exportSettings').name('💾 Log Changed Settings');
 gui.add(exportObj, 'exportAll').name('📋 Log All Settings');
 
-// Dev Config Toggle - Alt + V
-let guiVisible = false;
-window.addEventListener('keydown', (e) => {
-    if (e.altKey && (e.key === 'v' || e.key === 'V')) {
-        e.preventDefault();
-        guiVisible = !guiVisible;
-        if (guiVisible) {
-            gui.show();
-        } else {
-            gui.hide();
-        }
-    }
-});
+// Dev Config Toggle - Alt + V (DISABLED FOR PRODUCTION)
+// let guiVisible = false;
+// window.addEventListener('keydown', (e) => {
+//     if (e.altKey && (e.key === 'v' || e.key === 'V')) {
+//         e.preventDefault();
+//         guiVisible = !guiVisible;
+//         if (guiVisible) {
+//             gui.show();
+//         } else {
+//             gui.hide();
+//         }
+//     }
+// });
 
 // Game Loop
 let lastTime = 0;
+let spectatorOrbitAngle = 0; // For auto-orbiting camera in spectator mode
+
 function animate(time) {
     requestAnimationFrame(animate);
     let dt = (time - lastTime) / 1000;
@@ -494,10 +504,26 @@ function animate(time) {
             world.localFrog.releaseTongue();
         }
 
+        // Send position update to server
         network.sendUpdate(world.localFrog);
+    } else {
+        // SPECTATOR MODE - Auto-orbit camera around world center
+        spectatorOrbitAngle += dt * Config.spectatorSpeed;
+        world.cameraOrbitAngle = spectatorOrbitAngle;
+        world.cameraPitchAngle = Config.spectatorPitch;
+        world.cameraDistance = Config.spectatorDistance;
+
+        // Update camera position for spectator view
+        const targetPos = { x: 0, y: Config.spectatorHeight, z: 0 };
+        const orbitX = targetPos.x + Math.sin(world.cameraOrbitAngle) * world.cameraDistance;
+        const orbitZ = targetPos.z + Math.cos(world.cameraOrbitAngle) * world.cameraDistance;
+        const orbitY = targetPos.y + Math.sin(world.cameraPitchAngle) * world.cameraDistance;
+
+        world.camera.position.set(orbitX, orbitY, orbitZ);
+        world.camera.lookAt(targetPos.x, targetPos.y, targetPos.z);
     }
 
-    // Update remote frogs
+    // Update remote frogs (always, even in spectator mode)
     Object.values(world.frogs).forEach(frog => {
         if (!frog.isLocal) {
             frog.updateRemote(dt);
@@ -510,22 +536,123 @@ animate(0);
 // Expose for debugging
 window.game = { world, input, network };
 
-// --- LOGIN LOGIC ---
+// --- LOGIN / AUTH LOGIC ---
 document.addEventListener('DOMContentLoaded', () => {
     const loginModal = document.getElementById('login-modal');
-    const btnJoin = document.getElementById('btn-join');
+    const tabLogin = document.getElementById('tab-login');
+    const tabRegister = document.getElementById('tab-register');
+    const authMessage = document.getElementById('auth-message');
+    const accountStats = document.getElementById('account-stats');
     const nameInput = document.getElementById('player-name');
+    const passwordInput = document.getElementById('player-password');
+    const passwordToggle = document.getElementById('password-toggle');
     const colorInput = document.getElementById('player-color');
+    const btnAuth = document.getElementById('btn-auth');
+    const btnGuest = document.getElementById('btn-guest');
 
-    if (!btnJoin || !loginModal) {
+    if (!btnAuth || !loginModal) {
         console.warn("Login elements not found!");
         return;
     }
 
-    // Handle Join
-    function joinGame() {
-        const name = nameInput.value.trim() || 'Guest Frog';
+    let isLoginMode = true; // true = login, false = register
+    let isAuthenticated = false;
+    let currentUser = null;
+
+    // Tab switching
+    function setAuthMode(loginMode) {
+        isLoginMode = loginMode;
+        tabLogin.classList.toggle('active', loginMode);
+        tabRegister.classList.toggle('active', !loginMode);
+        btnAuth.textContent = loginMode ? 'LOGIN' : 'REGISTER';
+        hideMessage();
+    }
+
+    tabLogin.addEventListener('click', () => setAuthMode(true));
+    tabRegister.addEventListener('click', () => setAuthMode(false));
+
+    // Password visibility toggle
+    passwordToggle.addEventListener('click', () => {
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            passwordToggle.textContent = '🙈';
+        } else {
+            passwordInput.type = 'password';
+            passwordToggle.textContent = '👁️';
+        }
+    });
+
+    // Show message (error or success)
+    function showMessage(text, isError = true) {
+        authMessage.textContent = text;
+        authMessage.className = 'auth-message ' + (isError ? 'error' : 'success');
+    }
+
+    function hideMessage() {
+        authMessage.className = 'auth-message';
+        authMessage.textContent = '';
+    }
+
+    // Show account stats after login
+    function showAccountStats(user) {
+        document.getElementById('stat-flies').textContent = user.flies || 0;
+        document.getElementById('stat-kills').textContent = user.kills || 0;
+        document.getElementById('stat-deaths').textContent = user.deaths || 0;
+        accountStats.style.display = 'flex';
+
+        // Update color picker with saved color
+        if (user.color) {
+            colorInput.value = user.color;
+        }
+    }
+
+    // Handle authentication (login or register)
+    async function handleAuth() {
+        const username = nameInput.value.trim();
+        const password = passwordInput.value;
         const color = colorInput.value;
+
+        if (!username || !password) {
+            showMessage('Please enter username and password');
+            return;
+        }
+
+        btnAuth.disabled = true;
+        btnAuth.textContent = isLoginMode ? 'Logging in...' : 'Registering...';
+        hideMessage();
+
+        const eventName = isLoginMode ? 'login' : 'register';
+        const data = isLoginMode
+            ? { username, password }
+            : { username, password, color };
+
+        // Use Socket.IO callback
+        network.socket.emit(eventName, data, (result) => {
+            btnAuth.disabled = false;
+            btnAuth.textContent = isLoginMode ? 'LOGIN' : 'REGISTER';
+
+            if (result.success) {
+                isAuthenticated = true;
+                currentUser = result.user;
+                showMessage(isLoginMode ? 'Welcome back!' : 'Account created!', false);
+                showAccountStats(result.user);
+
+                // Wait a moment then start game
+                setTimeout(() => startGame(true), 800);
+            } else {
+                showMessage(result.error || 'Authentication failed');
+            }
+        });
+    }
+
+    // Start the game (authenticated or guest)
+    function startGame(authenticated = false) {
+        // Guests get random name, authenticated users use their username
+        const name = authenticated ? currentUser.username : `Guest${Math.floor(Math.random() * 9999)}`;
+        const color = colorInput.value;
+
+        // Exit spectator mode - remove blur and show UI
+        document.body.classList.remove('spectator-mode');
 
         // Hide modal
         loginModal.style.display = 'none';
@@ -535,16 +662,57 @@ document.addEventListener('DOMContentLoaded', () => {
             input.showMobileControls();
         }
 
+        // Reset camera to normal game view (undo spectator zoom out)
+        world.cameraDistance = 16; // Normal game distance (matches Config default)
+        world.cameraPitchAngle = 0.6;
+
         // Join Network Game
         network.join(name, color);
 
-        // Start Input (optional, maybe focus canvas)
+        // Focus game
         document.getElementById('canvas-container').focus();
     }
 
-    btnJoin.addEventListener('click', joinGame);
+    // Guest mode - play without account
+    function playAsGuest() {
+        isAuthenticated = false;
+        currentUser = null;
+        startGame(false);
+    }
+
+    // Event listeners
+    btnAuth.addEventListener('click', handleAuth);
+    btnGuest.addEventListener('click', playAsGuest);
+
+    // Enter key to submit
     nameInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') joinGame();
+        if (e.key === 'Enter') {
+            if (passwordInput.value) {
+                handleAuth();
+            } else {
+                passwordInput.focus();
+            }
+        }
+    });
+
+    passwordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleAuth();
+    });
+
+    // Auto-save progress periodically for authenticated users
+    setInterval(() => {
+        if (isAuthenticated && world.localFrog) {
+            network.socket.emit('saveProgress', {
+                flies: world.localFrog.flies || 0
+            });
+        }
+    }, 30000); // Every 30 seconds
+
+    // Save on color change for authenticated users
+    colorInput.addEventListener('change', () => {
+        if (isAuthenticated) {
+            network.socket.emit('updateColor', colorInput.value);
+        }
     });
 });
 
@@ -783,3 +951,131 @@ if (btnRespawn) {
         }
     });
 }
+
+// Logout/Leave button
+const btnLogout = document.getElementById('btn-logout');
+if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+        // Emit logout to server (saves stats for authenticated users)
+        if (network.socket) {
+            network.socket.emit('logout');
+        }
+        // Reload page to go back to login
+        window.location.reload();
+    });
+}
+
+// === BACKGROUND MUSIC ===
+const bgMusic = new Audio('/song/bgsong1.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.5;
+
+const musicBtn = document.getElementById('music-btn');
+const volumeSlider = document.getElementById('volume-slider');
+const volumeValue = document.getElementById('volume-value');
+const volumeIcon = document.getElementById('volume-icon');
+
+let musicMuted = false;
+let musicStarted = false;
+
+// Update volume icon based on volume/mute state
+function updateVolumeIcon() {
+    if (musicMuted || bgMusic.volume === 0) {
+        volumeIcon.textContent = '🔇';
+        musicBtn.textContent = '🔇';
+        musicBtn.classList.add('muted');
+    } else if (bgMusic.volume < 0.3) {
+        volumeIcon.textContent = '🔈';
+        musicBtn.textContent = '🎵';
+        musicBtn.classList.remove('muted');
+    } else if (bgMusic.volume < 0.7) {
+        volumeIcon.textContent = '🔉';
+        musicBtn.textContent = '🎵';
+        musicBtn.classList.remove('muted');
+    } else {
+        volumeIcon.textContent = '🔊';
+        musicBtn.textContent = '🎵';
+        musicBtn.classList.remove('muted');
+    }
+}
+
+// Toggle music mute
+function toggleMusic() {
+    if (!musicStarted) {
+        // First interaction - start music
+        bgMusic.play().catch(e => console.warn('Music autoplay blocked:', e));
+        musicStarted = true;
+        musicMuted = false;
+    } else {
+        musicMuted = !musicMuted;
+        bgMusic.muted = musicMuted;
+    }
+    updateVolumeIcon();
+}
+
+// Music button click
+if (musicBtn) {
+    musicBtn.addEventListener('click', toggleMusic);
+}
+
+// Volume slider change
+if (volumeSlider) {
+    volumeSlider.addEventListener('input', (e) => {
+        const volume = e.target.value / 100;
+        bgMusic.volume = volume;
+        if (volumeValue) {
+            volumeValue.textContent = `${e.target.value}%`;
+        }
+
+        // Unmute if adjusting volume while muted
+        if (musicMuted && volume > 0) {
+            musicMuted = false;
+            bgMusic.muted = false;
+        }
+
+        updateVolumeIcon();
+
+        // Start music on first volume change if not started
+        if (!musicStarted && volume > 0) {
+            bgMusic.play().catch(e => console.warn('Music autoplay blocked:', e));
+            musicStarted = true;
+        }
+    });
+}
+
+// Volume icon click to mute
+if (volumeIcon) {
+    volumeIcon.addEventListener('click', () => {
+        toggleMusic();
+    });
+}
+
+// M key to toggle music
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'm' || e.key === 'M') {
+        // Don't toggle if chat input is focused
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput && document.activeElement === chatInput) {
+            return;
+        }
+        toggleMusic();
+    }
+});
+
+// Start music when joining game (after user interaction)
+const originalJoin = network.join.bind(network);
+network.join = function (name, color) {
+    const result = originalJoin(name, color);
+
+    // Start music after join (user has interacted)
+    if (!musicStarted) {
+        bgMusic.play().catch(e => console.warn('Music autoplay blocked:', e));
+        musicStarted = true;
+    }
+
+    return result;
+};
+
+// Initialize volume display
+updateVolumeIcon();
+

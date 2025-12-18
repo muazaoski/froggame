@@ -14,7 +14,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.5.0",
     "cannon-es": "^0.20.0",
+    "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "lil-gui": "^0.21.0",
     "socket.io": "^4.8.1",
