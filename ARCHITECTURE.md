@@ -4,11 +4,12 @@
 1. [Game Overview](#game-overview)
 2. [Tech Stack](#tech-stack)
 3. [Project Structure](#project-structure)
-4. [Client Architecture](#client-architecture)
-5. [Server Architecture](#server-architecture)
-6. [Networking Model](#networking-model)
-7. [Physics System](#physics-system)
-8. [Current Issues & Solutions](#current-issues--solutions)
+4. [Authority Model](#authority-model)
+5. [Client Architecture](#client-architecture)
+6. [Server Architecture](#server-architecture)
+7. [Network Events](#network-events)
+8. [Physics System](#physics-system)
+9. [Deployment](#deployment)
 
 ---
 
@@ -42,7 +43,6 @@
 |------------|---------|
 | **Express** | HTTP server, static files |
 | **Socket.IO** | WebSocket communication |
-| **Cannon-ES** | Server-side physics simulation |
 | **SQLite (better-sqlite3)** | User accounts, stats |
 
 ### Deployment
@@ -64,13 +64,12 @@ frogmultiplayer/
 │   ├── Frog.js               # Player entity, physics, animations
 │   ├── Network.js            # Socket.IO client, sync
 │   ├── Input.js              # Keyboard/mouse handling
-│   ├── Config.js             # Game constants (shared reference)
-│   ├── Prediction.js         # Client-side prediction
+│   ├── Config.js             # Game constants
 │   └── VFX.js                # Visual effects
 │
 ├── server/                   # SERVER-SIDE CODE (runs on VPS)
 │   ├── index.js              # Express + Socket.IO server
-│   ├── physics.js            # Server physics simulation
+│   ├── physics.js            # Combat-only physics (no movement!)
 │   ├── auth.js               # Telegram authentication
 │   └── database.js           # SQLite database
 │
@@ -87,6 +86,53 @@ frogmultiplayer/
 
 ---
 
+## ⚖️ Authority Model
+
+### Client-Authoritative Movement + Server-Authoritative Combat
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CURRENT ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  CLIENT (60Hz)                   SERVER                         │
+│  ┌─────────────┐                 ┌─────────────┐               │
+│  │ Cannon-ES   │   positions     │  Validate   │               │
+│  │ Physics     │ ───────────────►│  & Relay    │               │
+│  │ (movement)  │                 │             │               │
+│  └─────────────┘                 │  Combat:    │               │
+│         │                        │  - Hits     │               │
+│         ▼                        │  - Damage   │               │
+│  Instant, smooth                 │  - Knockback│               │
+│  movement feel                   │  - Respawn  │               │
+│                                  └──────┬──────┘               │
+│                                         │                       │
+│  REMOTE PLAYERS                         │ knockback             │
+│  ┌─────────────┐                        ▼                       │
+│  │ THREE.js    │◄─────────────── broadcasts                    │
+│  │ Mesh only   │  (positions)                                  │
+│  │ No physics  │                                               │
+│  └─────────────┘                                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Authority Summary
+
+| Feature | Authority | Why |
+|---------|-----------|-----|
+| **Movement** | ✅ Client | Instant feel, no lag |
+| **Jumping** | ✅ Client | Responsive controls |
+| **Position** | Client → Server validates | Speed hack detection |
+| **Punch Hit Detection** | ✅ Server | Fair combat |
+| **Damage Calculation** | ✅ Server | Prevents cheating |
+| **Knockback** | ✅ Server | Consistent for all players |
+| **Health** | ✅ Server | Authoritative state |
+| **Death** | ✅ Server | Prevents fake deaths |
+| **Respawn** | ✅ Server | Works even if tab inactive |
+
+---
+
 ## 🖥 Client Architecture
 
 ### Entry Point: `main.js`
@@ -99,13 +145,16 @@ function animate(time) {
     // 1. Capture input
     input.update();
     
-    // 2. Update local player physics
+    // 2. Update local player physics (CLIENT AUTHORITATIVE)
     world.localFrog.update(dt, input, world);
     
-    // 3. Send input to server
+    // 3. Send inputs (activity tracking)
     network.sendInput(input, cameraAngle);
     
-    // 4. Render
+    // 4. Send position to server (for relay to others)
+    network.sendUpdate(world.localFrog);
+    
+    // 5. Render
     world.render();
     
     requestAnimationFrame(animate);
@@ -114,40 +163,26 @@ function animate(time) {
 
 ### Frog Entity: `Frog.js`
 
-Each frog has:
-- **Mesh** (Three.js) - Visual representation
-- **Body** (Cannon-ES) - Physics simulation
-- **State** - health, isDead, isPunching, etc.
+**Local Player:**
+- Has Cannon-ES physics body
+- Runs full physics simulation
+- Applies movement forces, jumping, gravity
+
+**Remote Players:**
+- THREE.js mesh only (no physics body)
+- Lerps position from network updates
+- Visual-only representation
 
 ```
-Frog
-├── mesh (THREE.Group)
-│   ├── body model
-│   ├── eyes
-│   ├── legs
-│   └── healthbar (CSS2D)
-├── body (CANNON.Body)
-│   ├── position {x, y, z}
-│   ├── velocity {x, y, z}
-│   └── material
-└── state
-    ├── health: 100
-    ├── isDead: false
-    ├── isLocal: true/false
-    └── facingAngle: 0
+Local Frog                       Remote Frog
+├── mesh (THREE.Group)           ├── mesh (THREE.Group)
+├── body (CANNON.Body) ◄──────   │   (no physics body!)
+│   ├── position                 ├── targetPos (lerp target)
+│   └── velocity                 └── state
+└── state                            ├── health
+    ├── health                       └── isDead
+    └── isDead
 ```
-
-### Network: `Network.js`
-
-Handles all Socket.IO communication:
-
-| Event | Direction | Data |
-|-------|-----------|------|
-| `playerInput` | Client → Server | `{seq, forward, backward, left, right, jump, punch, cameraAngle}` |
-| `physicsState` | Server → Client | `{[socketId]: {x, y, z, vx, vy, vz, health, ...}}` |
-| `playerMoved` | Server → Client | Position updates for remote players |
-| `playerDamaged` | Server → Client | Hit notifications |
-| `playerRespawned` | Server → Client | Respawn positions |
 
 ---
 
@@ -156,129 +191,80 @@ Handles all Socket.IO communication:
 ### Entry Point: `server/index.js`
 
 ```javascript
-// Socket.IO connection handler
 io.on('connection', (socket) => {
     // Player joins
     socket.on('joinGame', (data) => {
         serverPhysics.addPlayer(socket.id, data);
     });
     
-    // Player sends input
-    socket.on('playerInput', (inputData) => {
-        serverPhysics.handleInput(socket.id, inputData);
+    // CLIENT-AUTHORITATIVE MOVEMENT
+    // Server validates and relays - does NOT simulate
+    socket.on('playerMove', (data) => {
+        const valid = serverPhysics.updatePlayerPosition(socket.id, data);
+        if (valid) {
+            socket.broadcast.emit('playerMoved', data);
+        }
     });
     
-    // Player punches
+    // SERVER-AUTHORITATIVE COMBAT
     socket.on('playerPunch', () => {
-        // Server handles hit detection
-    });
-    
-    // Player disconnects
-    socket.on('disconnect', () => {
-        serverPhysics.removePlayer(socket.id);
+        const hits = serverPhysics.handlePunch(socket.id);
+        for (hit of hits) {
+            io.emit('playerDamaged', hit);
+            io.to(hit.targetId).emit('playerKnockback', hit.knockback);
+        }
     });
 });
 ```
 
-### Physics Engine: `server/physics.js`
+### Combat Physics: `server/physics.js`
 
-Runs authoritative simulation at 20Hz:
+Server ONLY handles:
+- **Hit Detection** - Who got punched
+- **Damage Calculation** - Including criticals
+- **Knockback** - Direction and force
+- **Death Detection** - When health <= 0
+- **Respawn Timer** - Server-controlled
 
-```javascript
-// Server physics tick
-setInterval(() => {
-    // 1. Process each player's input
-    for (player of players) {
-        applyMovementForces(player);
-        checkJump(player);
-        checkPunch(player);
-    }
-    
-    // 2. Step physics world
-    world.step(1/20, dt, 3);
-    
-    // 3. Broadcast state to all clients
-    io.emit('physicsState', getWorldState());
-}, 1000 / 20);  // 20 Hz
-```
+Server does NOT:
+- ❌ Simulate player movement
+- ❌ Run continuous physics loop
+- ❌ Apply movement forces
 
 ---
 
-## 🌐 Networking Model
+## 🌐 Network Events
 
-### Current Model: Hybrid (Broken)
+### Client → Server
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    CURRENT (PROBLEMATIC)                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  CLIENT                           SERVER                        │
-│  ┌─────────┐    inputs           ┌─────────┐                   │
-│  │ Physics │ ──────────────────► │ Physics │                   │
-│  │ (60Hz)  │                     │ (20Hz)  │                   │
-│  └────┬────┘    positions        └────┬────┘                   │
-│       │      ◄──────────────────      │                        │
-│       ▼                               ▼                        │
-│  Client moves                    Server moves                   │
-│  INDEPENDENTLY                   INDEPENDENTLY                  │
-│                                                                 │
-│  PROBLEM: Both run physics → positions diverge → jitter        │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Event | Data | Purpose |
+|-------|------|---------|
+| `joinGame` | `{name, color, token}` | Player joining |
+| `playerMove` | `{x, y, z, vx, vy, vz, rotation, ...}` | Position update |
+| `playerInput` | `{forward, backward, left, right, jump}` | Activity tracking |
+| `playerPunch` | (none) | Request punch |
 
-### Correct Model: Client-Authoritative with Server Validation
+### Server → Client
 
-For a responsive casual game, we should use:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│               RECOMMENDED MODEL FOR THIS GAME                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  CLIENT                           SERVER                        │
-│  ┌─────────┐    positions        ┌─────────┐                   │
-│  │ Physics │ ──────────────────► │ Validate│                   │
-│  │ (60Hz)  │                     │ & Relay │                   │
-│  │ OWNER   │    positions        │  ONLY   │                   │
-│  └─────────┘ ◄────────────────── └─────────┘                   │
-│              (other players)                                    │
-│                                                                 │
-│  MOVEMENT: Client runs physics, server validates + relays      │
-│  COMBAT: Server authoritative for damage/knockback             │
-│  RESULT: Smooth movement, fair combat                          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Event | Data | Purpose |
+|-------|------|---------|
+| `playerMoved` | `{id, x, y, z, ...}` | Other player moved |
+| `playerPunched` | `socketId` | Show punch animation |
+| `playerDamaged` | `{targetId, damage, isCritical}` | Damage notification |
+| `playerKnockback` | `{id, velocity}` | Apply knockback impulse |
+| `playerDied` | `socketId` | Player died |
+| `playerRespawned` | `{id, x, y, z, health}` | Player respawned |
 
 ---
 
 ## ⚙️ Physics System
 
-### Config Values (Must Match!)
+### Client Physics (Cannon-ES)
+
+Only runs for **local player**:
 
 ```javascript
-// These MUST be identical on client and server
-const Config = {
-    gravity: -21.39,
-    friction: 0.0,
-    restitution: 0.336,
-    moveSpeed: 1143.7,
-    jumpVelocity: 15.08,
-    airControl: 0.5,
-    linearDamping: 0.93,
-    knockbackForce: 15,
-    knockbackUpward: 8,
-    maxHealth: 100,
-    respawnTime: 2.035,
-};
-```
-
-### Force Application (Client)
-
-```javascript
-// In Frog.update()
+// In Frog.update() for local player only
 const moveDir = calculateMoveDirection(input, cameraAngle);
 const force = moveDir.scale(Config.moveSpeed * dt);
 this.body.applyForce(force, this.body.position);
@@ -286,129 +272,94 @@ this.body.applyForce(force, this.body.position);
 if (input.jump && isGrounded) {
     this.body.velocity.y = Config.jumpVelocity;
 }
+
+// Step physics world
+world.step(1/60, dt, 3);
 ```
 
----
+### Server Combat (No Cannon-ES)
 
-## 🐛 Current Issues & Solutions
+Server stores positions but doesn't simulate:
 
-### Issue 1: Movement Jitter
-
-**Cause:** Client and server both run physics independently. Positions diverge, then server corrections cause snapping.
-
-**Solution:** Choose ONE physics authority:
-
-**Option A: Client-Authoritative Movement (Recommended for casual games)**
 ```javascript
-// Client: Run physics, send positions
-// Server: Validate (speed check), relay to others
+// Just stores and validates positions
+updatePlayerPosition(socketId, data) {
+    // Validate speed (anti-cheat)
+    const speed = calculateSpeed(player, data);
+    if (speed > Config.maxSpeed) return false;
+    
+    // Update stored position
+    player.x = data.x;
+    player.y = data.y;
+    player.z = data.z;
+    return true;
+}
 
-// server/index.js
-socket.on('playerMove', (data) => {
-    // Validate: check if movement speed is reasonable
-    const valid = validateMovement(data);
-    if (valid) {
-        players[socket.id] = data;
-        socket.broadcast.emit('playerMoved', data);
+// Combat uses stored positions
+handlePunch(attackerId) {
+    for (target of players) {
+        if (distance(attacker, target) < hitRadius) {
+            // Apply damage & knockback
+        }
     }
-});
-
-// Client: Just apply other players' positions
-socket.on('playerMoved', (data) => {
-    if (data.id !== myId) {
-        frogs[data.id].targetPos = data.position;
-    }
-});
-```
-
-**Option B: Server-Authoritative (Competitive games)**
-```javascript
-// Client: Send ONLY inputs
-// Server: Run physics, send positions to ALL
-
-// Requires identical physics on both sides
-// Requires input buffering and reconciliation
-// More complex, more latency
-```
-
-### Issue 2: Knockback Not Working When Tab Inactive
-
-**Cause:** Browser throttles JavaScript when tab is hidden.
-
-**Solution:** Server handles knockback physics:
-```javascript
-// On damage, server applies knockback velocity
-target.body.velocity.x += knockbackDir.x * Config.knockbackForce;
-target.body.velocity.y += Config.knockbackUpward;
-target.body.velocity.z += knockbackDir.z * Config.knockbackForce;
-
-// Server continues simulating even if client tab is inactive
-// Client receives corrected position on return
-```
-
-### Issue 3: Respawn Not Working When Tab Inactive
-
-**Cause:** Client-side respawn timer doesn't run when throttled.
-
-**Solution:** Server handles respawn timer:
-```javascript
-// Server-side respawn
-killPlayer(socketId) {
-    player.isDead = true;
-    setTimeout(() => {
-        respawnPlayer(socketId);
-        io.emit('playerRespawned', { id: socketId, x, y, z });
-    }, Config.respawnTime * 1000);
 }
 ```
 
 ---
 
-## 🎯 Recommended Fix
+## 🚀 Deployment
 
-### For Smooth Movement WITHOUT Jitter:
+### VPS Details
+- **Provider:** OVH
+- **Location:** Singapore
+- **Specs:** 4 vCPU, 8GB RAM, 75GB SSD
+- **OS:** Debian 12 + Docker
+- **IP:** 51.79.161.63
+- **Domain:** frog.muazaoski.online
 
-1. **Disable server physics for movement** - Let client run physics
-2. **Server only validates** - Check for cheating (speed hacks)
-3. **Server handles combat** - Damage, knockback, death, respawn
-4. **Server relays positions** - Broadcast to other players
+### Docker Stack
 
-```javascript
-// Client sends position every frame
-socket.emit('playerMove', { x, y, z, vx, vy, vz, rotation });
+```yaml
+services:
+  froggame:
+    build: .
+    ports:
+      - "3000:3000"
+    
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+```
 
-// Server validates and relays
-socket.on('playerMove', (data) => {
-    if (isValidPosition(data)) {
-        players[socket.id].position = data;
-        socket.broadcast.emit('playerMoved', { id: socket.id, ...data });
-    }
-});
+### Deploy Commands
 
-// Combat stays server-authoritative
-socket.on('playerPunch', () => {
-    const hits = checkHitsOnServer();
-    for (hit of hits) {
-        applyKnockback(hit.target);
-        applyDamage(hit.target);
-    }
-});
+```bash
+# Update code
+cd /opt/apps/froggame
+git pull
+
+# Rebuild and restart
+docker-compose down
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f froggame
 ```
 
 ---
 
-## 📊 Summary
+## 📊 Performance Benefits
 
-| Aspect | Current | Recommended |
-|--------|---------|-------------|
-| **Movement Physics** | Both client + server | Client only |
-| **Position Authority** | Server (causes jitter) | Client sends, server relays |
-| **Validation** | None | Server speed checks |
-| **Combat** | Server | Server (keep) |
-| **Knockback** | Server | Server (keep) |
-| **Respawn** | Server | Server (keep) |
-| **Tick Rate** | 20Hz | Not needed for movement |
+| Metric | Before (Server-Auth) | After (Client-Auth Movement) |
+|--------|---------------------|------------------------------|
+| **Movement Feel** | Laggy, jittery | Instant, smooth |
+| **Server CPU** | High (physics loop) | Low (validation only) |
+| **Network Traffic** | High (state broadcasts) | Low (position relays) |
+| **Combat Fairness** | ✅ Server auth | ✅ Server auth (unchanged) |
+| **Cheat Prevention** | ✅ Full | ⚠️ Speed validation only |
 
 ---
 
-*Document generated: December 18, 2025*
+*Last Updated: December 18, 2025*
