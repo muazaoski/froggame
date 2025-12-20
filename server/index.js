@@ -371,10 +371,17 @@ io.on('connection', (socket) => {
 
         console.log(`📡 getProfileBySocket request for: ${targetSocketId}`);
 
-        // Get the user ID associated with this socket
-        const targetUserId = auth.getUserId(targetSocketId);
+        // Try to find User ID from various sources
+        let targetUserId = auth.getUserId(targetSocketId);
+
+        // Fallback: Check if the player exists in game state and has a userId associated
+        if (!targetUserId && players[targetSocketId] && players[targetSocketId].userId) {
+            targetUserId = players[targetSocketId].userId;
+            console.log(`   - Recovered UserID ${targetUserId} from players memory cache`);
+        }
+
         if (!targetUserId) {
-            console.log(`   - Player ${targetSocketId} is a GUEST`);
+            console.log(`   - Player ${targetSocketId} resolved as GUEST`);
             // Player is a guest - return basic info from players object
             const player = players[targetSocketId];
             if (player) {
@@ -391,10 +398,19 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Authenticated player - get full profile
+        // Authenticated player - get full profile from DB (Source of Truth)
         const profile = db.getPublicProfile(targetUserId);
         console.log(`   - Player ${targetSocketId} is AUTHENTICATED (UID: ${targetUserId})`);
-        console.log(`   - Badges found in DB: ${JSON.stringify(profile.badges)}`);
+
+        // Ensure badges are an array (DB returns array, but just to be safe)
+        if (profile && !Array.isArray(profile.badges)) {
+            try {
+                profile.badges = JSON.parse(profile.badges || '[]');
+            } catch (e) {
+                profile.badges = [];
+            }
+        }
+
         callback(profile);
     });
 
