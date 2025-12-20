@@ -960,6 +960,7 @@ export class World {
             frog.level = startData.level || 1;
             frog.bio = startData.bio || '';
             frog.badges = startData.badges || [];
+            frog.userId = startData.userId || null;
         }
         this.scene.add(frog.mesh);
         this.localFrog = frog;
@@ -990,6 +991,7 @@ export class World {
         frog.level = data.level || 1;
         frog.bio = data.bio || '';
         frog.badges = data.badges || [];
+        frog.userId = data.userId || null;
         frog.updatePosition(
             { x: data.x, y: data.y, z: data.z },
             { qx: data.qx, qy: data.qy, qz: data.qz, qw: data.qw }
@@ -1693,8 +1695,13 @@ export class World {
         };
 
         // Helper to update UI with profile data
-        const applyProfileToUI = (data) => {
-            if (!data) return;
+        const applyProfileToUI = (data, source) => {
+            if (!data) {
+                console.log(`ℹ️ No fresh data from ${source}, keeping current cache`);
+                return;
+            }
+
+            console.log(`✅ Received fresh data via ${source} for ${frog.name}:`, data);
 
             // Update frog cache
             frog.userId = data.id || frog.userId;
@@ -1713,20 +1720,22 @@ export class World {
             }
         };
 
-        // Initial display from cache
+        // Initial display from existing data (already likely fresh if updated via socket)
         updateBadges(frog.badges || []);
 
-        // Fetch FRESH data from server
+        // Fetch FRESH data from server to ensure DB sync
         if (this.network && this.network.socket) {
-            // If we have a userId, use the getProfile route (which we know works from the Friend UI)
-            if (frog.userId) {
+            // If we have a userId, use the getProfile route (High Authority)
+            if (frog.userId && String(frog.userId).length < 15) { // userId is usually a small integer
+                console.log(`📡 Fetching profile via getProfile(UserId: ${frog.userId})`);
                 this.network.socket.emit('getProfile', frog.userId, (data) => {
-                    if (data) applyProfileToUI(data);
+                    applyProfileToUI(data, 'getProfile');
                 });
             } else if (frog.id) {
-                // Fallback to socket-based lookup for guests or first-time views
+                // Fallback to socket-based lookup
+                console.log(`📡 Fetching profile via getProfileBySocket(SocketId: ${frog.id})`);
                 this.network.socket.emit('getProfileBySocket', frog.id, (data) => {
-                    if (data) applyProfileToUI(data);
+                    applyProfileToUI(data, 'getProfileBySocket');
                 });
             }
         }

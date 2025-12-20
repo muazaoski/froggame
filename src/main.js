@@ -1416,7 +1416,8 @@ if (network && network.socket) {
                 network.socket.emit('getProfile', friendId, (profileData) => {
                     if (profileData && world && world.openProfile) {
                         world.openProfile({
-                            id: friendId,
+                            id: item.dataset.friendId, // fallback
+                            userId: friendId,
                             name: profileData.username || item.dataset.friendName,
                             color: profileData.color || item.dataset.friendColor,
                             level: profileData.level || 1,
