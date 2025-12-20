@@ -772,61 +772,19 @@ io.on('connection', (socket) => {
         });
     });
 
+    // === DEATH & RESPAWN (Authority Delegation) ===
     socket.on('playerDied', (data) => {
-        // data can be just id (legacy) or { id, killerId }
         const victimId = typeof data === 'object' ? data.id : data;
         const killerId = typeof data === 'object' ? data.killerId : null;
 
-        socket.broadcast.emit('playerDied', victimId);
-
-        // Track kills/deaths for authenticated users
-        auth.recordDeath(socket.id);
-
-        // Award XP to killer if authenticated
-        console.log(`💀 Death event: victim=${victimId}, killer=${killerId}`);
-        if (killerId && players[killerId]) {
-            auth.recordKill(killerId);
-            const killerUserId = auth.getUserId(killerId);
-            console.log(`  Killer userId: ${killerUserId}`);
-            if (killerUserId) {
-                const result = db.addXP(killerUserId, 25); // 25 XP per kill
-                console.log(`  XP result:`, result);
-                if (result) {
-                    // Notify killer of XP gain
-                    io.to(killerId).emit('xpGained', {
-                        amount: 25,
-                        level: result.level,
-                        xp: result.xp,
-                        xpToNext: result.level * 100
-                    });
-                    console.log(`  ⭐ XP awarded to ${players[killerId]?.name}: +25 XP (Level ${result.level})`);
-                }
-            }
+        // Delegate to physics engine - this will trigger XP, broadcast, and respawn
+        if (serverPhysics.players[victimId]) {
+            serverPhysics.killPlayer(victimId, killerId);
         }
-
-        // Server-side respawn timer (works even if tab is inactive)
-        // Clear any existing respawn timer
-        if (respawnTimers[socket.id]) {
-            clearTimeout(respawnTimers[socket.id]);
-        }
-
-        // Start server-side respawn timer (3 seconds)
-        respawnTimers[socket.id] = setTimeout(() => {
-            if (players[socket.id]) {
-                // Server forces respawn
-                io.emit('playerRespawn', socket.id);
-                console.log(`⏰ Server-side respawn for ${players[socket.id]?.name || socket.id}`);
-            }
-            delete respawnTimers[socket.id];
-        }, 3000);
     });
 
     socket.on('playerRespawn', (id) => {
-        // Clear server-side timer since client respawned
-        if (respawnTimers[socket.id]) {
-            clearTimeout(respawnTimers[socket.id]);
-            delete respawnTimers[socket.id];
-        }
+        // Just relay - physics engine handles the actual state reset
         socket.broadcast.emit('playerRespawn', id);
     });
 
