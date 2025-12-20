@@ -500,6 +500,12 @@ export class World {
             return;
         }
 
+        // Hide cursor if tongue is active
+        if (this.localFrog.tongue.state !== 'idle') {
+            this.tongueCursorIndicator.visible = false;
+            return;
+        }
+
         // Get mouse world position
         const mouseWorldPos = this.getMouseIntersection(input);
         if (!mouseWorldPos) {
@@ -510,25 +516,27 @@ export class World {
         // Get frog's forward direction
         const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.localFrog.mesh.quaternion);
         const frogPos = this.localFrog.mesh.position;
+        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
+        mouthOffset.applyQuaternion(this.localFrog.mesh.quaternion);
+        const tongueStart = frogPos.clone().add(mouthOffset);
+
+        // Check if any interactive targets are in the cone (Phase 6 - visual feedback)
+        const potentialTargets = this.getPotentialTongueTargets();
+        const hasTargets = potentialTargets.length > 0;
 
         // Calculate direction to mouse
         const toMouse = new THREE.Vector3().subVectors(mouseWorldPos, frogPos);
         const horizontalToMouse = new THREE.Vector3(toMouse.x, 0, toMouse.z).normalize();
         const horizontalForward = new THREE.Vector3(frogForward.x, 0, frogForward.z).normalize();
 
-        // Check if within frontal cone (45 degrees from center)
+        // Check if within frontal cone (use spec's 18 degree cone)
         const angle = Math.acos(Math.max(-1, Math.min(1, horizontalToMouse.dot(horizontalForward))));
-        const maxAngle = Math.PI / 4; // 45 degrees
+        const maxAngle = THREE.MathUtils.degToRad(Config.tongueConeAngle);
 
-        if (angle > maxAngle || isNaN(angle)) {
+        if (angle > maxAngle * 2.5 || isNaN(angle)) { // Wider check for cursor, actual cone is tighter
             this.tongueCursorIndicator.visible = false;
             return;
         }
-
-        // Raycast from frog mouth to find surface
-        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
-        mouthOffset.applyQuaternion(this.localFrog.mesh.quaternion);
-        const tongueStart = frogPos.clone().add(mouthOffset);
 
         // Direction (clamped to cone if needed)
         let targetDir = new THREE.Vector3().subVectors(mouseWorldPos, tongueStart).normalize();
@@ -572,16 +580,215 @@ export class World {
 
                 this.tongueCursorIndicator.visible = true;
 
-                // Pulse effect
-                const time = performance.now() / 1000;
-                const scale = 1 + Math.sin(time * 5) * 0.1;
-                this.tongueCursorIndicator.scale.set(scale, scale, 1);
+                // === PHASE 6: TARGET FEEDBACK ===
+                // Change color/size when targets are available in cone
+                if (hasTargets) {
+                    // Target available - green tint, larger
+                    this.tongueCursorIndicator.material.color.setHex(0x00ff88);
+                    const time = performance.now() / 1000;
+                    const scale = 1.3 + Math.sin(time * 8) * 0.15;
+                    this.tongueCursorIndicator.scale.set(scale, scale, 1);
+                } else {
+                    // No targets - normal pink, standard pulse
+                    this.tongueCursorIndicator.material.color.set(Config.tongueColor);
+                    const time = performance.now() / 1000;
+                    const scale = 1 + Math.sin(time * 5) * 0.1;
+                    this.tongueCursorIndicator.scale.set(scale, scale, 1);
+                }
                 return;
             }
         }
 
-        // If no valid hit, hide
+        // If no valid wall hit, check if we have targets anyway (show indicator near best target)
+        if (hasTargets) {
+            const bestTarget = potentialTargets[0];
+            this.tongueCursorIndicator.position.copy(bestTarget.point);
+            this.tongueCursorIndicator.visible = true;
+            this.tongueCursorIndicator.material.color.setHex(0x00ff88);
+            const time = performance.now() / 1000;
+            const scale = 1.3 + Math.sin(time * 8) * 0.15;
+            this.tongueCursorIndicator.scale.set(scale, scale, 1);
+            // Reset rotation for floating targets
+            this.tongueCursorIndicator.quaternion.set(0, 0, 0, 1);
+            return;
+        }
+
+        // No valid hit, hide
         this.tongueCursorIndicator.visible = false;
+    }
+
+    /**
+     * Get potential tongue targets currently in the cone
+     * Used for visual feedback on the cursor indicator
+     */
+    getPotentialTongueTargets() {
+        if (!this.localFrog) return [];
+
+        const mouthPos = this.localFrog.getMouthPosition();
+        const forward = this.localFrog.getForwardDirection();
+        const maxRange = Config.tongueRange;
+        const coneAngleRad = THREE.MathUtils.degToRad(Config.tongueConeAngle);
+        const candidates = [];
+
+        // Check frogs
+        for (const [id, frog] of Object.entries(this.frogs)) {
+            if (id === this.localFrog.id) continue;
+            if (frog.isDead) continue;
+
+            const targetPos = frog.mesh.position.clone();
+            targetPos.y += 0.3;
+
+            const toTarget = new THREE.Vector3().subVectors(targetPos, mouthPos);
+            const distance = toTarget.length();
+            if (distance > maxRange) continue;
+
+            const normalizedDir = toTarget.clone().normalize();
+            if (normalizedDir.dot(forward) < 0) continue;
+
+            const angle = normalizedDir.angleTo(forward);
+            if (angle > coneAngleRad) continue;
+
+            candidates.push({ type: 'frog', point: targetPos, distance, angle });
+        }
+
+        // Check grapple hooks
+        for (const hook of this.grappleHooks) {
+            const toTarget = new THREE.Vector3().subVectors(hook.position, mouthPos);
+            const distance = toTarget.length();
+            if (distance > maxRange) continue;
+
+            const normalizedDir = toTarget.clone().normalize();
+            if (normalizedDir.dot(forward) < 0) continue;
+
+            const angle = normalizedDir.angleTo(forward);
+            if (angle > coneAngleRad) continue;
+
+            candidates.push({ type: 'hook', point: hook.position.clone(), distance, angle });
+        }
+
+        // Check ball
+        if (this.ball && this.ball.mesh) {
+            const ballPos = this.ball.mesh.position.clone();
+            const toTarget = new THREE.Vector3().subVectors(ballPos, mouthPos);
+            const distance = toTarget.length();
+
+            if (distance <= maxRange) {
+                const normalizedDir = toTarget.clone().normalize();
+                if (normalizedDir.dot(forward) >= 0) {
+                    const angle = normalizedDir.angleTo(forward);
+                    if (angle <= coneAngleRad) {
+                        candidates.push({ type: 'ball', point: ballPos, distance, angle });
+                    }
+                }
+            }
+        }
+
+        // Score and sort
+        return candidates.map(c => ({
+            ...c,
+            score: (Config.tongueAngleWeight * (c.angle / coneAngleRad)) +
+                (Config.tongueDistanceWeight * (c.distance / maxRange))
+        })).sort((a, b) => a.score - b.score);
+    }
+
+    /**
+     * Phase 7: Debug visualization for tongue targeting
+     * Toggle with F3 key
+     */
+    updateTongueDebug() {
+        // Create debug objects on first call
+        if (!this.tongueDebugCone) {
+            // Create cone mesh for visualization
+            const coneRadius = Math.tan(THREE.MathUtils.degToRad(Config.tongueConeAngle)) * Config.tongueRange;
+            const coneGeo = new THREE.ConeGeometry(coneRadius, Config.tongueRange, 32, 1, true);
+            const coneMat = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.15,
+                wireframe: false,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            this.tongueDebugCone = new THREE.Mesh(coneGeo, coneMat);
+            this.tongueDebugCone.visible = false;
+            this.scene.add(this.tongueDebugCone);
+
+            // Wireframe overlay
+            const wireGeo = new THREE.ConeGeometry(coneRadius, Config.tongueRange, 16, 1, true);
+            const wireMat = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.4
+            });
+            this.tongueDebugConeWire = new THREE.Mesh(wireGeo, wireMat);
+            this.tongueDebugConeWire.visible = false;
+            this.scene.add(this.tongueDebugConeWire);
+
+            // Target highlight spheres (pool of 10)
+            this.tongueDebugTargets = [];
+            for (let i = 0; i < 10; i++) {
+                const sphereGeo = new THREE.SphereGeometry(Config.tongueMagnetRadius, 16, 16);
+                const sphereMat = new THREE.MeshBasicMaterial({
+                    color: 0xffff00,
+                    transparent: true,
+                    opacity: 0.5,
+                    wireframe: true
+                });
+                const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+                sphere.visible = false;
+                this.scene.add(sphere);
+                this.tongueDebugTargets.push(sphere);
+            }
+        }
+
+        // Toggle visibility based on config
+        if (!Config.tongueDebugEnabled) {
+            this.tongueDebugCone.visible = false;
+            this.tongueDebugConeWire.visible = false;
+            for (const sphere of this.tongueDebugTargets) {
+                sphere.visible = false;
+            }
+            return;
+        }
+
+        if (!this.localFrog) return;
+
+        // Position cone at frog mouth, pointing forward
+        const mouthPos = this.localFrog.getMouthPosition();
+        const forward = this.localFrog.getForwardDirection();
+
+        // Position cone (cone points in -Y by default, need to rotate)
+        this.tongueDebugCone.position.copy(mouthPos);
+        this.tongueDebugConeWire.position.copy(mouthPos);
+
+        // Offset forward by half the cone height
+        const halfHeight = Config.tongueRange / 2;
+        this.tongueDebugCone.position.add(forward.clone().multiplyScalar(halfHeight));
+        this.tongueDebugConeWire.position.add(forward.clone().multiplyScalar(halfHeight));
+
+        // Rotate cone to point in forward direction
+        // Default cone points in -Y, we want it to point in forward direction
+        const up = new THREE.Vector3(0, -1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, forward);
+        this.tongueDebugCone.quaternion.copy(quaternion);
+        this.tongueDebugConeWire.quaternion.copy(quaternion);
+
+        this.tongueDebugCone.visible = true;
+        this.tongueDebugConeWire.visible = true;
+
+        // Highlight potential targets
+        const targets = this.getPotentialTongueTargets();
+        for (let i = 0; i < this.tongueDebugTargets.length; i++) {
+            if (i < targets.length) {
+                this.tongueDebugTargets[i].position.copy(targets[i].point);
+                this.tongueDebugTargets[i].visible = true;
+                // Best target is green, others are yellow
+                this.tongueDebugTargets[i].material.color.setHex(i === 0 ? 0x00ff00 : 0xffff00);
+            } else {
+                this.tongueDebugTargets[i].visible = false;
+            }
+        }
     }
 
     createPhysicsForMesh(mesh) {
@@ -1133,6 +1340,9 @@ export class World {
 
         // Update Tongue Cursor Indicator
         this.updateTongueCursorIndicator(input);
+
+        // Update Tongue Debug Visualization (Phase 7)
+        this.updateTongueDebug();
 
         // Render
         if (Config.useShader && this.composer) {

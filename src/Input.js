@@ -426,6 +426,14 @@ export class Input {
             return;
         }
 
+        // F3 - Toggle tongue debug mode
+        if (e.code === 'F3') {
+            e.preventDefault();
+            // Dispatch event to toggle debug - handled elsewhere
+            window.dispatchEvent(new CustomEvent('toggle-tongue-debug'));
+            return;
+        }
+
         if (this.chatOpen) return; // Disable movement while chatting
 
         switch (e.code) {

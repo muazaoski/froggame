@@ -118,18 +118,21 @@ export class Frog {
         this.healthBarVisible = false;
         this.isAFK = false; // AFK status (set by server)
 
-        // Tongue mechanics
-        this.tongueActive = false;
-        this.tongueProgress = 0;        // 0 to 1 for extension
-        this.tongueTarget = null;       // Target position or object
-        this.tongueState = 'idle';      // idle, extending, retracting, grappling
-        this.tongueHitObject = null;    // What the tongue hit
-        this.tongueStartPos = new THREE.Vector3();
-        this.tongueEndPos = new THREE.Vector3();
-        this.grappleVelocity = new THREE.Vector3();
+        // Tongue mechanics (Reworked - ref1.md spec)
+        // New structured state object for 3-phase tongue system
+        this.tongue = {
+            state: 'idle',              // 'idle' | 'extending' | 'attached' | 'retracting'
+            target: null,               // { type, id, object, point, distance, angle }
+            lockedPoint: new THREE.Vector3(), // World position locked at fire time
+            startTime: 0,               // For duration-based animation
+            progress: 0,                // 0-1 animation progress
+            cooldownTimer: 0            // Cooldown between uses
+        };
+        this.tongueStartPos = new THREE.Vector3();  // Mouth position (updates each frame)
         this.flies = 0;                 // Currency
         this.tongueLine = null;         // Visual line
         this.tongueTip = null;          // Visual tip sphere
+        this.tongueTube = null;         // Visual tube geometry (for thickness)
 
         // Health Bar UI
         this.healthBarContainer = document.createElement('div');
@@ -394,11 +397,11 @@ export class Frog {
             ? this.currentScooter.steerAmount
             : 0;
 
-        // Encode tongue state: 0=idle, 1=extending, 2=retracting, 3=grappling
+        // Encode tongue state: 0=idle, 1=extending, 2=retracting, 3=attached
         let tongueStateCode = 0;
-        if (this.tongueState === 'extending') tongueStateCode = 1;
-        else if (this.tongueState === 'retracting') tongueStateCode = 2;
-        else if (this.tongueState === 'grappling') tongueStateCode = 3;
+        if (this.tongue.state === 'extending') tongueStateCode = 1;
+        else if (this.tongue.state === 'retracting') tongueStateCode = 2;
+        else if (this.tongue.state === 'attached') tongueStateCode = 3;
 
         return {
             x: pos.x,
@@ -427,10 +430,10 @@ export class Frog {
             // Also encode tongue state (add 10 * tongueStateCode)
             punchProgress: this.punchProgress + (this.isRidingScooter ? 100 : 0) + (tongueStateCode * 10),
             // Tongue target (for remote visualization)
-            tongueTargetX: this.tongueTarget?.x || 0,
-            tongueTargetY: this.tongueTarget?.y || 0,
-            tongueTargetZ: this.tongueTarget?.z || 0,
-            tongueProgress: this.tongueProgress || 0
+            tongueTargetX: this.tongue.lockedPoint?.x || 0,
+            tongueTargetY: this.tongue.lockedPoint?.y || 0,
+            tongueTargetZ: this.tongue.lockedPoint?.z || 0,
+            tongueProgress: this.tongue.progress || 0
         };
     }
 
@@ -1135,8 +1138,218 @@ export class Frog {
         }
     }
 
-    // === TONGUE MECHANICS ===
+    // === TONGUE MECHANICS (Reworked - ref1.md spec) ===
+    // Three-phase system: AIM & LOCK → EXTEND & COMMIT → RESOLVE & RETRACT
 
+    /**
+     * Get the mouth position in world coordinates
+     */
+    getMouthPosition() {
+        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
+        mouthOffset.applyQuaternion(this.mesh.quaternion);
+        return this.mesh.position.clone().add(mouthOffset);
+    }
+
+    /**
+     * Get the forward direction (using frog's facing, not camera)
+     */
+    getForwardDirection() {
+        return new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+    }
+
+    /**
+     * PHASE 1: AIM & TARGET LOCK
+     * Runs once, in 1 frame, when tongue is fired.
+     * Uses cone-based candidate gathering and scoring.
+     * Returns: { type, id, object, point, distance, angle } or null
+     */
+    selectTongueTarget(world) {
+        const mouthPos = this.getMouthPosition();
+        const forward = this.getForwardDirection();
+
+        const candidates = [];
+        const maxRange = Config.tongueRange;
+        const coneAngleRad = THREE.MathUtils.degToRad(Config.tongueConeAngle);
+
+        // === CANDIDATE GATHERING ===
+
+        // 1. Other Players (Frogs)
+        if (world.frogs) {
+            for (const [id, frog] of Object.entries(world.frogs)) {
+                if (id === this.id) continue;           // Skip self
+                if (frog.isDead) continue;              // Skip dead frogs
+
+                const targetPos = frog.mesh.position.clone();
+                targetPos.y += 0.3; // Aim at body center, not feet
+
+                const toTarget = new THREE.Vector3().subVectors(targetPos, mouthPos);
+                const distance = toTarget.length();
+
+                if (distance > maxRange) continue;      // Out of range
+
+                // Check if behind (dot product < 0)
+                const normalizedDir = toTarget.clone().normalize();
+                if (normalizedDir.dot(forward) < 0) continue;
+
+                // Cone angle check
+                const angle = normalizedDir.angleTo(forward);
+                if (angle > coneAngleRad) continue;
+
+                candidates.push({
+                    type: 'frog',
+                    id: id,
+                    object: frog,
+                    point: targetPos,
+                    distance,
+                    angle
+                });
+            }
+        }
+
+        // 2. Grapple Hooks
+        if (world.grappleHooks) {
+            for (const hook of world.grappleHooks) {
+                const toTarget = new THREE.Vector3().subVectors(hook.position, mouthPos);
+                const distance = toTarget.length();
+
+                if (distance > maxRange) continue;
+
+                const normalizedDir = toTarget.clone().normalize();
+                if (normalizedDir.dot(forward) < 0) continue;
+
+                const angle = normalizedDir.angleTo(forward);
+                if (angle > coneAngleRad) continue;
+
+                candidates.push({
+                    type: 'hook',
+                    id: null,
+                    object: hook,
+                    point: hook.position.clone(),
+                    distance,
+                    angle
+                });
+            }
+        }
+
+        // 3. Ball
+        if (world.ball && world.ball.mesh) {
+            const ballPos = world.ball.mesh.position.clone();
+            const toTarget = new THREE.Vector3().subVectors(ballPos, mouthPos);
+            const distance = toTarget.length();
+
+            if (distance <= maxRange) {
+                const normalizedDir = toTarget.clone().normalize();
+                if (normalizedDir.dot(forward) >= 0) {
+                    const angle = normalizedDir.angleTo(forward);
+                    if (angle <= coneAngleRad) {
+                        candidates.push({
+                            type: 'ball',
+                            id: null,
+                            object: world.ball,
+                            point: ballPos,
+                            distance,
+                            angle
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4. Scooters
+        if (world.scooters) {
+            for (const scooter of world.scooters) {
+                if (scooter.rider) continue; // Skip occupied scooters
+
+                const scooterPos = scooter.mesh.position.clone();
+                const toTarget = new THREE.Vector3().subVectors(scooterPos, mouthPos);
+                const distance = toTarget.length();
+
+                if (distance > maxRange) continue;
+
+                const normalizedDir = toTarget.clone().normalize();
+                if (normalizedDir.dot(forward) < 0) continue;
+
+                const angle = normalizedDir.angleTo(forward);
+                if (angle > coneAngleRad) continue;
+
+                candidates.push({
+                    type: 'scooter',
+                    id: null,
+                    object: scooter,
+                    point: scooterPos,
+                    distance,
+                    angle
+                });
+            }
+        }
+
+        // === SCORING & SELECTION ===
+        if (candidates.length === 0) {
+            // No interactive targets - try to find a wall to grapple
+            return this.getWallTarget(world, mouthPos, forward);
+        }
+
+        // Score candidates: lower = better (angle matters more than distance)
+        const scoredCandidates = candidates.map(c => ({
+            ...c,
+            score: (Config.tongueAngleWeight * (c.angle / coneAngleRad)) +
+                (Config.tongueDistanceWeight * (c.distance / maxRange))
+        }));
+
+        // Sort by score (lowest first = best target)
+        scoredCandidates.sort((a, b) => a.score - b.score);
+
+        return scoredCandidates[0];
+    }
+
+    /**
+     * Find a wall target using physics raycasting
+     * Used when no interactive targets are found
+     */
+    getWallTarget(world, mouthPos, forward) {
+        if (!world || !world.physics) return null;
+
+        // Raycast forward from mouth
+        const from = new CANNON.Vec3(mouthPos.x, mouthPos.y, mouthPos.z);
+        const to = new CANNON.Vec3(
+            mouthPos.x + forward.x * Config.tongueRange,
+            mouthPos.y + forward.y * Config.tongueRange,
+            mouthPos.z + forward.z * Config.tongueRange
+        );
+
+        const result = new CANNON.RaycastResult();
+        const ray = new CANNON.Ray(from, to);
+        ray.intersectWorld(world.physics.world, { result });
+
+        if (result.hasHit) {
+            const hitPoint = new THREE.Vector3(
+                result.hitPointWorld.x,
+                result.hitPointWorld.y,
+                result.hitPointWorld.z
+            );
+
+            // Check if ground (skip - can't grapple to ground)
+            const hitNormal = result.hitNormalWorld;
+            const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+
+            if (!isGround) {
+                return {
+                    type: 'wall',
+                    id: null,
+                    object: null,
+                    point: hitPoint,
+                    distance: mouthPos.distanceTo(hitPoint),
+                    angle: 0
+                };
+            }
+        }
+
+        return null; // No valid target
+    }
+
+    /**
+     * Create tongue visual elements (line + tip)
+     */
     createTongueVisual() {
         if (this.tongueLine) return; // Already created
 
@@ -1167,285 +1380,333 @@ export class Frog {
         }
     }
 
+    /**
+     * Main tongue fire method
+     * PHASE 1 happens here - target is selected and LOCKED
+     */
     shootTongue(targetWorldPos, world) {
-        if (this.tongueState !== 'idle') return;
-        if (this.tongueCooldownTimer > 0) return;
+        if (this.tongue.state !== 'idle') return;
+        if (this.tongue.cooldownTimer > 0) return;
         if (this.isRidingScooter) return; // Can't use tongue while riding
 
-        // Create tongue visual if not exists
-        this.createTongueVisual();
+        // Store world reference
+        this.world = world;
 
-        // Get mouth position (front of frog)
-        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
-        mouthOffset.applyQuaternion(this.mesh.quaternion);
-        this.tongueStartPos.copy(this.mesh.position).add(mouthOffset);
+        // === PHASE 1: AIM & LOCK (happens instantly in 1 frame) ===
+        const target = this.selectTongueTarget(world);
 
-        // Get frog's forward direction
-        const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
-
-        // Calculate direction to target (horizontal only for angle check)
-        let targetDir = new THREE.Vector3()
-            .subVectors(targetWorldPos, this.tongueStartPos);
-
-        // Make horizontal direction for cone check
-        const horizontalTargetDir = new THREE.Vector3(targetDir.x, 0, targetDir.z).normalize();
-        const horizontalForward = new THREE.Vector3(frogForward.x, 0, frogForward.z).normalize();
-
-        // Check angle - limit to ~45 degrees from forward (90 degree total cone)
-        const maxAngle = Math.PI / 4; // 45 degrees from center = 90 degree cone
-        let angle = Math.acos(Math.max(-1, Math.min(1, horizontalTargetDir.dot(horizontalForward))));
-
-        // Determine which side the target is on
-        const cross = new THREE.Vector3().crossVectors(horizontalForward, horizontalTargetDir);
-        const side = Math.sign(cross.y); // positive = right, negative = left
-
-        // If outside cone, clamp to edge of cone
-        if (angle > maxAngle || isNaN(angle)) {
-            // Clamp to max angle on the correct side
-            const clampedAngle = side >= 0 ? maxAngle : -maxAngle;
-            targetDir = horizontalForward.clone()
-                .applyAxisAngle(new THREE.Vector3(0, 1, 0), clampedAngle)
-                .normalize();
-            targetDir.y = 0.2; // slight upward angle
-        } else {
-            targetDir.normalize();
+        if (!target) {
+            // No valid target - play quick "miss" poke animation
+            this.playTongueMiss();
+            return;
         }
 
-        // FIXED RANGE: Always extend to max tongue range
-        this.tongueEndPos.copy(this.tongueStartPos).add(
-            targetDir.clone().multiplyScalar(Config.tongueRange)
-        );
+        // LOCK the target - NO MORE AIM LOGIC FROM HERE
+        this.tongue.target = target;
+        this.tongue.lockedPoint.copy(target.point);
+        this.tongue.state = 'extending';
+        this.tongue.startTime = performance.now();
+        this.tongue.progress = 0;
 
-        // Store target info
-        this.tongueTarget = this.tongueEndPos.clone();
-        this.tongueState = 'extending';
-        this.tongueProgress = 0;
-        this.tongueHitObject = null;
-        this.world = world; // Store for raycasting
+        // Update mouth position
+        this.tongueStartPos.copy(this.getMouthPosition());
 
-        // Make tongue visible
+        // Create visual if needed
+        this.createTongueVisual();
         if (this.tongueLine) this.tongueLine.visible = true;
         if (this.tongueTip) this.tongueTip.visible = true;
     }
 
+    /**
+     * Play a quick tongue poke for misses (no target found)
+     */
+    playTongueMiss() {
+        // Quick visible poke forward then retract
+        this.createTongueVisual();
+
+        this.tongue.target = {
+            type: 'miss',
+            id: null,
+            object: null,
+            point: this.getMouthPosition().add(this.getForwardDirection().multiplyScalar(2)),
+            distance: 2,
+            angle: 0
+        };
+        this.tongue.lockedPoint.copy(this.tongue.target.point);
+        this.tongue.state = 'extending';
+        this.tongue.startTime = performance.now();
+        this.tongue.progress = 0;
+
+        this.tongueStartPos.copy(this.getMouthPosition());
+
+        if (this.tongueLine) this.tongueLine.visible = true;
+        if (this.tongueTip) this.tongueTip.visible = true;
+    }
+
+    /**
+     * Main tongue update loop
+     * Handles PHASE 2 (animation) and PHASE 3 (resolution)
+     */
     updateTongue(dt) {
-        if (this.tongueState === 'idle') {
-            // Update cooldown
-            if (this.tongueCooldownTimer > 0) {
-                this.tongueCooldownTimer -= dt;
-            }
+        // Update cooldown when idle
+        if (this.tongue.state === 'idle') {
+            this.tongue.cooldownTimer = Math.max(0, this.tongue.cooldownTimer - dt);
             return;
         }
 
-        // Update tongue start position (follows frog mouth)
-        const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
-        mouthOffset.applyQuaternion(this.mesh.quaternion);
-        this.tongueStartPos.copy(this.mesh.position).add(mouthOffset);
+        // Always update mouth position (start follows frog)
+        this.tongueStartPos.copy(this.getMouthPosition());
 
-        const speed = Config.tongueSpeed * dt;
+        // Calculate elapsed time since animation started
+        const elapsed = (performance.now() - this.tongue.startTime) / 1000;
 
-        if (this.tongueState === 'extending') {
-            this.tongueProgress += speed / Config.tongueRange;
+        // === PHASE 2: EXTEND & COMMIT (animation only) ===
+        if (this.tongue.state === 'extending') {
+            const duration = this.tongue.target?.type === 'miss'
+                ? Config.tongueExtendDuration * 0.5  // Faster for miss
+                : Config.tongueExtendDuration;
 
-            // Check for hits DURING extending (not just at end)
-            this.checkTongueHitDuringExtend();
+            const t = Math.min(elapsed / duration, 1);
 
-            if (this.tongueProgress >= 1 && this.tongueState === 'extending') {
-                this.tongueProgress = 1;
-                // If we reached max length without hitting anything special, 
-                // use the end point as a grapple point (grapple to walls/ground)
-                this.doRaycastGrapple();
+            // Power3.out easing: 1 - (1 - t)^3 (snappy extension)
+            this.tongue.progress = 1 - Math.pow(1 - t, 3);
+
+            if (t >= 1) {
+                // Extension complete - resolve!
+                this.resolveTongue();
             }
-        } else if (this.tongueState === 'retracting') {
-            this.tongueProgress -= speed / Config.tongueRange * 1.5; // Retract faster
+        }
+        // === RETRACTING STATE ===
+        else if (this.tongue.state === 'retracting') {
+            const duration = Config.tongueRetractDuration;
+            const t = Math.min(elapsed / duration, 1);
 
-            if (this.tongueProgress <= 0) {
-                this.tongueProgress = 0;
-                this.tongueState = 'idle';
-                this.tongueCooldownTimer = Config.tongueCooldown;
+            // Linear retraction (or slight ease)
+            this.tongue.progress = 1 - t;
 
-                // Hide tongue
-                if (this.tongueLine) this.tongueLine.visible = false;
-                if (this.tongueTip) this.tongueTip.visible = false;
+            if (t >= 1) {
+                this.finishTongue();
             }
-        } else if (this.tongueState === 'grappling') {
-            // Pull frog toward grapple point
-            const pullDirection = new THREE.Vector3()
-                .subVectors(this.tongueHitObject.point, this.mesh.position)
-                .normalize();
-
-            const pullForce = Config.tongueGrappleForce;
-
-            if (this.body) {
-                this.body.velocity.x += pullDirection.x * pullForce * dt * 10;
-                this.body.velocity.y += pullDirection.y * pullForce * dt * 10;
-                this.body.velocity.z += pullDirection.z * pullForce * dt * 10;
-            }
-
-            // Check if close enough to release
-            const distToTarget = this.mesh.position.distanceTo(this.tongueHitObject.point);
-            if (distToTarget < 2) {
-                this.tongueState = 'retracting';
-            }
-
-            // Also retract if tongue button released (handled in input)
+        }
+        // === ATTACHED STATE (grappling) ===
+        else if (this.tongue.state === 'attached') {
+            this.updateGrapplePull(dt);
         }
 
-        // Update tongue visual
+        // Always update visual
         this.updateTongueVisual();
     }
 
-    checkTongueHitDuringExtend() {
-        if (!this.world) return;
+    /**
+     * PHASE 3: RESOLUTION
+     * Called when tongue reaches target - decide hit or miss
+     */
+    resolveTongue() {
+        const target = this.tongue.target;
 
-        // Calculate current tongue tip position
-        const tongueEndWorld = new THREE.Vector3().lerpVectors(
-            this.tongueStartPos,
-            this.tongueTarget,
-            this.tongueProgress
-        );
-
-        // Check for other frogs (pull them, don't grapple)
-        if (this.world.frogs) {
-            for (const frogId in this.world.frogs) {
-                if (frogId === this.id) continue; // Skip self
-                const otherFrog = this.world.frogs[frogId];
-                const dist = tongueEndWorld.distanceTo(otherFrog.mesh.position);
-                if (dist < 1.5) {
-                    this.tongueHitObject = { type: 'frog', frog: otherFrog };
-                    // Pull them toward us
-                    if (otherFrog.body) {
-                        const pullDir = new THREE.Vector3()
-                            .subVectors(this.mesh.position, otherFrog.mesh.position)
-                            .normalize();
-                        otherFrog.body.velocity.x += pullDir.x * Config.tongueGrabForce;
-                        otherFrog.body.velocity.y += pullDir.y * Config.tongueGrabForce * 0.5;
-                        otherFrog.body.velocity.z += pullDir.z * Config.tongueGrabForce;
-                    }
-                    console.log('Grabbed frog!');
-                    this.tongueState = 'retracting';
-                    return;
-                }
-            }
-        }
-
-        // Check for grapple hooks (special - trigger grapple)
-        if (this.world.grappleHooks) {
-            for (const hook of this.world.grappleHooks) {
-                const dist = tongueEndWorld.distanceTo(hook.position);
-                if (dist < 1.5) {
-                    this.tongueHitObject = { type: 'hook', point: hook.position.clone() };
-                    this.tongueState = 'grappling';
-                    console.log('Hooked onto grapple point!');
-                    return;
-                }
-            }
-        }
-
-        // Check for wall collision using THREE.js raycasting (visual geometry)
-        // This catches walls DURING extension, not just at max range
-        if (this.world.scene && this.world.camera) {
-            const raycaster = new THREE.Raycaster();
-            const rayStart = this.tongueStartPos.clone();
-            const rayDir = new THREE.Vector3()
-                .subVectors(tongueEndWorld, this.tongueStartPos)
-                .normalize();
-
-            raycaster.set(rayStart, rayDir);
-            raycaster.far = rayStart.distanceTo(tongueEndWorld) + 0.3; // Just beyond tongue tip
-
-            const intersects = raycaster.intersectObjects(this.world.scene.children, true);
-
-            for (const hit of intersects) {
-                // Skip invisible, tongue visuals, particles, frogs, flies
-                if (!hit.object.visible) continue;
-                if (hit.object.parent && hit.object.parent.type === 'Line') continue;
-                if (hit.object.name && hit.object.name.includes('frog')) continue;
-                if (hit.object.parent && hit.object.parent.name && hit.object.parent.name.includes('fly')) continue;
-
-                // Skip very small objects (particles)
-                if (hit.object.geometry && hit.object.geometry.boundingSphere) {
-                    if (hit.object.geometry.boundingSphere.radius < 0.2) continue;
-                }
-
-                // Check if it's ground (normal pointing up)
-                if (hit.face && hit.face.normal) {
-                    const worldNormal = hit.face.normal.clone();
-                    worldNormal.transformDirection(hit.object.matrixWorld);
-                    if (worldNormal.y > 0.8) continue; // Ground, skip
-                }
-
-                // Check if hit point is below ground level
-                if (hit.point.y < 0.3) continue;
-
-                // This is a valid wall hit!
-                this.tongueHitObject = { type: 'wall', point: hit.point.clone() };
-                this.tongueTarget.copy(hit.point);
-                this.tongueState = 'grappling';
-                console.log('Tongue hit wall during extension!');
-                return;
-            }
-        }
-    }
-
-    doRaycastGrapple() {
-        if (!this.world || !this.world.physics) {
-            this.tongueState = 'retracting';
+        // Miss type (no target was found)
+        if (!target || target.type === 'miss') {
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
             return;
         }
 
-        // Use physics raycasting to find walls (not ground)
-        const from = new CANNON.Vec3(
-            this.tongueStartPos.x,
-            this.tongueStartPos.y,
-            this.tongueStartPos.z
-        );
-        const to = new CANNON.Vec3(
-            this.tongueTarget.x,
-            this.tongueTarget.y,
-            this.tongueTarget.z
-        );
+        // Check if target still exists and is valid
+        if (target.type === 'frog' && (!target.object || target.object.isDead)) {
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
+            this.playMissEffect();
+            return;
+        }
 
-        const result = new CANNON.RaycastResult();
-        const ray = new CANNON.Ray(from, to);
-        ray.intersectWorld(this.world.physics.world, { result });
+        // Get current target position (might have moved)
+        let currentPos = null;
+        if (target.type === 'frog' && target.object?.mesh) {
+            currentPos = target.object.mesh.position.clone();
+            currentPos.y += 0.3;
+        } else if (target.type === 'ball' && target.object?.mesh) {
+            currentPos = target.object.mesh.position.clone();
+        } else if (target.type === 'hook' && target.object) {
+            currentPos = target.object.position.clone();
+        } else if (target.type === 'wall' || target.type === 'scooter') {
+            currentPos = target.point.clone();
+        }
 
-        if (result.hasHit) {
-            const hitPoint = new THREE.Vector3(
-                result.hitPointWorld.x,
-                result.hitPointWorld.y,
-                result.hitPointWorld.z
-            );
+        if (!currentPos) {
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
+            return;
+        }
 
-            // Check if this is the ground (normal pointing up, or hit point very low)
-            const hitNormal = result.hitNormalWorld;
-            const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+        // === MAGNET RADIUS CHECK ===
+        // If target moved too far from locked position, it's a miss
+        const movedDistance = this.tongue.lockedPoint.distanceTo(currentPos);
+        const magnetThreshold = Config.tongueMagnetRadius * 3; // Allow some movement
 
-            if (isGround) {
-                // Don't grapple to ground, just retract
-                this.tongueState = 'retracting';
-                return;
-            }
+        if (movedDistance > magnetThreshold) {
+            // Target escaped - MISS!
+            console.log('Tongue miss - target moved too far');
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
+            this.playMissEffect();
+            return;
+        }
 
-            // Hit a wall! Grapple to it
-            this.tongueTarget.copy(hitPoint);
-            this.tongueHitObject = { type: 'wall', point: hitPoint };
-            this.tongueState = 'grappling';
-            console.log('Grappling to wall!');
-        } else {
-            // Nothing hit, just retract
-            this.tongueState = 'retracting';
+        // === SUCCESS - Apply effect based on target type ===
+        switch (target.type) {
+            case 'frog':
+                this.grabFrog(target.object);
+                this.tongue.state = 'retracting';
+                this.tongue.startTime = performance.now();
+                this.playHitEffect();
+                break;
+
+            case 'hook':
+            case 'wall':
+                // Attach and start grappling
+                this.tongue.state = 'attached';
+                // Snap locked point to current position (magnet effect)
+                this.tongue.lockedPoint.copy(currentPos);
+                this.playHitEffect();
+                break;
+
+            case 'ball':
+                this.grabBall(target.object);
+                this.tongue.state = 'retracting';
+                this.tongue.startTime = performance.now();
+                this.playHitEffect();
+                break;
+
+            case 'scooter':
+                this.pullScooter(target.object);
+                this.tongue.state = 'retracting';
+                this.tongue.startTime = performance.now();
+                this.playHitEffect();
+                break;
+
+            default:
+                this.tongue.state = 'retracting';
+                this.tongue.startTime = performance.now();
         }
     }
 
+    /**
+     * Apply grab force to another frog
+     */
+    grabFrog(otherFrog) {
+        if (!otherFrog || !otherFrog.body) return;
+
+        const pullDir = new THREE.Vector3()
+            .subVectors(this.mesh.position, otherFrog.mesh.position)
+            .normalize();
+
+        // Apply pull force to the other frog
+        otherFrog.body.velocity.x += pullDir.x * Config.tongueGrabForce;
+        otherFrog.body.velocity.y += pullDir.y * Config.tongueGrabForce * 0.5; // Less vertical
+        otherFrog.body.velocity.z += pullDir.z * Config.tongueGrabForce;
+
+        console.log('Grabbed frog!');
+
+        // Send to network if multiplayer
+        if (this.world?.network) {
+            this.world.network.socket.emit('tongueResult', {
+                sourceId: this.id,
+                targetId: otherFrog.id,
+                type: 'pull'
+            });
+        }
+    }
+
+    /**
+     * Apply grab force to ball
+     */
+    grabBall(ball) {
+        if (!ball || !ball.body) return;
+
+        const pullDir = new THREE.Vector3()
+            .subVectors(this.mesh.position, ball.mesh.position)
+            .normalize();
+
+        // Pull ball toward frog
+        ball.body.velocity.x += pullDir.x * Config.tongueGrabForce;
+        ball.body.velocity.y += pullDir.y * Config.tongueGrabForce * 0.3;
+        ball.body.velocity.z += pullDir.z * Config.tongueGrabForce;
+
+        console.log('Grabbed ball!');
+    }
+
+    /**
+     * Apply pull to scooter (bring it closer)
+     */
+    pullScooter(scooter) {
+        if (!scooter || !scooter.body) return;
+
+        const pullDir = new THREE.Vector3()
+            .subVectors(this.mesh.position, scooter.mesh.position)
+            .normalize();
+
+        scooter.body.velocity.x += pullDir.x * Config.tongueGrabForce * 0.5;
+        scooter.body.velocity.z += pullDir.z * Config.tongueGrabForce * 0.5;
+
+        console.log('Pulled scooter!');
+    }
+
+    /**
+     * Update grapple pull physics (when attached to wall/hook)
+     */
+    updateGrapplePull(dt) {
+        if (!this.tongue.target) return;
+
+        const grapplePoint = this.tongue.lockedPoint;
+        const pullDirection = new THREE.Vector3()
+            .subVectors(grapplePoint, this.mesh.position)
+            .normalize();
+
+        const pullForce = Config.tongueGrappleForce;
+
+        if (this.body) {
+            this.body.velocity.x += pullDirection.x * pullForce * dt * 10;
+            this.body.velocity.y += pullDirection.y * pullForce * dt * 10;
+            this.body.velocity.z += pullDirection.z * pullForce * dt * 10;
+        }
+
+        // Check if close enough to release
+        const distToTarget = this.mesh.position.distanceTo(grapplePoint);
+        if (distToTarget < 2) {
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
+        }
+    }
+
+    /**
+     * Finish tongue action and reset state
+     */
+    finishTongue() {
+        this.tongue.state = 'idle';
+        this.tongue.progress = 0;
+        this.tongue.target = null;
+        this.tongue.cooldownTimer = Config.tongueCooldown;
+
+        // Hide tongue
+        if (this.tongueLine) this.tongueLine.visible = false;
+        if (this.tongueTip) this.tongueTip.visible = false;
+    }
+
+    /**
+     * Update tongue visual (line + tip position)
+     */
     updateTongueVisual() {
         if (!this.tongueLine || !this.tongueTip) return;
 
         // Calculate current tongue end based on progress
+        const targetPos = this.tongue.state === 'attached'
+            ? this.tongue.lockedPoint
+            : this.tongue.lockedPoint;
+
         const currentEnd = new THREE.Vector3().lerpVectors(
             this.tongueStartPos,
-            this.tongueState === 'grappling' ? this.tongueHitObject.point : this.tongueTarget,
-            this.tongueProgress
+            targetPos,
+            this.tongue.progress
         );
 
         // Update line geometry
@@ -1462,9 +1723,40 @@ export class Frog {
         this.tongueTip.position.copy(currentEnd);
     }
 
+    /**
+     * Release tongue (called when player releases button)
+     */
     releaseTongue() {
-        if (this.tongueState === 'grappling') {
-            this.tongueState = 'retracting';
+        if (this.tongue.state === 'attached') {
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
+        }
+    }
+
+    /**
+     * Visual feedback - HIT effect
+     */
+    playHitEffect() {
+        // Camera punch/shake
+        if (this.world && this.isLocal) {
+            this.world.triggerScreenShake(0.5, 0.1);
+        }
+
+        // TODO: Add wet snap sound cue
+        // TODO: Add stretch recoil on frog body
+    }
+
+    /**
+     * Visual feedback - MISS effect
+     */
+    playMissEffect() {
+        // Slight over-extension already handled by miss animation
+        // TODO: Add embarrassed retract animation
+        // TODO: Add funny sound cue
+
+        // Small screen shake for feedback
+        if (this.world && this.isLocal) {
+            this.world.triggerScreenShake(0.2, 0.05);
         }
     }
 

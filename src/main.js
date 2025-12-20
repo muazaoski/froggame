@@ -20,6 +20,12 @@ const input = new Input();
 const network = new Network(world);
 world.network = network; // Link network to world for combat sync
 
+// Tongue debug toggle (F3 key)
+window.addEventListener('toggle-tongue-debug', () => {
+    Config.tongueDebugEnabled = !Config.tongueDebugEnabled;
+    console.log(`🐸 Tongue debug: ${Config.tongueDebugEnabled ? 'ON' : 'OFF'}`);
+});
+
 // GUI Setup
 const gui = new GUI({ title: '🐸 Dev Config' });
 gui.hide();
@@ -500,7 +506,7 @@ function animate(time) {
             world.localFrog.shootTongue(lookTarget, world);
         }
         // Release grapple when right mouse released
-        if (!input.tongueHeld && world.localFrog.tongueState === 'grappling') {
+        if (!input.tongueHeld && world.localFrog.tongue.state === 'attached') {
             world.localFrog.releaseTongue();
         }
 

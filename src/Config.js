@@ -120,14 +120,22 @@ export const Config = {
     jiggleWalkWobble: 0.1968,
     jiggleWalkSpeed: 10,
 
-    // Tongue Mechanics
-    tongueRange: 15,            // Max tongue reach
-    tongueSpeed: 40,            // Extension/retraction speed
-    tongueGrappleForce: 25,     // Pull force when grappling
-    tongueGrabForce: 15,        // Pull force on frogs
-    tongueCooldown: 0.5,        // Seconds between tongue uses
-    tongueColor: '#ff6b9d',     // Pink tongue color
-    tongueTipSize: 0.15,        // Size of tongue tip
+    // Tongue Mechanics (Reworked - ref1.md spec)
+    tongueRange: 12.0,              // Max tongue reach
+    tongueExtendDuration: 0.15,     // 150ms extension animation
+    tongueRetractDuration: 0.10,    // 100ms retraction animation
+    tongueConeAngle: 18,            // Degrees from forward (forgiving cone)
+    tongueMagnetRadius: 0.5,        // Snap radius for aim forgiveness
+    tongueAngleWeight: 0.7,         // Scoring weight for angle (lower = better)
+    tongueDistanceWeight: 0.3,      // Scoring weight for distance
+    tongueGrappleForce: 25,         // Pull force when attached to wall/hook
+    tongueGrabForce: 15,            // Pull force applied to grabbed frogs
+    tongueCooldown: 0.5,            // Seconds between tongue uses
+    tongueColor: '#ff6b9d',         // Pink tongue color
+    tongueTipSize: 0.15,            // Size of tongue tip sphere
+    tongueThicknessBase: 0.08,      // Base thickness near mouth
+    tongueThicknessTip: 0.04,       // Tapered thickness at tip
+    tongueDebugEnabled: false,      // Toggle debug visualization (F3)
     jiggleReturnSpeed: 8,
 
     // Punch/Kick Animation
