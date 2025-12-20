@@ -713,31 +713,60 @@ io.on('connection', (socket) => {
     });
 
     // === COMBAT - SERVER AUTHORITATIVE ===
+    // === COMBAT - CLIENT AUTHORITATIVE (validated) ===
     socket.on('playerPunch', () => {
-        // Server handles hit detection and damage
-        const hits = serverPhysics.handlePunch(socket.id);
-
-        // Broadcast punch animation
+        // Just broadcast animation - hits are handled via playerHit
+        // This prevents double damage and issues with server-side lag
         socket.broadcast.emit('playerPunched', socket.id);
-
-        // Broadcast hit effects and knockback
-        for (const hit of hits) {
-            io.emit('playerDamaged', hit);
-
-            // Send knockback impulse to target
-            io.to(hit.targetId).emit('playerKnockback', {
-                id: hit.targetId,
-                velocity: hit.knockback
-            });
-        }
     });
 
-    // Legacy hit event - kept for compatibility
+    // Handle client-reported hit
     socket.on('playerHit', (data) => {
-        // Add attackerId for kill credit
+        const attackerId = socket.id;
+        const targetId = data.targetId;
+        const damage = data.damage;
+
+        // Validation: Verify existence and distance
+        const attacker = players[attackerId];
+        const target = players[targetId];
+
+        if (!attacker || !target) return;
+
+        // Simple distance check (generous to account for lag)
+        const dx = target.x - attacker.x;
+        const dy = target.y - attacker.y;
+        const dz = target.z - attacker.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        // Allow hits up to 6 units away (generous lag compensation)
+        // Normal range is ~2.5, but clients may see players closer than server does
+        if (distance > 6.0) {
+            console.log(`⚠️ rejected hit from ${attacker.name}: distance ${distance.toFixed(1)} > 6.0`);
+            return;
+        }
+
+        // Update Server Physics State (Authoritative Health)
+        const physicsPlayer = serverPhysics.players[targetId];
+        if (physicsPlayer) {
+            physicsPlayer.health -= damage;
+            console.log(`🥊 ${attacker.name} hit ${target.name} (-${damage}), HP: ${physicsPlayer.health}/${Config.maxHealth}`);
+
+            // Propagate death if killed
+            if (physicsPlayer.health <= 0) {
+                serverPhysics.killPlayer(targetId, attackerId);
+            }
+        }
+
+        // Broadcast damage to all clients (visual feedback)
         io.emit('playerDamaged', {
             ...data,
-            attackerId: socket.id
+            attackerId: attackerId
+        });
+
+        // Send knockback impulse to target
+        io.to(targetId).emit('playerKnockback', {
+            id: targetId,
+            velocity: data.knockback
         });
     });
 
