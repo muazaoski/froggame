@@ -266,6 +266,14 @@ module.exports = {
         return result.changes > 0;
     },
 
+    updateBadges: (userId, badges) => {
+        // Store as JSON array
+        const badgesJson = JSON.stringify(badges || []);
+        const result = statements.updateBadges.run(badgesJson, userId);
+        console.log(`🏅 Badges updated for user ${userId}: ${badges?.length || 0} badges`);
+        return result.changes > 0;
+    },
+
     // Currency
     addFlies: (userId, amount) => {
         statements.updateFlies.run(amount, userId);

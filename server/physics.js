@@ -170,6 +170,7 @@ class ServerPhysics {
 
             // Apply damage
             target.health -= damage;
+            console.log(`🥊 [Physics] ${attacker.name} hit ${target.name}: ${damage} dmg, health now: ${target.health}/${Config.maxHealth}`);
 
             hits.push({
                 targetId,
@@ -181,6 +182,7 @@ class ServerPhysics {
 
             // Check death
             if (target.health <= 0) {
+                console.log(`💀 [Physics] ${target.name} killed by ${attacker.name}! Triggering killPlayer...`);
                 this.killPlayer(targetId, attackerId);
             }
         }

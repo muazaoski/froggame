@@ -1186,13 +1186,15 @@ if (btnSaveProfile) {
         // Update local frog color
         if (world.localFrog) {
             world.localFrog.color = newColor;
+            world.localFrog.badges = selectedBadges;
         }
 
         // Send to server (if authenticated)
         if (network && network.socket) {
             network.socket.emit('updateProfile', {
                 color: newColor,
-                bio: newBio
+                bio: newBio,
+                badges: selectedBadges
             });
         }
 

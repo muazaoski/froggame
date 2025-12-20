@@ -376,12 +376,29 @@ io.on('connection', (socket) => {
         socket.emit('friendRequests', pending);
     });
 
+    // Check if a player is friends with another (by socket ID)
+    socket.on('checkFriendship', (targetSocketId, callback) => {
+        if (typeof callback !== 'function') return;
+
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return callback({ isFriend: false });
+
+        // Get target's user ID from their socket
+        const targetUserId = auth.getUserId(targetSocketId);
+        if (!targetUserId) return callback({ isFriend: false });
+
+        // Check if they're friends
+        const friends = db.getFriends(userId);
+        const isFriend = friends.some(f => f.id === targetUserId);
+        callback({ isFriend });
+    });
+
     // === ACCOUNT SYSTEM: Update Profile ===
     socket.on('updateProfile', (data) => {
         const userId = auth.getUserId(socket.id);
         if (!userId) return;
 
-        const { color, bio } = data;
+        const { color, bio, badges } = data;
 
         // Update color in database
         if (color) {
@@ -391,6 +408,11 @@ io.on('connection', (socket) => {
         // Update bio in database
         if (bio !== undefined) {
             db.updateBio(userId, bio);
+        }
+
+        // Update badges in database
+        if (badges !== undefined) {
+            db.updateBadges(userId, badges);
         }
 
         // Update the player's data in the current session
@@ -411,9 +433,12 @@ io.on('connection', (socket) => {
                     bio: bio
                 });
             }
+            if (badges !== undefined) {
+                players[socket.id].badges = badges;
+            }
         }
 
-        console.log(`Profile updated for user ${userId}: color=${color}, bio=${bio?.substring(0, 20)}...`);
+        console.log(`Profile updated for user ${userId}: color=${color}, bio=${bio?.substring(0, 20)}..., badges=${badges?.length || 0}`);
     });
 
     // === MESSAGING SYSTEM ===

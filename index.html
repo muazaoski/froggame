@@ -1669,9 +1669,11 @@
         /* Profile Popup Badge Display */
         .profile-popup-content {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 12px;
             margin-bottom: 10px;
+            margin-top: 25px;
+            /* Space for close button */
         }
 
         .profile-badges-grid {
@@ -1683,13 +1685,12 @@
         .profile-badges-grid .popup-badge {
             width: 32px;
             height: 32px;
-            background: rgba(40, 40, 50, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
+            background: transparent;
+            border: none;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 18px;
         }
 
         /* Friend List Specific */

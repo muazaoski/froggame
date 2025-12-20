@@ -957,6 +957,9 @@ export class World {
         if (startData) {
             frog.body.position.set(startData.x, startData.y, startData.z);
             if (startData.name) frog.setName(startData.name);
+            frog.level = startData.level || 1;
+            frog.bio = startData.bio || '';
+            frog.badges = startData.badges || [];
         }
         this.scene.add(frog.mesh);
         this.localFrog = frog;
@@ -1737,8 +1740,21 @@ export class World {
         };
 
         // Update button text based on friend status
-        console.log(`openProfile: isFriend=${frog.isFriend}, setting button to: ${frog.isFriend ? 'Chat' : 'Add Friend'}`);
-        addFriendBtn.textContent = frog.isFriend ? 'Chat' : 'Add Friend';
+        // If isFriend is not set, check with server (for frogs clicked in-world)
+        if (frog.isFriend === undefined && this.network && this.network.socket) {
+            // Default to Add Friend while checking
+            addFriendBtn.textContent = 'Add Friend';
+
+            // Check if this player is a friend
+            this.network.socket.emit('checkFriendship', frog.id, (result) => {
+                if (result && result.isFriend) {
+                    frog.isFriend = true;
+                    addFriendBtn.textContent = 'Chat';
+                }
+            });
+        } else {
+            addFriendBtn.textContent = frog.isFriend ? 'Chat' : 'Add Friend';
+        }
 
         // Close button handler
         if (closeBtn) {
