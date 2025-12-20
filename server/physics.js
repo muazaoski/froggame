@@ -31,9 +31,10 @@ const Config = {
 };
 
 class ServerPhysics {
-    constructor(io) {
+    constructor(io, callbacks = {}) {
         this.io = io;
         this.players = {}; // socketId -> player state
+        this.onPlayerDeath = callbacks.onPlayerDeath || null; // Callback: (victimId, killerId) => {}
     }
 
     addPlayer(socketId, playerData) {
@@ -194,14 +195,23 @@ class ServerPhysics {
         player.isDead = true;
         player.health = 0;
 
-        this.io.emit('playerDied', socketId);
+        // Emit death with killer info for XP
+        this.io.emit('playerDied', {
+            id: socketId,
+            killerId: killerSocketId
+        });
+
+        // Call callback for XP award etc
+        if (this.onPlayerDeath) {
+            this.onPlayerDeath(socketId, killerSocketId);
+        }
 
         // Server-controlled respawn
         player.respawnTimer = setTimeout(() => {
             this.respawnPlayer(socketId);
         }, Config.respawnTime * 1000);
 
-        console.log(`💀 ${player.name} died`);
+        console.log(`💀 ${player.name} died (killed by ${killerSocketId || 'environment'})`);
     }
 
     respawnPlayer(socketId) {

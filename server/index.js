@@ -115,8 +115,35 @@ app.use((req, res, next) => {
 
 const players = {};
 
-// Initialize server-authoritative physics
-const serverPhysics = new ServerPhysics(io);
+// Initialize server-authoritative physics with death callback
+const serverPhysics = new ServerPhysics(io, {
+    onPlayerDeath: (victimId, killerId) => {
+        // Track kills/deaths for authenticated users
+        auth.recordDeath(victimId);
+
+        // Award XP to killer if authenticated
+        console.log(`💀 [Physics] Death event: victim=${victimId}, killer=${killerId}`);
+        if (killerId && players[killerId]) {
+            auth.recordKill(killerId);
+            const killerUserId = auth.getUserId(killerId);
+            console.log(`  Killer userId: ${killerUserId}`);
+            if (killerUserId) {
+                const result = db.addXP(killerUserId, 25); // 25 XP per kill
+                console.log(`  XP result:`, result);
+                if (result) {
+                    // Notify killer of XP gain
+                    io.to(killerId).emit('xpGained', {
+                        amount: 25,
+                        level: result.level,
+                        xp: result.xp,
+                        xpToNext: result.level * 100
+                    });
+                    console.log(`  ⭐ XP awarded to ${players[killerId]?.name}: +25 XP (Level ${result.level})`);
+                }
+            }
+        }
+    }
+});
 serverPhysics.startSimulation();
 
 // AFK Tracking - mark players as AFK after 3 minutes of no movement

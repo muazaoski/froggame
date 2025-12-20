@@ -203,14 +203,12 @@ const statements = {
     `),
 
     getFriends: db.prepare(`
-        SELECT u.id, u.username, u.color, f.status
+        SELECT DISTINCT u.id, u.username, u.color, f.status
         FROM friends f
-        JOIN users u ON (
-            CASE 
-                WHEN f.user_id = ? THEN u.id = f.friend_id
-                ELSE u.id = f.user_id
-            END
-        )
+        JOIN users u ON u.id = CASE 
+            WHEN f.user_id = ? THEN f.friend_id
+            ELSE f.user_id
+        END
         WHERE (f.user_id = ? OR f.friend_id = ?) AND f.status = 'accepted'
     `),
 
@@ -263,7 +261,9 @@ module.exports = {
     updateBio: (userId, bio) => {
         // Limit bio to 100 characters
         const safeBio = (bio || '').substring(0, 100);
-        statements.updateBio.run(safeBio, userId);
+        const result = statements.updateBio.run(safeBio, userId);
+        console.log(`📝 Bio updated for user ${userId}: "${safeBio}" (changes: ${result.changes})`);
+        return result.changes > 0;
     },
 
     // Currency

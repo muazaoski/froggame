@@ -1247,12 +1247,6 @@ document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
                 }
             }
         }
-
-        // Update preview to show all selected badges
-        const previewDisplay = document.getElementById('selected-badge-display');
-        if (previewDisplay) {
-            previewDisplay.textContent = selectedBadges.join(' ') || '⭐';
-        }
     });
 });
 
@@ -1374,6 +1368,8 @@ if (network && network.socket) {
         friendsContent.querySelectorAll('.dm-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                // Close friend list
+                if (friendListOverlay) friendListOverlay.classList.remove('active');
                 window.openDMChat(btn.dataset.id, btn.dataset.name);
             });
         });
@@ -1381,6 +1377,8 @@ if (network && network.socket) {
         // Also allow clicking on the whole friend item
         friendsContent.querySelectorAll('.friend-item').forEach(item => {
             item.addEventListener('click', () => {
+                // Close friend list
+                if (friendListOverlay) friendListOverlay.classList.remove('active');
                 window.openDMChat(item.dataset.friendId, item.dataset.friendName);
             });
         });
@@ -1439,6 +1437,15 @@ if (network && network.socket) {
         });
     });
 
+    // Friend request accepted notification
+    network.socket.on('friendRequestAccepted', (data) => {
+        if (world && world.showToast) {
+            world.showToast(`You and ${data.by?.username || 'someone'} are friends now! 🎉`);
+        }
+        // Refresh friend list
+        network.socket.emit('getFriendList');
+    });
+
     // === UNREAD DMs TRACKING ===
     let totalUnreadDMs = 0;
 
@@ -1456,6 +1463,8 @@ if (network && network.socket) {
             appendDMMessage(message, false);
             network.socket.emit('markDMRead', message.sender_id);
         } else {
+            // Auto-open DM panel from the sender
+            window.openDMChat(message.sender_id, message.sender_name);
             // Increment unread count
             totalUnreadDMs++;
             updateNotificationDot();

@@ -226,7 +226,9 @@ export class Network {
             }
         });
 
-        this.socket.on('playerDied', (id) => {
+        this.socket.on('playerDied', (data) => {
+            // Handle both formats: just id (old) or { id, killerId } (new)
+            const id = typeof data === 'object' ? data.id : data;
             const frog = this.world.frogs[id];
             if (frog) frog.die(true); // true = network triggered
         });

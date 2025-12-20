@@ -1830,6 +1830,7 @@ export class Frog {
         // Track last attacker for kill credit
         if (attackerId) {
             this.lastAttackerId = attackerId;
+            console.log(`⚔️ lastAttackerId set to: ${attackerId}`);
         }
 
         // Show health bar when hit
@@ -1980,6 +1981,7 @@ export class Frog {
 
         // If this is OUR death (local frog) and NOT triggered by network event, send it
         if (this.isLocal && !isNetworked && this.world && this.world.network) {
+            console.log(`💀 Sending death event: lastAttackerId=${this.lastAttackerId}`);
             this.world.network.sendDeath(this.lastAttackerId || null);
         }
     }
