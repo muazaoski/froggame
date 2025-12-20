@@ -1351,6 +1351,9 @@ export class World {
             this.checkFrogClick(input);
         }
 
+        // Update floating profile button position
+        this.updateProfileButtonPosition();
+
         if (Config.useShader && this.composer) {
             const u = this.customPass.uniforms;
 
@@ -1531,6 +1534,12 @@ export class World {
     checkFrogClick(input) {
         if (!input || !input.leftClickPunch) return;
 
+        // Check if clicking on the floating profile button
+        const profileBtn = document.getElementById('floating-profile-btn');
+        if (profileBtn && profileBtn.style.display !== 'none') {
+            // Check if mouse is over the button - handled by DOM event, not here
+        }
+
         this.raycaster.setFromCamera(input.mouse, this.camera);
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
 
@@ -1541,7 +1550,8 @@ export class World {
                 // Check if this object is a frog mesh
                 for (const frog of Object.values(this.frogs)) {
                     if (frog.mesh === obj && !frog.isLocal) {
-                        this.openProfile(frog);
+                        // Show profile button above frog instead of opening profile
+                        this.showProfileButton(frog);
                         input.leftClickPunch = false; // Consume click
                         return true;
                     }
@@ -1550,19 +1560,94 @@ export class World {
             }
         }
 
-        // Close profile if clicking elsewhere (and not on the popup itself)
-        const profilePopup = document.getElementById('profile-popup');
-        if (profilePopup && profilePopup.style.display === 'block') {
-            const hitPopup = intersects.some(h => {
-                // Since popup is CSS, intersectObjects won't find it easily if it's not a mesh.
-                // But we can check if the mouse is over the DOM element.
-                return false; // Handled by CSS/DOM events usually
-            });
-            // Simple approach: if we clicked scene geometry and it wasn't a frog, close it.
-            // But we need to be careful not to close it when clicking the buttons on the popup.
-        }
+        // Clicked elsewhere - hide profile button if visible
+        this.hideProfileButton();
 
         return false;
+    }
+
+    showProfileButton(frog) {
+        // Hide any existing button first
+        this.hideProfileButton();
+
+        this.profileButtonTarget = frog;
+
+        // Hide frog's nametag and health bar
+        if (frog.nameLabel) frog.nameLabel.style.display = 'none';
+        if (frog.healthBarContainer) frog.healthBarContainer.style.display = 'none';
+
+        // Get or create floating profile button
+        let btn = document.getElementById('floating-profile-btn');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'floating-profile-btn';
+            btn.textContent = 'Profile';
+            btn.style.cssText = `
+                position: fixed;
+                padding: 8px 20px;
+                background: linear-gradient(135deg, #4CAF50, #45a049);
+                border: none;
+                border-radius: 20px;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                cursor: pointer;
+                z-index: 1000;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                transition: transform 0.1s, background 0.2s;
+                pointer-events: auto;
+            `;
+            btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
+            btn.onmouseout = () => btn.style.transform = 'scale(1)';
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const targetFrog = this.profileButtonTarget;
+                this.hideProfileButton();
+                if (targetFrog) {
+                    this.openProfile(targetFrog);
+                }
+            };
+            document.body.appendChild(btn);
+        }
+
+        btn.style.display = 'block';
+
+        // Update button position on render
+        this.updateProfileButtonPosition();
+    }
+
+    hideProfileButton() {
+        const btn = document.getElementById('floating-profile-btn');
+        if (btn) btn.style.display = 'none';
+
+        // Restore frog's nametag and health bar
+        if (this.profileButtonTarget) {
+            const frog = this.profileButtonTarget;
+            if (frog.nameLabel) frog.nameLabel.style.display = 'block';
+            if (frog.healthBarContainer) frog.healthBarContainer.style.display = 'block';
+            this.profileButtonTarget = null;
+        }
+    }
+
+    updateProfileButtonPosition() {
+        const btn = document.getElementById('floating-profile-btn');
+        if (!btn || btn.style.display === 'none' || !this.profileButtonTarget) return;
+
+        const frog = this.profileButtonTarget;
+        if (!frog.mesh) return;
+
+        // Get position above frog's head
+        const pos = frog.mesh.position.clone();
+        pos.y += 2.5; // Above head
+
+        // Project to screen coordinates
+        pos.project(this.camera);
+
+        const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+
+        btn.style.left = `${x - 40}px`;
+        btn.style.top = `${y - 20}px`;
     }
 
     openProfile(frog) {
@@ -1590,6 +1675,18 @@ export class World {
             bioEl.textContent = frog.bio || 'No bio yet...';
         }
 
+        // Populate badge grid (show up to 6 badges)
+        const badgesEl = document.getElementById('profile-badges-display');
+        if (badgesEl) {
+            const badges = frog.badges || [];
+            let badgeHtml = '';
+            for (let i = 0; i < 6; i++) {
+                const emoji = badges[i] || '';
+                badgeHtml += `<div class="popup-badge">${emoji}</div>`;
+            }
+            badgesEl.innerHTML = badgeHtml;
+        }
+
         // Update mute button text based on status
         const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(frog.id);
         muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
@@ -1614,20 +1711,32 @@ export class World {
             e.stopPropagation();
             // Check if authenticated
             if (window.game && !window.game.isAuthenticated) {
-                this.showToast('Register an account to add friends!');
+                this.showToast('Register an account to chat!');
                 return;
             }
-            // Send friend request by username
-            if (this.network && this.network.socket && frog.name) {
-                this.network.socket.emit('sendFriendRequest', frog.name, (result) => {
-                    if (result.success) {
-                        this.showToast(`Friend request sent to ${frog.name}!`);
-                    } else {
-                        this.showToast(result.error || 'Failed to send request');
-                    }
-                });
+
+            // If already friends (from friend list click), open chat
+            if (frog.isFriend) {
+                this.closeProfile();
+                if (window.openDMChat) {
+                    window.openDMChat(frog.id, frog.name);
+                }
+            } else {
+                // Send friend request by username
+                if (this.network && this.network.socket && frog.name) {
+                    this.network.socket.emit('sendFriendRequest', frog.name, (result) => {
+                        if (result.success) {
+                            this.showToast(`Friend request sent to ${frog.name}!`);
+                        } else {
+                            this.showToast(result.error || 'Failed to send request');
+                        }
+                    });
+                }
             }
         };
+
+        // Update button text based on friend status
+        addFriendBtn.textContent = frog.isFriend ? 'Chat' : 'Add Friend';
 
         // Close button handler
         if (closeBtn) {

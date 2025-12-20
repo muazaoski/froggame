@@ -1990,6 +1990,7 @@ export class Frog {
         this.isDead = false;
         this.health = Config.maxHealth;
         this.deathTimer = 0;
+        this.lastAttackerId = null; // Clear to prevent stale kill credit
 
         // Reset position
         if (this.body) {

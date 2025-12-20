@@ -306,6 +306,20 @@ io.on('connection', (socket) => {
         socket.emit('friendRequests', db.getPendingRequests(userId));
     });
 
+    // Remove friend
+    socket.on('removeFriend', (friendId) => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return;
+
+        db.removeFriend(userId, parseInt(friendId));
+
+        // Refresh friend list
+        socket.emit('friendList', db.getFriends(userId).map(f => ({
+            ...f,
+            online: auth.isOnline(f.id)
+        })));
+    });
+
     // Get friends list (emit-based for new UI)
     socket.on('getFriends', (callback) => {
         const userId = auth.getUserId(socket.id);

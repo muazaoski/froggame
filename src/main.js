@@ -970,8 +970,10 @@ window.addEventListener('keydown', (e) => {
 if (btnRespawn) {
     btnRespawn.addEventListener('click', () => {
         if (world.localFrog && !world.localFrog.isDead) {
-            // Force respawn by dying
-            world.localFrog.takeDamage(999, null, false, false);
+            // Clear lastAttackerId to prevent XP award for suicide
+            world.localFrog.lastAttackerId = null;
+            // Force respawn by dying (no kill credit)
+            world.localFrog.takeDamage(999, null, false, false, null);
             closeSettings();
         } else if (world.localFrog && world.localFrog.isDead) {
             // Already dead, just close settings
@@ -996,7 +998,7 @@ if (btnLogout) {
 // === BACKGROUND MUSIC ===
 const bgMusic = new Audio('/song/bgsong1.mp3');
 bgMusic.loop = true;
-bgMusic.volume = 0.5;
+bgMusic.volume = 0.2; // Default 20%
 
 const musicBtn = document.getElementById('music-btn');
 const volumeSlider = document.getElementById('volume-slider');
@@ -1352,7 +1354,7 @@ if (network && network.socket) {
         }
 
         friendsContent.innerHTML = friends.map(f => `
-            <div class="friend-item" data-friend-id="${f.id}" data-friend-name="${f.username}" style="cursor: pointer;">
+            <div class="friend-item" data-friend-id="${f.id}" data-friend-name="${f.username}" data-friend-color="${f.color || '#4CAF50'}" style="cursor: pointer;">
                 <div class="friend-avatar" style="background: ${f.color || '#4CAF50'}">🐸</div>
                 <div class="friend-info">
                     <div class="friend-name">${f.username}</div>
@@ -1360,11 +1362,12 @@ if (network && network.socket) {
                 </div>
                 <div class="friend-actions">
                     <button class="friend-action-btn accept dm-btn" data-id="${f.id}" data-name="${f.username}" title="Message">💬</button>
+                    <button class="friend-action-btn decline remove-btn" data-id="${f.id}" data-name="${f.username}" title="Remove Friend">✕</button>
                 </div>
             </div>
         `).join('');
 
-        // Add click handlers for DM
+        // Add click handlers for DM button
         friendsContent.querySelectorAll('.dm-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1374,12 +1377,33 @@ if (network && network.socket) {
             });
         });
 
-        // Also allow clicking on the whole friend item
+        // Add click handlers for Remove button
+        friendsContent.querySelectorAll('.remove-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const friendName = btn.dataset.name;
+                if (confirm(`Remove ${friendName} from friends?`)) {
+                    network.socket.emit('removeFriend', btn.dataset.id);
+                    network.socket.emit('getFriendList'); // Refresh
+                }
+            });
+        });
+
+        // Friend item click opens profile popup
         friendsContent.querySelectorAll('.friend-item').forEach(item => {
             item.addEventListener('click', () => {
                 // Close friend list
                 if (friendListOverlay) friendListOverlay.classList.remove('active');
-                window.openDMChat(item.dataset.friendId, item.dataset.friendName);
+                // Open profile popup for this friend
+                const frogData = {
+                    name: item.dataset.friendName,
+                    color: item.dataset.friendColor,
+                    id: item.dataset.friendId,
+                    isFriend: true
+                };
+                if (world && world.openProfile) {
+                    world.openProfile(frogData);
+                }
             });
         });
     });
@@ -1480,8 +1504,34 @@ if (network && network.socket) {
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 2000);
 
-        // Update level display
+        // Update local frog level
+        if (world.localFrog) {
+            world.localFrog.level = data.level;
+        }
+
+        // Update HUD level display
         updateLevelDisplay(data.level, data.xp, data.xpToNext);
+
+        // Update Stats tab (we just got XP from a kill)
+        const statLevel = document.getElementById('stat-level');
+        const statXp = document.getElementById('stat-xp');
+        const statKills = document.getElementById('stat-kills');
+        const statKd = document.getElementById('stat-kd');
+
+        if (statLevel) statLevel.textContent = data.level;
+        if (statXp) statXp.textContent = data.xp;
+        if (statKills) {
+            const kills = parseInt(statKills.textContent || '0') + 1;
+            statKills.textContent = kills;
+            // Update K/D ratio
+            const deaths = parseInt(document.getElementById('stat-deaths')?.textContent || '0');
+            if (statKd) {
+                statKd.textContent = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+            }
+        }
+
+        // Refresh player list to show updated level badge
+        updatePlayerList();
     });
 
     function updateLevelDisplay(level, xp, xpToNext) {

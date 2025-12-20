@@ -53,11 +53,36 @@ export class Network {
 
             // Initialize level display for authenticated users
             if (playerInfo.accountData) {
+                const data = playerInfo.accountData;
+
+                // Update HUD level badge
                 const levelBadge = document.getElementById('level-badge');
                 const xpFill = document.getElementById('xp-fill');
-                if (levelBadge) levelBadge.textContent = `Lv.${playerInfo.accountData.level || 1}`;
-                if (xpFill && playerInfo.accountData.xpToNext) {
-                    xpFill.style.width = `${(playerInfo.accountData.xp / playerInfo.accountData.xpToNext) * 100}%`;
+                if (levelBadge) levelBadge.textContent = `Lv.${data.level || 1}`;
+                if (xpFill && data.xpToNext) {
+                    xpFill.style.width = `${(data.xp / data.xpToNext) * 100}%`;
+                }
+
+                // Populate Stats tab in profile panel
+                const statLevel = document.getElementById('stat-level');
+                const statXp = document.getElementById('stat-xp');
+                const statKills = document.getElementById('stat-kills');
+                const statDeaths = document.getElementById('stat-deaths');
+                const statKd = document.getElementById('stat-kd');
+                const statPlaytime = document.getElementById('stat-playtime');
+
+                if (statLevel) statLevel.textContent = data.level || 1;
+                if (statXp) statXp.textContent = data.xp || 0;
+                if (statKills) statKills.textContent = data.kills || 0;
+                if (statDeaths) statDeaths.textContent = data.deaths || 0;
+                if (statKd) {
+                    const kd = data.deaths > 0 ? (data.kills / data.deaths).toFixed(2) : (data.kills || 0).toFixed(2);
+                    statKd.textContent = kd;
+                }
+                if (statPlaytime) {
+                    const hours = Math.floor((data.totalPlaytime || 0) / 3600000);
+                    const minutes = Math.floor(((data.totalPlaytime || 0) % 3600000) / 60000);
+                    statPlaytime.textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
                 }
 
                 // Request friend requests and unread DMs for notification dot

@@ -1665,6 +1665,32 @@
             }
         }
 
+        /* Profile Popup Badge Display */
+        .profile-popup-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .profile-badges-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        .profile-badges-grid .popup-badge {
+            width: 32px;
+            height: 32px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
         /* Friend List Specific */
         .friend-tabs {
             display: flex;
@@ -2125,8 +2151,8 @@
                 <div class="settings-section-title">Music</div>
                 <div class="volume-slider-container">
                     <span class="volume-icon" id="volume-icon">🔊</span>
-                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="50">
-                    <span class="volume-value" id="volume-value">50%</span>
+                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="20">
+                    <span class="volume-value" id="volume-value">20%</span>
                 </div>
             </div>
 
@@ -2192,7 +2218,12 @@
     <!-- Profile Popup -->
     <div id="profile-popup">
         <button id="profile-close">✕</button>
-        <div id="profile-preview-container"></div>
+        <div class="profile-popup-content">
+            <div id="profile-preview-container"></div>
+            <div id="profile-badges-display" class="profile-badges-grid">
+                <!-- 2x3 badge grid - populated by JS -->
+            </div>
+        </div>
         <div id="profile-name">Player Name</div>
         <div id="profile-level">level 1</div>
         <div class="profile-actions">
