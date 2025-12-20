@@ -1430,7 +1430,7 @@ if (network && network.socket) {
                             bio: profileData.bio || '',
                             badges: profileData.badges || [],
                             isFriend: true
-                        });
+                        }, true);
                     }
                 });
             });

@@ -1583,52 +1583,56 @@ export class World {
             btn.id = 'floating-profile-btn';
             btn.textContent = 'Profile';
             btn.style.cssText = `
-        position: fixed;
-        padding: 8px 20px;
-        background: linear - gradient(135deg, #4CAF50, #45a049);
-        border: none;
-        border - radius: 20px;
-        color: white;
-        font - weight: bold;
-        font - size: 14px;
-        cursor: pointer;
-        z - index: 1000;
-        box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        transition: transform 0.1s, background 0.2s;
-        pointer - events: auto;
-        `;
+                position: fixed;
+                padding: 8px 20px;
+                background: linear-gradient(135deg, #4CAF50, #45a049);
+                border: none;
+                border-radius: 20px;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                cursor: pointer;
+                z-index: 1000;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                transition: transform 0.1s, background 0.2s;
+                pointer-events: auto;
+            `;
             btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
             btn.onmouseout = () => btn.style.transform = 'scale(1)';
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                const targetFrog = this.profileButtonTarget;
-                this.hideProfileButton();
-                if (targetFrog && this.network && this.network.socket) {
-                    // Pre-fetch fresh data just like the Friend List does (this is the reliable route)
-                    const fetchRoute = (targetFrog.userId && String(targetFrog.userId).length < 15) ? 'getProfile' : 'getProfileBySocket';
-                    const fetchId = (fetchRoute === 'getProfile') ? targetFrog.userId : targetFrog.id;
-
-                    this.network.socket.emit(fetchRoute, fetchId, (freshData) => {
-                        if (freshData) {
-                            // Merge fresh data into the frog object
-                            targetFrog.userId = freshData.id || targetFrog.userId;
-                            targetFrog.bio = freshData.bio || targetFrog.bio || '';
-                            targetFrog.badges = freshData.badges || [];
-                            targetFrog.level = freshData.level || targetFrog.level || 1;
-
-                            // Open profile with the freshly merged data
-                            this.openProfile(targetFrog);
-                        } else {
-                            // Fallback to cached data if fetch fails
-                            this.openProfile(targetFrog);
-                        }
-                    });
-                } else if (targetFrog) {
-                    this.openProfile(targetFrog);
-                }
-            };
             document.body.appendChild(btn);
         }
+
+        // ALWAYS update the click handler to ensure latest pre-fetch logic is active
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const targetFrog = this.profileButtonTarget;
+            this.hideProfileButton();
+            if (targetFrog && this.network && this.network.socket) {
+                // Pre-fetch fresh data just like the Friend List does (High Authority route)
+                const fetchRoute = (targetFrog.userId && String(targetFrog.userId).length < 15) ? 'getProfile' : 'getProfileBySocket';
+                const fetchId = (fetchRoute === 'getProfile') ? targetFrog.userId : targetFrog.id;
+
+                console.log(`📡 Pre-fetching profile for ${targetFrog.name} via ${fetchRoute}(${fetchId})`);
+                this.network.socket.emit(fetchRoute, fetchId, (freshData) => {
+                    if (freshData) {
+                        console.log(`✅ Pre-fetch successful for ${targetFrog.name}:`, freshData);
+                        // Merge fresh data into the frog object
+                        targetFrog.userId = freshData.id || targetFrog.userId;
+                        targetFrog.bio = freshData.bio || targetFrog.bio || '';
+                        targetFrog.badges = freshData.badges || [];
+                        targetFrog.level = freshData.level || targetFrog.level || 1;
+
+                        // Open profile with the freshly merged data, skipping redundant fetch
+                        this.openProfile(targetFrog, true);
+                    } else {
+                        console.warn(`⚠️ Pre-fetch failed for ${targetFrog.name}, falling back to cache`);
+                        this.openProfile(targetFrog);
+                    }
+                });
+            } else if (targetFrog) {
+                this.openProfile(targetFrog, false);
+            }
+        };
 
         btn.style.display = 'block';
 
@@ -1670,7 +1674,7 @@ export class World {
         btn.style.top = `${y - 20} px`;
     }
 
-    openProfile(frog) {
+    openProfile(frog, skipFetch = false) {
         this.currentProfileFrog = frog;
 
         const popup = document.getElementById('profile-popup');
@@ -1746,8 +1750,8 @@ export class World {
         // Initial display from existing data (already likely fresh if updated via socket)
         updateBadges(frog.badges || []);
 
-        // Fetch FRESH data from server to ensure DB sync
-        if (this.network && this.network.socket) {
+        // Fetch FRESH data from server to ensure DB sync (skip if we just pre-fetched)
+        if (!skipFetch && this.network && this.network.socket) {
             // If we have a userId, use the getProfile route (High Authority)
             if (frog.userId && String(frog.userId).length < 15) { // userId is usually a small integer
                 console.log(`📡 Fetching profile via getProfile(UserId: ${frog.userId})`);
