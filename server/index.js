@@ -463,8 +463,8 @@ io.on('connection', (socket) => {
                 if (bio !== undefined) players[socket.id].bio = bio;
                 if (badges !== undefined) players[socket.id].badges = badges;
 
-                // Broadcast profile updates to other players
-                socket.broadcast.emit('playerProfileUpdated', {
+                // Broadcast profile updates to ALL players (including sender to sync local cache)
+                io.emit('playerProfileUpdated', {
                     id: socket.id,
                     bio: players[socket.id].bio,
                     badges: players[socket.id].badges

@@ -1149,6 +1149,11 @@ if (profileEditorBtn && profileEditorOverlay) {
             profileColorPicker.value = color;
             colorHexDisplay.textContent = color;
 
+            // Load saved bio
+            if (profileBioInput) {
+                profileBioInput.value = world.localFrog.bio || '';
+            }
+
             // Load saved badges
             const savedBadges = world.localFrog.badges || [];
             selectedBadges = [...savedBadges]; // Copy to global selectedBadges

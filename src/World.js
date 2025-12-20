@@ -980,10 +980,16 @@ export class World {
     addRemoteFrog(id, data) {
         // Guard: Don't create duplicate if frog already exists
         if (this.frogs[id]) {
-            console.log(`Frog ${id} already exists, updating instead`);
-            // Update existing frog's data if needed
-            if (data.name) this.frogs[id].setName(data.name);
-            return this.frogs[id];
+            console.log(`Frog ${id} already exists, updating properties`);
+            // Update existing frog's data
+            const existing = this.frogs[id];
+            if (data.name) existing.setName(data.name);
+            if (data.color) existing.setColor(data.color);
+            if (data.level) existing.level = data.level;
+            if (data.bio !== undefined) existing.bio = data.bio;
+            if (data.badges) existing.badges = data.badges;
+            if (data.userId) existing.userId = data.userId;
+            return existing;
         }
 
         const frog = new Frog(id, data.color, this.physics, false);
@@ -1153,24 +1159,12 @@ export class World {
             style.id = 'toast-styles';
             style.textContent = `
                 @keyframes toast-slide-in {
-                    from {
-                        opacity: 0;
-                        transform: translateX(100%);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateX(0);
-                    }
+                    from { opacity: 0; transform: translateX(100%); }
+                    to { opacity: 1; transform: translateX(0); }
                 }
                 @keyframes toast-slide-out {
-                    from {
-                        opacity: 1;
-                        transform: translateX(0);
-                    }
-                    to {
-                        opacity: 0;
-                        transform: translateX(100%);
-                    }
+                    from { opacity: 1; transform: translateX(0); }
+                    to { opacity: 0; transform: translateX(100%); }
                 }
             `;
             document.head.appendChild(style);
@@ -1475,7 +1469,7 @@ export class World {
         const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 
         const scooter = new Scooter(
-            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
             randomColor,
             this.scene,
             this.physics
@@ -1507,21 +1501,21 @@ export class World {
             toast = document.createElement('div');
             toast.id = 'game-toast';
             toast.style.cssText = `
-                position: fixed;
-                top: 20%;
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(0, 0, 0, 0.8);
-                color: white;
-                padding: 15px 25px;
-                border-radius: 10px;
-                font-size: 18px;
-                font-weight: bold;
-                z-index: 9999;
-                pointer-events: none;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-            `;
+        position: fixed;
+        top: 20 %;
+        left: 50 %;
+        transform: translateX(-50 %);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 15px 25px;
+        border - radius: 10px;
+        font - size: 18px;
+        font - weight: bold;
+        z - index: 9999;
+        pointer - events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        `;
             document.body.appendChild(toast);
         }
 
@@ -1589,20 +1583,20 @@ export class World {
             btn.id = 'floating-profile-btn';
             btn.textContent = 'Profile';
             btn.style.cssText = `
-                position: fixed;
-                padding: 8px 20px;
-                background: linear-gradient(135deg, #4CAF50, #45a049);
-                border: none;
-                border-radius: 20px;
-                color: white;
-                font-weight: bold;
-                font-size: 14px;
-                cursor: pointer;
-                z-index: 1000;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-                transition: transform 0.1s, background 0.2s;
-                pointer-events: auto;
-            `;
+        position: fixed;
+        padding: 8px 20px;
+        background: linear - gradient(135deg, #4CAF50, #45a049);
+        border: none;
+        border - radius: 20px;
+        color: white;
+        font - weight: bold;
+        font - size: 14px;
+        cursor: pointer;
+        z - index: 1000;
+        box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        transition: transform 0.1s, background 0.2s;
+        pointer - events: auto;
+        `;
             btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
             btn.onmouseout = () => btn.style.transform = 'scale(1)';
             btn.onclick = (e) => {
@@ -1652,8 +1646,8 @@ export class World {
         const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
         const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
 
-        btn.style.left = `${x - 40}px`;
-        btn.style.top = `${y - 20}px`;
+        btn.style.left = `${x - 40} px`;
+        btn.style.top = `${y - 20} px`;
     }
 
     openProfile(frog) {
@@ -1673,8 +1667,8 @@ export class World {
             return;
         }
 
-        nameEl.textContent = frog.name || `Frog ${frog.id.substr(0, 4)}`;
-        levelEl.textContent = `level ${frog.level || 1}`;
+        nameEl.textContent = frog.name || `Frog ${frog.id.substr(0, 4)} `;
+        levelEl.textContent = `level ${frog.level || 1} `;
 
         // Show bio if available
         if (bioEl) {
@@ -1685,9 +1679,16 @@ export class World {
         const badgesEl = document.getElementById('profile-badges-display');
         const updateBadges = (badges) => {
             if (badgesEl) {
+                let badgeArray = [];
+                try {
+                    badgeArray = Array.isArray(badges) ? badges : JSON.parse(badges || '[]');
+                } catch (e) {
+                    badgeArray = [];
+                }
+
                 let badgeHtml = '';
                 for (let i = 0; i < 6; i++) {
-                    const emoji = (badges && badges[i]) || '';
+                    const emoji = badgeArray[i] || '';
                     badgeHtml += `<div class="popup-badge">${emoji}</div>`;
                 }
                 badgesEl.innerHTML = badgeHtml;
@@ -1701,7 +1702,7 @@ export class World {
                 return;
             }
 
-            console.log(`✅ Received fresh data via ${source} for ${frog.name}:`, data);
+            console.log(`✅ Received fresh data via ${source} for ${frog.name}: `, data);
 
             // Update frog cache
             frog.userId = data.id || frog.userId;
@@ -1712,7 +1713,7 @@ export class World {
             // Only update UI if we are still viewing this frog
             if (this.currentProfileFrog === frog) {
                 if (bioEl) bioEl.textContent = frog.bio || 'No bio yet...';
-                levelEl.textContent = `level ${frog.level || 1}`;
+                levelEl.textContent = `level ${frog.level || 1} `;
                 updateBadges(frog.badges || []);
 
                 // Refresh preview
@@ -1781,7 +1782,7 @@ export class World {
                 if (this.network && this.network.socket && frog.name) {
                     this.network.socket.emit('sendFriendRequest', frog.name, (result) => {
                         if (result.success) {
-                            this.showToast(`Friend request sent to ${frog.name}!`);
+                            this.showToast(`Friend request sent to ${frog.name} !`);
                         } else {
                             this.showToast(result.error || 'Failed to send request');
                         }
