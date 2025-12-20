@@ -32,6 +32,8 @@ npm-debug.log*
 *.db-wal
 server/frogass.db*
 server/players.json
+data/*.db*
+!data/.gitkeep
 
 # Executables
 *.exe
