@@ -133,9 +133,18 @@ export class Network {
                 if (bio !== undefined) frog.bio = bio;
                 if (badges !== undefined) frog.badges = badges;
 
-                // If this is the current profile being viewed, refresh the UI without redundant fetch
-                if (this.world.currentProfileFrog === frog) {
-                    this.world.openProfile(frog, true);
+                // If this is the current profile being viewed (by ID), refresh the UI
+                if (this.world.currentProfileId === id) {
+                    this.world.openProfile({
+                        id: frog.id,
+                        userId: frog.userId,
+                        name: frog.name,
+                        color: frog.color,
+                        level: frog.level || 1,
+                        bio: frog.bio,
+                        badges: frog.badges,
+                        isFriend: this.world.currentProfileData ? this.world.currentProfileData.isFriend : undefined
+                    });
                 }
             }
         });

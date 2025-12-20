@@ -1143,32 +1143,79 @@ if (profileEditorBtn && profileEditorOverlay) {
             return;
         }
 
-        // Load current color from local frog
-        if (world.localFrog) {
-            const color = world.localFrog.color || '#4CAF50';
-            profileColorPicker.value = color;
-            colorHexDisplay.textContent = color;
+        // Fetch fresh data from server to avoid stale state (crucial for bio/badges)
+        if (network && network.socket && world.localFrog.userId) {
+            network.socket.emit('getProfile', world.localFrog.userId, (data) => {
+                if (data) {
+                    console.log('📝 Loaded fresh profile data for editor:', data);
 
-            // Load saved bio
-            if (profileBioInput) {
-                profileBioInput.value = world.localFrog.bio || '';
-            }
+                    // Update Cache
+                    if (world.localFrog) {
+                        world.localFrog.bio = data.bio || '';
+                        world.localFrog.badges = data.badges || [];
+                        world.localFrog.color = data.color || world.localFrog.color;
+                    }
 
-            // Load saved badges
-            const savedBadges = world.localFrog.badges || [];
-            selectedBadges = [...savedBadges]; // Copy to global selectedBadges
+                    // Populate UI
+                    const color = data.color || world.localFrog.color || '#4CAF50';
+                    profileColorPicker.value = color;
+                    colorHexDisplay.textContent = color;
 
-            // Update badge UI - mark saved badges as selected
-            document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
-                const badgeEmoji = badge.textContent;
-                if (savedBadges.includes(badgeEmoji)) {
-                    badge.classList.add('selected');
+                    if (profileBioInput) {
+                        profileBioInput.value = data.bio || '';
+                    }
+
+                    const savedBadges = data.badges || [];
+                    selectedBadges = [...savedBadges]; // Copy to global selectedBadges
+
+                    // Update badge UI
+                    document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
+                        const badgeEmoji = badge.textContent;
+                        if (savedBadges.includes(badgeEmoji)) {
+                            badge.classList.add('selected');
+                        } else {
+                            badge.classList.remove('selected');
+                        }
+                    });
+
+                    profileEditorOverlay.classList.add('active');
                 } else {
-                    badge.classList.remove('selected');
+                    console.warn('⚠️ Failed to fetch fresh profile for editor, using cache');
+                    openEditorWithCache();
                 }
             });
+        } else {
+            openEditorWithCache();
         }
-        profileEditorOverlay.classList.add('active');
+
+        function openEditorWithCache() {
+            // Load current color from local frog
+            if (world.localFrog) {
+                const color = world.localFrog.color || '#4CAF50';
+                profileColorPicker.value = color;
+                colorHexDisplay.textContent = color;
+
+                // Load saved bio
+                if (profileBioInput) {
+                    profileBioInput.value = world.localFrog.bio || '';
+                }
+
+                // Load saved badges
+                const savedBadges = world.localFrog.badges || [];
+                selectedBadges = [...savedBadges]; // Copy to global selectedBadges
+
+                // Update badge UI - mark saved badges as selected
+                document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
+                    const badgeEmoji = badge.textContent;
+                    if (savedBadges.includes(badgeEmoji)) {
+                        badge.classList.add('selected');
+                    } else {
+                        badge.classList.remove('selected');
+                    }
+                });
+            }
+            profileEditorOverlay.classList.add('active');
+        }
     });
 }
 
@@ -1430,7 +1477,7 @@ if (network && network.socket) {
                             bio: profileData.bio || '',
                             badges: profileData.badges || [],
                             isFriend: true
-                        }, true);
+                        });
                     }
                 });
             });

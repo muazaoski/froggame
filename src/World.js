@@ -1614,23 +1614,40 @@ export class World {
 
                 console.log(`📡 Pre-fetching profile for ${targetFrog.name} via ${fetchRoute}(${fetchId})`);
                 this.network.socket.emit(fetchRoute, fetchId, (freshData) => {
-                    if (freshData) {
-                        console.log(`✅ Pre-fetch successful for ${targetFrog.name}:`, freshData);
-                        // Merge fresh data into the frog object
-                        targetFrog.userId = freshData.id || targetFrog.userId;
-                        targetFrog.bio = freshData.bio || targetFrog.bio || '';
-                        targetFrog.badges = freshData.badges || [];
-                        targetFrog.level = freshData.level || targetFrog.level || 1;
+                    const profileData = {
+                        id: targetFrog.id,
+                        userId: freshData?.id || targetFrog.userId, // Prefer fresh ID
+                        name: freshData?.username || targetFrog.name,
+                        color: freshData?.color || targetFrog.color,
+                        level: freshData?.level || targetFrog.level || 1,
+                        bio: freshData?.bio || targetFrog.bio || '',
+                        badges: freshData?.badges || targetFrog.badges || [],
+                        isFriend: false // Can trigger checkFriendship here if needed
+                    };
 
-                        // Open profile with the freshly merged data, skipping redundant fetch
-                        this.openProfile(targetFrog, true);
-                    } else {
-                        console.warn(`⚠️ Pre-fetch failed for ${targetFrog.name}, falling back to cache`);
-                        this.openProfile(targetFrog, false);
+                    // If fresh data, update the local frog object too just in case
+                    if (freshData) {
+                        targetFrog.userId = profileData.userId;
+                        targetFrog.bio = profileData.bio;
+                        targetFrog.badges = profileData.badges;
+                        targetFrog.level = profileData.level;
                     }
+
+                    console.log(`✅ Opening profile with consolidated data:`, profileData);
+                    this.openProfile(profileData);
                 });
             } else if (targetFrog) {
-                this.openProfile(targetFrog, false);
+                // Fallback for non-networked scenarios (?)
+                this.openProfile({
+                    id: targetFrog.id,
+                    userId: targetFrog.userId,
+                    name: targetFrog.name,
+                    color: targetFrog.color,
+                    level: targetFrog.level || 1,
+                    bio: targetFrog.bio || '',
+                    badges: targetFrog.badges || [],
+                    isFriend: false
+                });
             }
         };
 
@@ -1674,8 +1691,13 @@ export class World {
         btn.style.top = `${y - 20} px`;
     }
 
-    openProfile(frog, skipFetch = false) {
-        this.currentProfileFrog = frog;
+    /**
+     * Open Profile Popup with standardized data object (POJO)
+     * @param {Object} data - Profile data { id, userId, name, color, level, bio, badges, isFriend }
+     */
+    openProfile(data) {
+        this.currentProfileId = data.id; // Track ID instead of object ref
+        this.currentProfileData = data;  // Store current data for reference
 
         const popup = document.getElementById('profile-popup');
         const nameEl = document.getElementById('profile-name');
@@ -1683,90 +1705,40 @@ export class World {
         const bioEl = document.getElementById('profile-about');
         const muteBtn = document.getElementById('btn-mute-player');
         const addFriendBtn = document.getElementById('btn-add-friend');
-        const closeBtn = document.getElementById('profile-close');
 
-        // Null checks - if elements don't exist, bail early
-        if (!popup || !nameEl || !levelEl || !muteBtn || !addFriendBtn) {
-            console.warn('Profile popup elements not found in DOM');
-            return;
-        }
+        // Null checks
+        if (!popup || !nameEl || !levelEl || !muteBtn || !addFriendBtn) return;
 
-        // Set basic info initially
-        const frogIdStr = String(frog.id || '');
-        nameEl.textContent = frog.name || `Frog ${frogIdStr.substring(0, 4)}`;
-        levelEl.textContent = `level ${frog.level || 1}`;
+        // Populate Basic Info
+        const idStr = String(data.id || '');
+        nameEl.textContent = data.name || `Frog ${idStr.substring(0, 4)}`;
+        levelEl.textContent = `level ${data.level || 1}`;
+        if (bioEl) bioEl.textContent = data.bio || 'No bio yet...';
 
-        // Show bio if available
-        if (bioEl) {
-            bioEl.textContent = frog.bio || 'No bio yet...';
-        }
-
-        // Populate badge grid (show up to 6 badges)
+        // Populate Badges
         const badgesEl = document.getElementById('profile-badges-display');
-        const updateBadges = (badges) => {
-            if (badgesEl) {
-                let badgeArray = [];
-                try {
-                    badgeArray = Array.isArray(badges) ? badges : JSON.parse(badges || '[]');
-                } catch (e) {
-                    badgeArray = [];
-                }
+        if (badgesEl) {
+            let badgeArray = [];
+            try {
+                badgeArray = Array.isArray(data.badges) ? data.badges : JSON.parse(data.badges || '[]');
+            } catch (e) { badgeArray = []; }
 
-                let badgeHtml = '';
-                for (let i = 0; i < 6; i++) {
-                    const emoji = badgeArray[i] || '';
-                    badgeHtml += `<div class="popup-badge">${emoji}</div>`;
-                }
-                badgesEl.innerHTML = badgeHtml;
+            let badgeHtml = '';
+            for (let i = 0; i < 6; i++) {
+                const emoji = badgeArray[i] || '';
+                badgeHtml += `<div class="popup-badge">${emoji}</div>`;
             }
-        };
-
-        // Helper to update UI with profile data
-        const applyProfileToUI = (data, source) => {
-            if (!data) {
-                console.log(`ℹ️ No fresh data from ${source}, keeping current cache`);
-                return;
-            }
-
-            console.log(`✅ Received fresh data via ${source} for ${frog.name}: `, data);
-
-            // Update frog cache
-            frog.userId = data.id || frog.userId;
-            frog.bio = data.bio || frog.bio || '';
-            frog.badges = data.badges || [];
-            frog.level = data.level || frog.level || 1;
-
-            // Only update UI if we are still viewing this frog
-            if (this.currentProfileFrog === frog) {
-                if (bioEl) bioEl.textContent = frog.bio || 'No bio yet...';
-                levelEl.textContent = `level ${frog.level || 1} `;
-                updateBadges(frog.badges || []);
-
-                // Refresh preview
-                this.showFrogPreview(frog);
-            }
-        };
-
-        // Initial display from existing data (already likely fresh if updated via socket)
-        updateBadges(frog.badges || []);
-
-        // Fetch FRESH data from server to ensure DB sync (skip if we just pre-fetched)
-        if (!skipFetch && this.network && this.network.socket) {
-            // Determine best route: if we have a userId, getProfile is always more authoritative
-            const targetId = frog.userId || frog.id;
-            const route = (frog.userId && String(frog.userId).length < 15) ? 'getProfile' : 'getProfileBySocket';
-
-            console.log(`📡 openProfile starting fallback fetch via ${route}(${targetId})`);
-            this.network.socket.emit(route, targetId, (data) => {
-                if (data) {
-                    console.log(`✅ ${route} fallback fetch complete for ${frog.name}:`, data);
-                    applyProfileToUI(data, route);
-                }
-            });
+            badgesEl.innerHTML = badgeHtml;
         }
 
-        // Update mute button text based on status
-        const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(frog.id);
+        // Preview Render (Needs valid color)
+        this.showFrogPreview({
+            color: data.color,
+            mesh: (this.frogs[data.id] && this.frogs[data.id].mesh) // Try to find mesh for preview if available
+        });
+
+        // Mute Button Logic
+        const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
         muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
         muteBtn.className = isMuted ? 'profile-btn' : 'profile-btn danger';
 
@@ -1779,9 +1751,11 @@ export class World {
         muteBtn.onclick = (e) => {
             e.stopPropagation();
             if (this.network) {
-                const nowMuted = this.network.toggleMute(frog.id);
-                muteBtn.textContent = nowMuted ? 'Unmute' : 'Mute';
-                muteBtn.className = nowMuted ? 'profile-btn' : 'profile-btn danger';
+                this.network.toggleMute(data.id);
+                // Update UI immediately
+                const isMutedNow = this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
+                muteBtn.textContent = isMutedNow ? 'Unmute' : 'Mute';
+                muteBtn.className = isMutedNow ? 'profile-btn' : 'profile-btn danger';
             }
         };
 
@@ -1793,20 +1767,18 @@ export class World {
                 return;
             }
 
-            // If already friends (from friend list click), open chat
-            if (frog.isFriend) {
-                this.closeProfile();
-                if (window.openDMChat) {
-                    // Use userId if available (for in-game frogs), otherwise use id (for friend list)
-                    const chatId = frog.userId || frog.id;
-                    window.openDMChat(chatId, frog.name);
+            if (data.isFriend) {
+                // Open Chat
+                if (this.network) {
+                    this.network.openDM(data.id, data.name);
+                    popup.style.display = 'none';
                 }
             } else {
-                // Send friend request by username
-                if (this.network && this.network.socket && frog.name) {
-                    this.network.socket.emit('sendFriendRequest', frog.name, (result) => {
+                // Add Friend
+                if (this.network && this.network.socket) {
+                    this.network.socket.emit('sendFriendRequest', data.name, (result) => {
                         if (result.success) {
-                            this.showToast(`Friend request sent to ${frog.name} !`);
+                            this.showToast(`Friend request sent to ${data.name}!`);
                         } else {
                             this.showToast(result.error || 'Failed to send request');
                         }
@@ -1817,22 +1789,25 @@ export class World {
 
         // Update button text based on friend status
         // If isFriend is not set, check with server (for frogs clicked in-world)
-        if (frog.isFriend === undefined && this.network && this.network.socket) {
+        if (data.isFriend === undefined && this.network && this.network.socket) {
             // Default to Add Friend while checking
             addFriendBtn.textContent = 'Add Friend';
 
             // Check if this player is a friend
-            this.network.socket.emit('checkFriendship', frog.id, (result) => {
+            this.network.socket.emit('checkFriendship', data.id, (result) => {
                 if (result && result.isFriend) {
-                    frog.isFriend = true;
+                    data.isFriend = true;
                     addFriendBtn.textContent = 'Chat';
                 }
             });
+        } else if (data.isFriend) {
+            addFriendBtn.textContent = 'Chat';
         } else {
-            addFriendBtn.textContent = frog.isFriend ? 'Chat' : 'Add Friend';
+            addFriendBtn.textContent = 'Add Friend';
         }
 
         // Close button handler
+        const closeBtn = document.getElementById('profile-close-btn'); // Assuming closeBtn is defined somewhere
         if (closeBtn) {
             closeBtn.onclick = (e) => {
                 e.stopPropagation();
