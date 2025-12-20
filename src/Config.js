@@ -25,18 +25,18 @@ export const Config = {
     walkLegHeight: 0.754,
 
     // Environment
-    sunIntensity: 3.65,
-    ambientIntensity: 1.262,
+    sunIntensity: 4.5,
+    ambientIntensity: 1.5,
 
     // Shadows
     shadowEnabled: true,
     shadowMapSize: 4096,
     shadowType: 'Basic',
-    shadowRadius: 9.024,
-    shadowBlurSamples: 15,
+    shadowRadius: 2.0, // Sharper shadows
+    shadowBlurSamples: 8,
     shadowBias: -0.00032,
     shadowNormalBias: 0,
-    shadowIntensity: 0.374,
+    shadowIntensity: 0.45,
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
     shadowCameraSize: 55.03,
@@ -51,43 +51,40 @@ export const Config = {
     useShader: true,
 
     // Color Grading
-    shaderSaturation: 1.424,
-    shaderBrightness: 0.107,
-    shaderContrast: 1.1,
-    shaderGamma: 1.0,
+    shaderSaturation: 1.65, // More vibrant
+    shaderBrightness: 0.05,
+    shaderContrast: 1.25,  // Higher contrast
+    shaderGamma: 1.1,
 
     // Color Tint / Temperature
-    shaderTintR: 1.058,
-    shaderTintG: 1.084,
-    shaderTintB: 1.24,
-    shaderTemperature: -0.256,
+    shaderTintR: 1.0,
+    shaderTintG: 1.0,
+    shaderTintB: 1.0,
+    shaderTemperature: -0.1, // Slight cool pop
 
     // Vignette Effect
-    vignetteEnabled: false,
-    vignetteIntensity: 0.3,
-    vignetteRadius: 0.75,
-    vignetteSoftness: 0.45,
+    vignetteEnabled: true,
+    vignetteIntensity: 0.25,
+    vignetteRadius: 1.0,
+    vignetteSoftness: 0.35,
 
     // Chromatic Aberration
     chromaticEnabled: false,
-    chromaticIntensity: 0.01042,
+    chromaticIntensity: 0.005,
     chromaticRadial: true,
 
     // Film Grain
-    grainEnabled: true,
-    grainIntensity: 0.0252,
-    grainSpeed: 0.1,
-    grainSize: 3.5285,
+    grainEnabled: false, // Cleaner toon look
 
     // Sharpen Filter
     sharpenEnabled: true,
-    sharpenIntensity: 0.454,
+    sharpenIntensity: 0.8, // Crisper lines
 
     // Bloom (glow effect)
     bloomEnabled: true,
-    bloomIntensity: 0.556,
-    bloomThreshold: 0.061,
-    bloomRadius: 0.088,
+    bloomIntensity: 0.4,
+    bloomThreshold: 0.2,
+    bloomRadius: 0.05,
 
     // Camera
     cameraHeight: 15,

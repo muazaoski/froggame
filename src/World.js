@@ -18,8 +18,8 @@ export class World {
 
         // SCENE
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
-        this.scene.fog = new THREE.Fog(0x87CEEB, 10, 50);
+        this.scene.background = new THREE.Color(0x00f2ff); // Vibrant Cyan Sky
+        this.scene.fog = new THREE.Fog(0x00f2ff, 30, 100); // Further fog for clarity
 
         // CAMERA
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
@@ -157,7 +157,12 @@ export class World {
                 "uBloomEnabled": { value: Config.bloomEnabled ? 1.0 : 0.0 },
                 "uBloomIntensity": { value: Config.bloomIntensity },
                 "uBloomThreshold": { value: Config.bloomThreshold },
-                "uBloomRadius": { value: Config.bloomRadius }
+                "uBloomRadius": { value: Config.bloomRadius },
+
+                // Toon / Outline
+                "uToonEnabled": { value: 1.0 },
+                "uOutlineEnabled": { value: 1.0 },
+                "uOutlineIntensity": { value: 0.15 }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -209,6 +214,11 @@ export class World {
                 uniform float uBloomIntensity;
                 uniform float uBloomThreshold;
                 uniform float uBloomRadius;
+
+                // Toon / Outline
+                uniform float uToonEnabled;
+                uniform float uOutlineEnabled;
+                uniform float uOutlineIntensity;
                 
                 varying vec2 vUv;
                 
@@ -304,6 +314,37 @@ export class World {
                         color.rgb += grain * uGrainIntensity;
                     }
                     
+                    // === CEL SHADING (Luminance Stepping) ===
+                    if (uToonEnabled > 0.5) {
+                        float levels = 4.0;
+                        float lum = getLuminance(color.rgb);
+                        float stepped = floor(lum * levels) / levels;
+                        color.rgb *= (stepped / max(0.01, lum));
+                    }
+
+                    // === SOBEL OUTLINE ===
+                    if (uOutlineEnabled > 0.5) {
+                        float thickness = 1.0;
+                        vec2 offset = thickness / uResolution;
+                        
+                        float t00 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x, -offset.y)).rgb);
+                        float t10 = getLuminance(texture2D(tDiffuse, uv + vec2( 0.0,      -offset.y)).rgb);
+                        float t20 = getLuminance(texture2D(tDiffuse, uv + vec2( offset.x, -offset.y)).rgb);
+                        float t01 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x,  0.0)).rgb);
+                        float t21 = getLuminance(texture2D(tDiffuse, uv + vec2( offset.x,  0.0)).rgb);
+                        float t02 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x,  offset.y)).rgb);
+                        float t12 = getLuminance(texture2D(tDiffuse, uv + vec2( 0.0,       offset.y)).rgb);
+                        float t22 = getLuminance(texture2D(tDiffuse, uv + vec2( offset.x,  offset.y)).rgb);
+                        
+                        float gx = t00 + 2.0 * t01 + t02 - t20 - 2.0 * t21 - t22;
+                        float gy = t00 + 2.0 * t10 + t20 - t02 - 2.0 * t12 - t22;
+                        float edge = sqrt(gx * gx + gy * gy);
+                        
+                        if (edge > 0.15) { // Sensitivity threshold
+                            color.rgb *= (1.0 - uOutlineIntensity * 2.5);
+                        }
+                    }
+
                     // === VIGNETTE ===
                     if (uVignetteEnabled > 0.5) {
                         vec2 vignetteUv = vUv - 0.5;
@@ -364,6 +405,20 @@ export class World {
                         child.material.opacity = 1;
                         child.userData.originalOpacity = 1;
                         child.userData.targetOpacity = 1;
+
+                        // TOON LOOK: Inject vibrant colors for terrain/water
+                        if (child.name.toLowerCase().includes('terrain') || child.name.toLowerCase().includes('island')) {
+                            child.material.color.setHex(0x11ff00); // Super Neon Green
+                            child.material.emissive.setHex(0x11ff00);
+                            child.material.emissiveIntensity = 0.15;
+                            child.material.roughness = 1.0;
+                        }
+                        if (child.name.toLowerCase().includes('water')) {
+                            child.material.color.setHex(0x00f2ff); // Ultra Cyan Water
+                            child.material.opacity = 0.8;
+                            child.material.emissive.setHex(0x00f2ff);
+                            child.material.emissiveIntensity = 0.6;
+                        }
                     }
 
                     // Track as wall for camera occlusion (exclude ground)
@@ -1346,6 +1401,9 @@ export class World {
         // Update Tongue Debug Visualization (Phase 7)
         this.updateTongueDebug();
 
+        // Update Local Frog Aura (Blue Glow)
+        this.updateLocalFrogAura();
+
         // Render
         if (this.localFrog) {
             this.checkFrogClick(input);
@@ -1833,5 +1891,29 @@ export class World {
             this.previewFrameId = requestAnimationFrame(animatePreview);
         };
         animatePreview();
+    }
+
+    updateLocalFrogAura() {
+        if (!this.localFrog || !this.localFrog.mesh) return;
+
+        // Create aura light if it doesn't exist
+        if (!this.localAura) {
+            this.localAura = new THREE.PointLight(0x00f2ff, 5.0, 4.0);
+            this.scene.add(this.localAura);
+        }
+
+        // Only show aura if frog is not dead
+        if (this.localFrog.isDead) {
+            this.localAura.visible = false;
+        } else {
+            this.localAura.visible = true;
+            // Update position to follow frog (slightly above)
+            this.localAura.position.copy(this.localFrog.mesh.position);
+            this.localAura.position.y += 0.5;
+
+            // Subtle pulse
+            const time = performance.now() / 1000;
+            this.localAura.intensity = 5.0 + Math.sin(time * 4.0) * 1.0;
+        }
     }
 }
