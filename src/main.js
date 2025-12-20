@@ -824,6 +824,13 @@ function updatePlayerList() {
         iconSpan.innerHTML = createFrogIcon(frog.color);
         li.appendChild(iconSpan);
 
+        // Level badge
+        const levelSpan = document.createElement('span');
+        levelSpan.className = 'player-level';
+        levelSpan.textContent = `LV${frog.level || 1}`;
+        levelSpan.style.cssText = 'font-size: 9px; background: linear-gradient(135deg, #ffd700, #ff9500); color: #000; padding: 1px 4px; border-radius: 4px; margin-right: 6px; font-weight: bold;';
+        li.appendChild(levelSpan);
+
         // Name
         const nameSpan = document.createElement('span');
         nameSpan.className = 'player-name';

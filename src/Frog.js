@@ -1822,10 +1822,15 @@ export class Frog {
         this.punchHitChecked = false; // Doesn't matter for remote but good reset
     }
 
-    takeDamage(amount, knockback, isNetworked = false, isCritical = false) {
+    takeDamage(amount, knockback, isNetworked = false, isCritical = false, attackerId = null) {
         if (this.isDead) return;
 
         this.health -= amount;
+
+        // Track last attacker for kill credit
+        if (attackerId) {
+            this.lastAttackerId = attackerId;
+        }
 
         // Show health bar when hit
         this.showHealthBar();
@@ -1975,7 +1980,7 @@ export class Frog {
 
         // If this is OUR death (local frog) and NOT triggered by network event, send it
         if (this.isLocal && !isNetworked && this.world && this.world.network) {
-            this.world.network.sendDeath();
+            this.world.network.sendDeath(this.lastAttackerId || null);
         }
     }
 

@@ -669,6 +669,17 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('playerRespawn', id);
     });
 
+    // Tongue pull event - relay to target player
+    socket.on('tongueResult', (data) => {
+        if (data.targetId && data.type === 'pull') {
+            // Send the pull force to the target player
+            io.to(data.targetId).emit('tonguePulled', {
+                sourceId: data.sourceId,
+                pullForce: 8 // Force magnitude for the pull
+            });
+        }
+    });
+
     socket.on('chatMessage', (msg) => {
         io.emit('chatMessage', {
             id: socket.id,

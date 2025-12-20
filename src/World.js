@@ -1569,6 +1569,7 @@ export class World {
         const popup = document.getElementById('profile-popup');
         const nameEl = document.getElementById('profile-name');
         const levelEl = document.getElementById('profile-level');
+        const bioEl = document.getElementById('profile-about');
         const muteBtn = document.getElementById('btn-mute-player');
         const addFriendBtn = document.getElementById('btn-add-friend');
         const closeBtn = document.getElementById('profile-close');
@@ -1580,7 +1581,12 @@ export class World {
         }
 
         nameEl.textContent = frog.name || `Frog ${frog.id.substr(0, 4)}`;
-        levelEl.textContent = `level ${frog.level || 20}`; // Placeholder for now
+        levelEl.textContent = `level ${frog.level || 1}`;
+
+        // Show bio if available
+        if (bioEl) {
+            bioEl.textContent = frog.bio || 'No bio yet...';
+        }
 
         // Update mute button text based on status
         const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(frog.id);
@@ -1604,8 +1610,21 @@ export class World {
 
         addFriendBtn.onclick = (e) => {
             e.stopPropagation();
-            console.log("Add friend placeholder clicked for:", frog.id);
-            this.showToast(`Friend request sent to ${frog.name || 'Frog'}`);
+            // Check if authenticated
+            if (window.game && !window.game.isAuthenticated) {
+                this.showToast('Register an account to add friends!');
+                return;
+            }
+            // Send friend request by username
+            if (this.network && this.network.socket && frog.name) {
+                this.network.socket.emit('sendFriendRequest', frog.name, (result) => {
+                    if (result.success) {
+                        this.showToast(`Friend request sent to ${frog.name}!`);
+                    } else {
+                        this.showToast(result.error || 'Failed to send request');
+                    }
+                });
+            }
         };
 
         // Close button handler

@@ -157,6 +157,30 @@ export class Network {
             }
         });
 
+        // Tongue pulled by another player
+        this.socket.on('tonguePulled', (data) => {
+            const localFrog = this.world.localFrog;
+            const sourceFrog = this.world.frogs[data.sourceId];
+
+            if (localFrog && sourceFrog && localFrog.body) {
+                // Calculate pull direction towards the puller
+                const pullDir = new THREE.Vector3()
+                    .subVectors(sourceFrog.mesh.position, localFrog.mesh.position)
+                    .normalize();
+
+                // Apply pull force
+                const force = data.pullForce || 8;
+                localFrog.body.velocity.x += pullDir.x * force;
+                localFrog.body.velocity.y += Math.max(0, pullDir.y * force * 0.3);
+                localFrog.body.velocity.z += pullDir.z * force;
+
+                // Show toast
+                if (this.world.showToast) {
+                    this.world.showToast(`${sourceFrog.name || 'Someone'} grabbed you!`);
+                }
+            }
+        });
+
         // Chat
         this.socket.on('chatMessage', (data) => {
             if (this.mutedPlayers.has(data.id)) return; // Filter muted players
@@ -185,8 +209,8 @@ export class Network {
         this.socket.on('playerDamaged', (data) => {
             const frog = this.world.frogs[data.targetId];
             if (frog) {
-                // Apply damage locally (visuals + health)
-                frog.takeDamage(data.damage, data.knockback, true, data.isCritical); // true = confirm network hit
+                // Apply damage locally (visuals + health) - pass attackerId for kill credit
+                frog.takeDamage(data.damage, data.knockback, true, data.isCritical, data.attackerId);
             }
         });
 
@@ -324,8 +348,8 @@ export class Network {
         this.socket.emit('playerHit', { targetId, damage, knockback, isCritical });
     }
 
-    sendDeath() {
-        this.socket.emit('playerDied', this.socket.id);
+    sendDeath(killerId = null) {
+        this.socket.emit('playerDied', { id: this.socket.id, killerId: killerId });
     }
 
     sendRespawn() {
