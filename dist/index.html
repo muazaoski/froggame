@@ -1148,9 +1148,9 @@
         .profile-info-column {
             display: flex;
             flex-direction: column;
-            gap: 0;
-            height: 120px;
-            /* Match avatar box height */
+            gap: 4px;
+            height: 130px;
+            /* Increased to avoid overlapping buttons */
         }
 
         .profile-section-label {
@@ -1175,11 +1175,11 @@
         .profile-badges-row-new {
             display: flex;
             justify-content: space-between;
-            /* Flush left/right */
+            /* Spread flush left/right */
             align-items: center;
-            /* Center vertically in remaining space */
-            flex: 1;
-            /* Grow to fill space below bio */
+            margin-top: auto;
+            /* Push to the very bottom of the info column */
+            padding-bottom: 2px;
         }
 
         .profile-badge-new {
