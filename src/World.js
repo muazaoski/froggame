@@ -1634,8 +1634,7 @@ export class World {
         const actionBtn = document.getElementById('p-btn-action');
         const muteBtn = document.getElementById('p-btn-mute');
         const closeBtn = document.getElementById('p-close-btn');
-        const avatarContainer = document.getElementById('p-avatar-container');
-        const headerBg = document.getElementById('p-header-bg');
+        const avatarContainer = document.getElementById('p-avatar-canvas-container');
 
         // Null checks
         if (!modal || !nameEl || !levelEl || !actionBtn || !muteBtn) {
@@ -1649,12 +1648,7 @@ export class World {
         levelEl.textContent = `LEVEL ${data.level || 1}`;
         bioEl.textContent = data.bio || 'No bio set.';
 
-        // Set Header Color from Frog Color
-        if (data.color && headerBg) {
-            headerBg.style.background = `linear-gradient(45deg, ${data.color} 0%, #2a2a35 100%)`;
-        }
-
-        // Render Badges
+        // --- BADGE RENDERING (Max 4) ---
         if (badgesEl) {
             let badgeArray = [];
             try {
@@ -1662,44 +1656,43 @@ export class World {
             } catch (e) { badgeArray = []; }
 
             badgesEl.innerHTML = '';
-            // Display empty slots if no badges, or just badges? Let's show badges
-            if (badgeArray.length === 0) {
-                badgesEl.innerHTML = '<span style="color:rgba(255,255,255,0.3); font-size:12px;">No badges yet</span>';
-            } else {
-                badgeArray.forEach(emoji => {
+            // Only show up to 4 badges
+            const displayBadges = badgeArray.slice(0, 4);
+
+            if (displayBadges.length === 0) {
+                // Show 4 empty slots as in the image or just empty message? 
+                // Image has 4 icons. Let's show empty slots if less than 4
+                for (let i = 0; i < 4; i++) {
                     const slot = document.createElement('div');
-                    slot.className = 'profile-badge-slot';
+                    slot.className = 'profile-badge-slot-new';
+                    slot.style.opacity = '0.3';
+                    badgesEl.appendChild(slot);
+                }
+            } else {
+                displayBadges.forEach(emoji => {
+                    const slot = document.createElement('div');
+                    slot.className = 'profile-badge-slot-new';
                     slot.textContent = emoji;
                     badgesEl.appendChild(slot);
                 });
+                // Fill remaining up to 4
+                for (let i = displayBadges.length; i < 4; i++) {
+                    const slot = document.createElement('div');
+                    slot.className = 'profile-badge-slot-new';
+                    slot.style.opacity = '0.1';
+                    badgesEl.appendChild(slot);
+                }
             }
         }
 
-        // --- AVATAR PREVIEW ---
-        // We'll reuse showFrogPreview logic but targeting the new container
+        // --- AVATAR PREVIEW (3D 360 Spin) ---
         if (avatarContainer) {
-            avatarContainer.innerHTML = ''; // Clear previous
-            // For now, let's just use a high-res emoji or color block if 3D is too complex for this overlay
-            // But user wanted "Wow", so let's try to clone the 3D preview if possible, 
-            // Or simpler: Just a big colored circle with the level?
-            // Let's stick effectively to a 2D representation for stability, or re-implement 3D later.
-            // Actually, let's just put a big emoji frog head or the frog color.
-            const avatarParams = document.createElement('div');
-            avatarParams.style.width = '100%';
-            avatarParams.style.height = '100%';
-            avatarParams.style.backgroundColor = data.color || '#4CAF50';
-            avatarParams.style.display = 'flex';
-            avatarParams.style.alignItems = 'center';
-            avatarParams.style.justifyContent = 'center';
-            avatarParams.style.fontSize = '50px';
-            avatarParams.textContent = '🐸';
-            avatarContainer.appendChild(avatarParams);
+            this.showFrogPreviewInModal(data, avatarContainer);
         }
 
         // --- MUTE BUTTON ---
         const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
-        muteBtn.innerHTML = isMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
-        muteBtn.className = isMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary'; // Toggle styles
+        muteBtn.innerHTML = isMuted ? '<span>🔊</span> Unmute Chat' : '<span>🔇</span> Mute Chat';
 
         muteBtn.onclick = (e) => {
             e.stopPropagation();
@@ -1707,8 +1700,7 @@ export class World {
                 this.network.toggleMute(data.id);
                 // Update UI immediately (toggle state)
                 const nowMuted = this.network.mutedPlayers.has(data.id);
-                muteBtn.innerHTML = nowMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
-                muteBtn.className = nowMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary';
+                muteBtn.innerHTML = nowMuted ? '<span>🔊</span> Unmute Chat' : '<span>🔇</span> Mute Chat';
             }
         };
 
@@ -1716,11 +1708,9 @@ export class World {
         // Helper to update button text
         const updateActionBtn = (isFriend) => {
             if (isFriend) {
-                actionBtn.innerHTML = '<span>💬</span> Chat';
-                actionBtn.className = 'p-btn p-btn-primary';
+                actionBtn.innerHTML = '<span>💬</span> Send Message';
             } else {
-                actionBtn.innerHTML = '<span>➕</span> Add Friend';
-                actionBtn.className = 'p-btn p-btn-secondary';
+                actionBtn.innerHTML = '<span>✚</span> Add Friend';
             }
         };
 
@@ -1740,7 +1730,7 @@ export class World {
                 // Open DM
                 if (this.network) {
                     this.network.openDM(data.id, data.name);
-                    modal.classList.remove('active'); // Close modal
+                    this.closeProfile();
                 }
             } else {
                 // Send Request
@@ -1768,15 +1758,10 @@ export class World {
         }
 
         // --- CLOSE LOGIC ---
-        const closeModal = () => {
-            modal.classList.remove('active');
-            setTimeout(() => { modal.style.display = 'none'; }, 300); // Wait for transition
-        }
-
-        if (closeBtn) closeBtn.onclick = closeModal;
+        if (closeBtn) closeBtn.onclick = () => this.closeProfile();
 
         // Open Modal
-        modal.style.display = 'flex';
+        modal.style.display = 'block';
         // Force reflow
         void modal.offsetWidth;
         modal.classList.add('active');
@@ -1798,52 +1783,61 @@ export class World {
         }
     }
 
-    showFrogPreview(frog) {
-        const container = document.getElementById('profile-preview-container');
-        if (!container) return;
-
+    showFrogPreviewInModal(data, container) {
         // Clear existing preview
         container.innerHTML = '';
 
         // Setup mini Three.js scene
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, 140 / 100, 0.1, 10);
-        camera.position.set(0, 0.3, 2); // Adjusted for better full-body view
-        camera.lookAt(0, 0, 0);
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+        camera.position.set(0, 0.5, 2.5); // Adjusted for better full-body view
+        camera.lookAt(0, 0.2, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(140, 100);
+        renderer.setSize(200, 200);
         renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
         // Lights
-        const ambient = new THREE.AmbientLight(0xffffff, 1.5);
+        const ambient = new THREE.AmbientLight(0xffffff, 1.0);
         scene.add(ambient);
-        const direct = new THREE.DirectionalLight(0xffffff, 2);
+        const direct = new THREE.DirectionalLight(0xffffff, 1.5);
         direct.position.set(2, 2, 5);
         scene.add(direct);
 
-        // Get frog model - clone from bodyMesh or create fallback for dead frogs
+        // Get frog model - clone from bodyMesh or create fallback
         let previewModel;
-        if (frog.bodyMesh) {
+
+        // Find existing frog in world to clone skin/color accurately
+        const frog = this.frogs[data.id];
+
+        if (frog && frog.bodyMesh) {
             previewModel = frog.bodyMesh.clone();
-        } else if (frog.frogModel) {
-            // Try to use the original model
-            previewModel = frog.frogModel.clone();
+        } else if (this.frogModel) {
+            previewModel = this.frogModel.clone();
+            // Apply color if model cloned from source
+            if (data.color) {
+                previewModel.traverse(child => {
+                    if (child.isMesh && child.name.includes('Body')) {
+                        child.material = child.material.clone();
+                        child.material.color.set(data.color);
+                    }
+                });
+            }
         } else {
-            // Fallback: create a simple colored box as placeholder
-            const geometry = new THREE.BoxGeometry(0.6, 0.5, 0.8);
-            const material = new THREE.MeshLambertMaterial({ color: frog.color || '#4CAF50' });
+            // Fallback: create a simple colored box
+            const geometry = new THREE.BoxGeometry(0.8, 0.6, 1.0);
+            const material = new THREE.MeshLambertMaterial({ color: data.color || '#4CAF50' });
             previewModel = new THREE.Mesh(geometry, material);
         }
 
-        previewModel.position.set(0, -0.2, 0);
-        previewModel.scale.set(1.0, 1.0, 1.0); // Smaller scale to fit container
+        previewModel.position.set(0, 0, 0);
+        previewModel.scale.set(1.5, 1.5, 1.5);
         scene.add(previewModel);
 
         // Animation Loop
         const animatePreview = () => {
-            if (!this.currentProfileFrog || this.currentProfileFrog.id !== frog.id) {
+            if (this.currentProfileId !== data.id) {
                 renderer.dispose();
                 return;
             }

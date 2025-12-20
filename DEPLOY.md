@@ -34,8 +34,20 @@ The VPS uses Docker Compose V2 which uses space:
 
 ---
 
-## Quick Deploy (After Code Changes)
+## 🚀 Quick Deploy (After Code Changes)
 
+### On Your Local Machine (Windows):
+```powershell
+# Build the frontend first!
+npm run build
+
+# Commit and push (dist/ is now included in git)
+git add .
+git commit -m "Your commit message"
+git push
+```
+
+### On Your VPS:
 ```bash
 # SSH into VPS
 ssh debian@51.79.161.63
@@ -44,30 +56,57 @@ ssh debian@51.79.161.63
 sudo -i
 cd /opt/apps/froggame
 
-# Pull latest code
-git pull
+# Pull latest code (force reset if needed)
+git fetch origin
+git reset --hard origin/main
 
-# Rebuild and restart
+# Rebuild WITHOUT cache and restart
 docker compose down
-docker compose up -d --build
+docker compose build --no-cache
+docker compose up -d
 
 # Check status
 docker compose ps
 docker compose logs -f froggame
 ```
 
-# Logger
+> ⚠️ **ALWAYS use `--no-cache`** when rebuilding after code changes, or Docker will use old cached layers!
 
+---
+
+## 📋 Deploy Checklist
+
+1. ✅ Run `npm run build` locally (creates dist/)
+2. ✅ Commit and push (includes built dist/)
+3. ✅ SSH to VPS
+4. ✅ `git fetch origin && git reset --hard origin/main`
+5. ✅ `docker compose build --no-cache`
+6. ✅ `docker compose up -d`
+7. ✅ Hard refresh browser (`Ctrl+Shift+R`)
+
+---
+
+## 📊 Viewing Logs
+
+```bash
 # Become root
 sudo -i
+
 # Navigate to app directory
 cd /opt/apps/froggame
+
 # View live logs (follows new output)
 docker compose logs -f
+
 # Or view just the last 100 lines
 docker compose logs --tail=100
-# View logs for a specific service (if named)
+
+# View logs for game server only
 docker compose logs -f froggame
+
+# View Caddy (reverse proxy) logs
+docker compose logs -f caddy
+```
 
 ---
 
@@ -132,28 +171,45 @@ docker compose logs -f caddy
 # Stop everything
 docker compose down
 
-# Restart
+# Restart (quick, no rebuild)
 docker compose restart
 
-# Rebuild after code changes
-docker compose down
-docker compose up -d --build
-
-# Full rebuild (clear cache)
+# Rebuild after code changes (USE THIS!)
 docker compose down
 docker compose build --no-cache
 docker compose up -d
+
+# Nuclear option - full cleanup
+docker rm -f froggame caddy 2>/dev/null
+docker system prune -af
+docker compose up -d --build
 ```
 
 ---
 
 ## Troubleshooting
 
+### Changes not appearing after deploy?
+```bash
+# 1. Make sure git pull succeeded (check for merge conflicts)
+git status
+
+# 2. Force reset to remote
+git fetch origin
+git reset --hard origin/main
+
+# 3. Rebuild WITHOUT cache
+docker compose build --no-cache
+docker compose up -d
+
+# 4. Hard refresh your browser (Ctrl+Shift+R)
+```
+
 ### Error: 'ContainerConfig' / Container Issues
 ```bash
 # Nuclear option - remove everything and rebuild
 docker rm -f froggame caddy 2>/dev/null
-docker rmi froggame_froggame 2>/dev/null
+docker rmi froggame-froggame 2>/dev/null
 docker system prune -af
 docker compose up -d --build
 ```
@@ -210,19 +266,33 @@ docker compose up -d
 | `/opt/apps/froggame/.env` | Environment variables |
 | `/opt/apps/froggame/Caddyfile` | Reverse proxy config |
 | `/opt/apps/froggame/data/` | SQLite database (persistent) |
+| `/opt/apps/froggame/dist/` | Built frontend (from git) |
 
 ---
 
 ## Architecture
 
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DEPLOYMENT FLOW                          │
+├─────────────────────────────────────────────────────────────┤
+│  Local Machine           │           VPS                    │
+│  ─────────────           │           ───                    │
+│  1. Edit code            │                                  │
+│  2. npm run build        │                                  │
+│  3. git push ───────────────────────> 4. git pull          │
+│                          │           5. docker build        │
+│                          │           6. docker up           │
+└─────────────────────────────────────────────────────────────┘
+
+Traffic Flow:
+User → Caddy (HTTPS:443) → Froggame (Node.js:3000)
+```
+
 - **Caddy** - Reverse proxy with automatic HTTPS (port 80, 443)
 - **Froggame** - Node.js game server (port 3000 internal)
 - **SQLite** - Database stored in ./data/
-
-Traffic flow:
-```
-User → Caddy (HTTPS) → Froggame (Node.js)
-```
+- **dist/** - Pre-built frontend (pushed from local, NOT built on server)
 
 ---
 

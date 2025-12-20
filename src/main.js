@@ -1294,8 +1294,8 @@ document.querySelectorAll('.profile-sidebar .profile-tab').forEach(tab => {
     });
 });
 
-// Badge Selection - Up to 6 badges
-const MAX_BADGES = 6;
+// Badge Selection - Up to 4 badges
+const MAX_BADGES = 4;
 let selectedBadges = [];
 
 document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {

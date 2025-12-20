@@ -1031,213 +1031,194 @@
         }
 
         /* =========================================
-           NEW UNIFIED PROFILE MODAL (Glassmorphism)
-           ================================********* */
+           REDESIGNED PROFILE MODAL (Bottom Right)
+           ========================================= */
         #profile-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
+            bottom: 20px;
+            right: 20px;
             z-index: 2000;
             display: none;
-            align-items: center;
-            justify-content: center;
             opacity: 0;
             transition: opacity 0.3s ease;
+            pointer-events: none;
+            /* Allow clicking through background */
         }
 
         #profile-modal.active {
-            display: flex;
+            display: block;
             opacity: 1;
         }
 
         .profile-card {
-            width: 400px;
-            background: linear-gradient(135deg, rgba(30, 30, 40, 0.95), rgba(20, 20, 30, 0.98));
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            width: 520px;
+            background: #1a1c23;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             overflow: hidden;
             transform: translateY(20px);
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: auto;
+            /* Re-enable pointer events for the card */
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         #profile-modal.active .profile-card {
             transform: translateY(0);
         }
 
-        /* Header with Avatar & Gradient */
-        .profile-header-bg {
-            height: 100px;
-            background: linear-gradient(45deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%);
-            /* Placeholder Gradient */
-            position: relative;
-        }
-
-        .profile-avatar-container {
-            width: 90px;
-            height: 90px;
-            background: #1e1e28;
-            /* Fallback */
-            border-radius: 50%;
-            border: 4px solid #1e1e28;
-            position: absolute;
-            bottom: -45px;
-            left: 50%;
-            transform: translateX(-50%);
+        /* White Header */
+        .profile-header-new {
+            background: white;
+            padding: 12px 20px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-            /* For canvas preview */
+            justify-content: space-between;
         }
 
-        /* Close Button */
-        .profile-close-btn {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(0, 0, 0, 0.3);
-            border: none;
-            color: white;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
+        .profile-header-left {
             display: flex;
             align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
+            gap: 12px;
         }
 
-        .profile-close-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Body Content */
-        .profile-body {
-            padding: 55px 24px 24px 24px;
-            /* Top padding clears avatar */
-            text-align: center;
-        }
-
-        .profile-username {
-            font-size: 24px;
-            font-weight: 700;
-            color: white;
+        .profile-username-new {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1a1c23;
             margin: 0;
+        }
+
+        .profile-level-pill {
+            background: #393e46;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        .profile-level-badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 11px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 12px;
-            margin-top: 6px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        .profile-close-x {
+            background: transparent;
+            border: none;
+            color: #1a1c23;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            transition: opacity 0.2s;
         }
 
-        .profile-bio {
-            margin-top: 16px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
-            line-height: 1.5;
-            background: rgba(255, 255, 255, 0.03);
-            padding: 12px;
-            border-radius: 12px;
-            min-height: 40px;
+        .profile-close-x:hover {
+            opacity: 0.6;
         }
 
-        /* Badges Row */
-        .profile-badges-row {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 20px;
-            flex-wrap: wrap;
+        /* Body Layout */
+        .profile-body-new {
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 24px;
         }
 
-        .profile-badge-slot {
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
+        /* Left Side: Avatar */
+        .profile-avatar-box {
+            width: 200px;
+            height: 200px;
+            background: transparent;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            position: relative;
+        }
+
+        #p-avatar-canvas-container {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        #p-avatar-canvas-container:active {
+            cursor: grabbing;
+        }
+
+        /* Right Side: Bio & Badges */
+        .profile-info-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .profile-section-label {
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .profile-bio-box {
+            background: #252833;
+            border-radius: 12px;
+            padding: 16px;
+            color: #949ba2;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 100px;
+        }
+
+        .profile-badges-row-new {
+            display: flex;
+            gap: 12px;
+        }
+
+        .profile-badge-slot-new {
+            width: 52px;
+            height: 52px;
+            background: #252833;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
             border: 1px solid rgba(255, 255, 255, 0.05);
             transition: transform 0.2s;
         }
 
-        .profile-badge-slot:hover {
-            transform: scale(1.1);
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Action Buttons Footer */
-        .profile-footer {
+        /* Footer Actions */
+        .profile-footer-new {
+            padding: 0 24px 24px 24px;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 20px;
+            gap: 16px;
         }
 
-        .p-btn {
-            padding: 12px;
-            border-radius: 12px;
+        .p-btn-new {
+            background: #2c2f3a;
+            color: white;
             border: none;
-            font-weight: 600;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 15px;
             cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 10px;
+            transition: background 0.2s;
         }
 
-        .p-btn-primary {
-            background: white;
-            color: black;
+        .p-btn-new:hover {
+            background: #3a3f4d;
         }
 
-        .p-btn-primary:hover {
-            background: #f0f0f0;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.2);
-        }
-
-        .p-btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: white;
-        }
-
-        .p-btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        .p-btn-danger {
-            background: rgba(255, 59, 48, 0.15);
-            color: #ff3b30;
-        }
-
-        .p-btn-danger:hover {
-            background: rgba(255, 59, 48, 0.25);
+        .p-btn-new svg,
+        .p-btn-new i {
+            font-size: 18px;
         }
 
         /* Bottom Left Action Buttons */
@@ -2144,7 +2125,7 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-l9O7jg37.js"></script>
+  <script type="module" crossorigin src="/assets/index-DimLMSSA.js"></script>
 </head>
 
 <body class="spectator-mode">
@@ -2312,40 +2293,50 @@
     <input type="text" id="chat-input" placeholder="Press ENTER to chat..." maxlength="50">
 
     <!-- NEW Unified Profile Modal -->
+    <!-- REDESIGNED Profile Modal (Bottom Right) -->
     <div id="profile-modal">
         <div class="profile-card">
-            <!-- Header Background (Dynamic Color) -->
-            <div class="profile-header-bg" id="p-header-bg">
-                <div style="position: absolute; top: 10px; left: 10px; font-size: 10px; opacity: 0.5; color: white;">
-                    V2.0</div>
-                <button class="profile-close-btn" id="p-close-btn">✕</button>
+            <!-- White Header -->
+            <div class="profile-header-new">
+                <div class="profile-header-left">
+                    <h2 class="profile-username-new" id="p-username">Username</h2>
+                    <span class="profile-level-pill" id="p-level">LEVEL 1</span>
+                </div>
+                <button class="profile-close-x" id="p-close-btn">✕</button>
             </div>
 
-            <!-- Avatar (Centered Overlap) -->
-            <div class="profile-avatar-container" id="p-avatar-container">
-                <!-- Canvas or Image goes here -->
+            <div class="profile-body-new">
+                <!-- Left: 3D Preview -->
+                <div class="profile-avatar-box">
+                    <div id="p-avatar-canvas-container"></div>
+                </div>
+
+                <!-- Right: Content -->
+                <div class="profile-info-column">
+                    <div class="profile-section">
+                        <div class="profile-section-label">BIO</div>
+                        <div class="profile-bio-box" id="p-bio">
+                            No bio set.<br>Game enthusiast and frog lover.
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <div class="profile-section-label">BADGE SHOW OFF</div>
+                        <div class="profile-badges-row-new" id="p-badges-row">
+                            <!-- JS will inject max 4 badges here -->
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="profile-body">
-                <h2 class="profile-username" id="p-username">Username</h2>
-                <span class="profile-level-badge" id="p-level">Level 1</span>
-
-                <div class="profile-bio" id="p-bio">
-                    No bio set.
-                </div>
-
-                <div class="profile-badges-row" id="p-badges-row">
-                    <!-- Badges injected by JS -->
-                </div>
-
-                <div class="profile-footer">
-                    <button class="p-btn p-btn-primary" id="p-btn-action">
-                        <span>➕</span> Add Friend
-                    </button>
-                    <button class="p-btn p-btn-secondary" id="p-btn-mute">
-                        <span>🔇</span> Mute
-                    </button>
-                </div>
+            <!-- Footer -->
+            <div class="profile-footer-new">
+                <button class="p-btn-new" id="p-btn-action">
+                    <span>✚</span> Add Friend
+                </button>
+                <button class="p-btn-new" id="p-btn-mute">
+                    <span>🔇</span> Mute Chat
+                </button>
             </div>
         </div>
     </div>
