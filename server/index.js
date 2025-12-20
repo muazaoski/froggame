@@ -364,6 +364,34 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Get user profile by socket ID (for in-game players)
+    socket.on('getProfileBySocket', (targetSocketId, callback) => {
+        if (typeof callback !== 'function') return;
+
+        // Get the user ID associated with this socket
+        const targetUserId = auth.getUserId(targetSocketId);
+        if (!targetUserId) {
+            // Player is a guest - return basic info from players object
+            const player = players[targetSocketId];
+            if (player) {
+                callback({
+                    id: null,
+                    username: player.name,
+                    level: player.level || 1,
+                    bio: player.bio || '',
+                    badges: player.badges || []
+                });
+            } else {
+                callback(null);
+            }
+            return;
+        }
+
+        // Authenticated player - get full profile
+        const profile = db.getPublicProfile(targetUserId);
+        callback(profile);
+    });
+
     // Get friend requests (emit-based for new UI)
     socket.on('getFriendRequests', () => {
         const userId = auth.getUserId(socket.id);

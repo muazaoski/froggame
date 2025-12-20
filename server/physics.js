@@ -22,7 +22,7 @@ const Config = {
     criticalChance: 0.15,
     knockbackForce: 15,
     knockbackUpward: 8,
-    punchHitRadius: 2.0,
+    punchHitRadius: 2.5, // Slightly larger to match client detection
     punchCooldown: 0.3,
     respawnTime: 2.035,
 
@@ -83,17 +83,18 @@ class ServerPhysics {
         const now = Date.now();
         const dt = (now - player.lastUpdateTime) / 1000;
 
-        // Validate: check for speed hacks / teleporting
+        // Warn about potential speed hacks but STILL accept position
+        // Rejecting positions causes hit detection to fail!
         if (dt > 0.01) { // Ignore if too fast (spam)
             const dx = data.x - player.lastPosition.x;
             const dz = data.z - player.lastPosition.z;
             const distance = Math.sqrt(dx * dx + dz * dz);
             const speed = distance / dt;
 
-            // Reject if moving too fast (potential speed hack)
+            // Log warning for very high speeds (potential speed hack)
             if (speed > Config.maxSpeed && dt > 0.05) {
-                console.log(`⚠️ Speed hack detected: ${player.name} moving at ${speed.toFixed(1)} u/s`);
-                return false;
+                // Just warn, don't reject - rejecting breaks hit detection
+                console.log(`⚠️ Speed warning: ${player.name} moving at ${speed.toFixed(1)} u/s`);
             }
         }
 

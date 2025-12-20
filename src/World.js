@@ -1681,14 +1681,37 @@ export class World {
 
         // Populate badge grid (show up to 6 badges)
         const badgesEl = document.getElementById('profile-badges-display');
-        if (badgesEl) {
-            const badges = frog.badges || [];
-            let badgeHtml = '';
-            for (let i = 0; i < 6; i++) {
-                const emoji = badges[i] || '';
-                badgeHtml += `<div class="popup-badge">${emoji}</div>`;
+        const updateBadges = (badges) => {
+            if (badgesEl) {
+                let badgeHtml = '';
+                for (let i = 0; i < 6; i++) {
+                    const emoji = badges[i] || '';
+                    badgeHtml += `<div class="popup-badge">${emoji}</div>`;
+                }
+                badgesEl.innerHTML = badgeHtml;
             }
-            badgesEl.innerHTML = badgeHtml;
+        };
+
+        // Initial badge display
+        updateBadges(frog.badges || []);
+
+        // If frog doesn't have full profile data (clicked in-game), fetch it from server
+        if (!frog.userId && frog.id && this.network && this.network.socket) {
+            // This is likely an in-game frog (socket ID), get profile via their socket
+            this.network.socket.emit('getProfileBySocket', frog.id, (profileData) => {
+                if (profileData) {
+                    // Store the userId for chat functionality
+                    frog.userId = profileData.id;
+                    frog.bio = profileData.bio || frog.bio;
+                    frog.badges = profileData.badges || [];
+                    frog.level = profileData.level || frog.level;
+
+                    // Update display
+                    if (bioEl) bioEl.textContent = profileData.bio || 'No bio yet...';
+                    levelEl.textContent = `level ${profileData.level || 1}`;
+                    updateBadges(profileData.badges || []);
+                }
+            });
         }
 
         // Update mute button text based on status
@@ -1723,7 +1746,9 @@ export class World {
             if (frog.isFriend) {
                 this.closeProfile();
                 if (window.openDMChat) {
-                    window.openDMChat(frog.id, frog.name);
+                    // Use userId if available (for in-game frogs), otherwise use id (for friend list)
+                    const chatId = frog.userId || frog.id;
+                    window.openDMChat(chatId, frog.name);
                 }
             } else {
                 // Send friend request by username
