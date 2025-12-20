@@ -1,24 +1,4 @@
-# Build stage
-FROM node:20-slim AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install ALL dependencies (including dev)
-RUN npm ci
-
-# Copy source files
-COPY src/ ./src/
-COPY public/ ./public/
-COPY index.html ./
-COPY vite.config.js ./
-
-# Build the frontend
-RUN npm run build
-
-# Production stage
+# Production stage - use pre-built dist from git
 FROM node:20-slim
 
 WORKDIR /app
@@ -29,8 +9,8 @@ COPY package*.json ./
 # Install only production dependencies
 RUN npm ci --only=production
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Copy pre-built dist folder (built locally and pushed to git)
+COPY dist/ ./dist/
 
 # Copy server files
 COPY server/ ./server/
