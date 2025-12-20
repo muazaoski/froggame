@@ -18,8 +18,8 @@ export class World {
 
         // SCENE
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xff4ead); // Hot Pink Base for Sunset
-        this.scene.fog = new THREE.Fog(0xff4ead, 50, 150);
+        this.scene.background = new THREE.Color(0xff6600); // Vibrant Sunset Orange
+        this.scene.fog = new THREE.Fog(0xff6600, 40, 100);
 
         // CAMERA
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
@@ -162,8 +162,8 @@ export class World {
                 // Toon / Outline
                 "uToonEnabled": { value: 1.0 },
                 "uOutlineEnabled": { value: 1.0 },
-                "uOutlineIntensity": { value: 0.15 },
-                "uSkyColor": { value: new THREE.Vector3(1.0, 0.3, 0.68) } // Match scene background
+                "uOutlineIntensity": { value: 0.12 },
+                "uSkyColor": { value: new THREE.Vector3(1.0, 0.4, 0.0) } // Match vibrant orange
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -316,21 +316,25 @@ export class World {
                         color.rgb += grain * uGrainIntensity;
                     }
                     
-                    // === CEL SHADING (Luminance Stepping) ===
-                    bool isSky = distance(color.rgb, uSkyColor) < 0.1;
+                    // === CEL SHADING (Posterized) ===
+                    bool isSky = distance(color.rgb, uSkyColor) < 0.15;
                     
                     if (uToonEnabled > 0.5 && !isSky) {
                         float levels = 6.0;
-                        float lum = getLuminance(color.rgb);
-                        float stepped = floor(lum * levels) / levels;
-                        // Add a tiny bit of the original lum back to prevent dead blacks
-                        stepped = max(stepped, 0.05); 
-                        color.rgb *= (stepped / max(0.01, lum));
+                        // Posterize channels for a more "inked" look
+                        vec3 originalCol = color.rgb;
+                        color.rgb = floor(color.rgb * levels) / levels;
+                        
+                        // Smoothly mix a bit of original back to prevent muddy pits
+                        color.rgb = mix(color.rgb, originalCol, 0.1);
+                        
+                        // Increase saturation/vibrance of the shaded areas
+                        color.rgb *= 1.1;
                     }
 
                     // === SOBEL OUTLINE ===
                     if (uOutlineEnabled > 0.5 && !isSky) {
-                        float thickness = 1.0;
+                        float thickness = 0.8; // Thinner for sharper look
                         vec2 offset = thickness / uResolution;
                         
                         float t00 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x, -offset.y)).rgb);
@@ -346,8 +350,8 @@ export class World {
                         float gy = t00 + 2.0 * t10 + t20 - t02 - 2.0 * t12 - t22;
                         float edge = sqrt(gx * gx + gy * gy);
                         
-                        if (edge > 0.25) { // Increased threshold to reduce surface noise
-                            color.rgb *= (1.0 - uOutlineIntensity * 3.0);
+                        if (edge > 0.18) { // More sensitive but cleaner
+                            color.rgb *= (1.0 - uOutlineIntensity * 4.0);
                         }
                     }
 
@@ -1595,12 +1599,6 @@ export class World {
     checkFrogClick(input) {
         if (!input || !input.leftClickPunch) return;
 
-        // Check if clicking on the floating profile button
-        const profileBtn = document.getElementById('floating-profile-btn');
-        if (profileBtn && profileBtn.style.display !== 'none') {
-            // Check if mouse is over the button - handled by DOM event, not here
-        }
-
         this.raycaster.setFromCamera(input.mouse, this.camera);
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
 
@@ -1611,7 +1609,7 @@ export class World {
                 // Check if this object is a frog mesh
                 for (const frog of Object.values(this.frogs)) {
                     if (frog.mesh === obj && !frog.isLocal) {
-                        // Show profile button above frog instead of opening profile
+                        // Open profile directly
                         this.showProfileButton(frog);
                         input.leftClickPunch = false; // Consume click
                         return true;
@@ -1620,9 +1618,6 @@ export class World {
                 obj = obj.parent;
             }
         }
-
-        // Clicked elsewhere - hide profile button if visible
-        this.hideProfileButton();
 
         return false;
     }
@@ -1678,9 +1673,9 @@ export class World {
 
 
     /**
- * Open Profile Popup with standardized data object (POJO)
- * @param {Object} data - Profile data { id, userId, name, color, level, bio, badges, isFriend }
- */
+    * Open Profile Popup with standardized data object (POJO)
+    * @param {Object} data - Profile data { id, userId, name, color, level, bio, badges, isFriend }
+    */
     openProfile(data) {
         this.currentProfileId = data.id; // Track ID instead of object ref
         this.currentProfileData = data;  // Store current data for reference
