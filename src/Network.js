@@ -133,9 +133,9 @@ export class Network {
                 if (bio !== undefined) frog.bio = bio;
                 if (badges !== undefined) frog.badges = badges;
 
-                // If this is the current profile being viewed, refresh the UI
+                // If this is the current profile being viewed, refresh the UI without redundant fetch
                 if (this.world.currentProfileFrog === frog) {
-                    this.world.openProfile(frog);
+                    this.world.openProfile(frog, true);
                 }
             }
         });

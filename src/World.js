@@ -1626,7 +1626,7 @@ export class World {
                         this.openProfile(targetFrog, true);
                     } else {
                         console.warn(`⚠️ Pre-fetch failed for ${targetFrog.name}, falling back to cache`);
-                        this.openProfile(targetFrog);
+                        this.openProfile(targetFrog, false);
                     }
                 });
             } else if (targetFrog) {
@@ -1752,19 +1752,17 @@ export class World {
 
         // Fetch FRESH data from server to ensure DB sync (skip if we just pre-fetched)
         if (!skipFetch && this.network && this.network.socket) {
-            // If we have a userId, use the getProfile route (High Authority)
-            if (frog.userId && String(frog.userId).length < 15) { // userId is usually a small integer
-                console.log(`📡 Fetching profile via getProfile(UserId: ${frog.userId})`);
-                this.network.socket.emit('getProfile', frog.userId, (data) => {
-                    applyProfileToUI(data, 'getProfile');
-                });
-            } else if (frog.id) {
-                // Fallback to socket-based lookup
-                console.log(`📡 Fetching profile via getProfileBySocket(SocketId: ${frog.id})`);
-                this.network.socket.emit('getProfileBySocket', frog.id, (data) => {
-                    applyProfileToUI(data, 'getProfileBySocket');
-                });
-            }
+            // Determine best route: if we have a userId, getProfile is always more authoritative
+            const targetId = frog.userId || frog.id;
+            const route = (frog.userId && String(frog.userId).length < 15) ? 'getProfile' : 'getProfileBySocket';
+
+            console.log(`📡 openProfile starting fallback fetch via ${route}(${targetId})`);
+            this.network.socket.emit(route, targetId, (data) => {
+                if (data) {
+                    console.log(`✅ ${route} fallback fetch complete for ${frog.name}:`, data);
+                    applyProfileToUI(data, route);
+                }
+            });
         }
 
         // Update mute button text based on status
