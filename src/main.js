@@ -1148,6 +1148,20 @@ if (profileEditorBtn && profileEditorOverlay) {
             const color = world.localFrog.color || '#4CAF50';
             profileColorPicker.value = color;
             colorHexDisplay.textContent = color;
+
+            // Load saved badges
+            const savedBadges = world.localFrog.badges || [];
+            selectedBadges = [...savedBadges]; // Copy to global selectedBadges
+
+            // Update badge UI - mark saved badges as selected
+            document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
+                const badgeEmoji = badge.textContent;
+                if (savedBadges.includes(badgeEmoji)) {
+                    badge.classList.add('selected');
+                } else {
+                    badge.classList.remove('selected');
+                }
+            });
         }
         profileEditorOverlay.classList.add('active');
     });
