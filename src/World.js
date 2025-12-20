@@ -1570,6 +1570,14 @@ export class World {
         const nameEl = document.getElementById('profile-name');
         const levelEl = document.getElementById('profile-level');
         const muteBtn = document.getElementById('btn-mute-player');
+        const addFriendBtn = document.getElementById('btn-add-friend');
+        const closeBtn = document.getElementById('profile-close');
+
+        // Null checks - if elements don't exist, bail early
+        if (!popup || !nameEl || !levelEl || !muteBtn || !addFriendBtn) {
+            console.warn('Profile popup elements not found in DOM');
+            return;
+        }
 
         nameEl.textContent = frog.name || `Frog ${frog.id.substr(0, 4)}`;
         levelEl.textContent = `level ${frog.level || 20}`; // Placeholder for now
@@ -1594,12 +1602,19 @@ export class World {
             }
         };
 
-        const addFriendBtn = document.getElementById('btn-add-friend');
         addFriendBtn.onclick = (e) => {
             e.stopPropagation();
             console.log("Add friend placeholder clicked for:", frog.id);
             this.showToast(`Friend request sent to ${frog.name || 'Frog'}`);
         };
+
+        // Close button handler
+        if (closeBtn) {
+            closeBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.closeProfile();
+            };
+        }
 
         // Prevent click through to game
         popup.onclick = (e) => e.stopPropagation();
