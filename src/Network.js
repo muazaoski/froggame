@@ -50,6 +50,16 @@ export class Network {
         // Our own player data after joining
         this.socket.on('selfJoined', (playerInfo) => {
             this.world.addLocalFrog(playerInfo.id, playerInfo.color, playerInfo);
+
+            // Initialize level display for authenticated users
+            if (playerInfo.accountData) {
+                const levelBadge = document.getElementById('level-badge');
+                const xpFill = document.getElementById('xp-fill');
+                if (levelBadge) levelBadge.textContent = `Lv.${playerInfo.accountData.level || 1}`;
+                if (xpFill && playerInfo.accountData.xpToNext) {
+                    xpFill.style.width = `${(playerInfo.accountData.xp / playerInfo.accountData.xpToNext) * 100}%`;
+                }
+            }
         });
 
         // New Player Joined

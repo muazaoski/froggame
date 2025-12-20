@@ -569,6 +569,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAuthenticated = false;
     let currentUser = null;
 
+    // Expose auth status to global game object
+    if (window.game) {
+        Object.defineProperty(window.game, 'isAuthenticated', {
+            get: () => isAuthenticated
+        });
+    }
+
     // Tab switching
     function setAuthMode(loginMode) {
         isLoginMode = loginMode;
@@ -644,6 +651,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.success) {
                 isAuthenticated = true;
                 currentUser = result.user;
+                // Expose user ID for DM system
+                if (window.game) {
+                    window.game.currentUserId = result.user.id;
+                }
                 showMessage(isLoginMode ? 'Welcome back!' : 'Account created!', false);
                 showAccountStats(result.user);
 
@@ -1088,4 +1099,442 @@ network.join = function (name, color) {
 
 // Initialize volume display
 updateVolumeIcon();
+
+// =====================================================
+// PROFILE EDITOR & FRIEND LIST UI
+// =====================================================
+
+// Profile Editor Elements
+const profileEditorBtn = document.getElementById('profile-editor-btn');
+const profileEditorOverlay = document.getElementById('profile-editor-overlay');
+const profileEditorClose = document.getElementById('profile-editor-close');
+const profileColorPicker = document.getElementById('profile-color-picker');
+const colorHexDisplay = document.getElementById('color-hex-display');
+const profileBioInput = document.getElementById('profile-bio-input');
+const btnSaveProfile = document.getElementById('btn-save-profile');
+
+// Friend List Elements
+const friendListBtn = document.getElementById('friend-list-btn');
+const friendListOverlay = document.getElementById('friend-list-overlay');
+const friendListClose = document.getElementById('friend-list-close');
+const tabFriends = document.getElementById('tab-friends');
+const tabRequests = document.getElementById('tab-requests');
+const friendsContent = document.getElementById('friends-content');
+const requestsContent = document.getElementById('requests-content');
+const requestCount = document.getElementById('request-count');
+
+// Open Profile Editor
+if (profileEditorBtn && profileEditorOverlay) {
+    profileEditorBtn.addEventListener('click', () => {
+        // Check if guest
+        if (window.game && !window.game.isAuthenticated) {
+            if (world && world.showToast) {
+                world.showToast('Register an account to edit your profile!');
+            }
+            return;
+        }
+
+        // Load current color from local frog
+        if (world.localFrog) {
+            const color = world.localFrog.color || '#4CAF50';
+            profileColorPicker.value = color;
+            colorHexDisplay.textContent = color;
+        }
+        profileEditorOverlay.classList.add('active');
+    });
+}
+
+// Close Profile Editor
+if (profileEditorClose && profileEditorOverlay) {
+    profileEditorClose.addEventListener('click', () => {
+        profileEditorOverlay.classList.remove('active');
+    });
+    // Click outside to close
+    profileEditorOverlay.addEventListener('click', (e) => {
+        if (e.target === profileEditorOverlay) {
+            profileEditorOverlay.classList.remove('active');
+        }
+    });
+}
+
+// Color picker updates
+if (profileColorPicker && colorHexDisplay) {
+    profileColorPicker.addEventListener('input', (e) => {
+        colorHexDisplay.textContent = e.target.value;
+        // Live preview on local frog
+        if (world.localFrog && world.localFrog.bodyMesh) {
+            world.localFrog.bodyMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.color.set(e.target.value);
+                }
+            });
+        }
+    });
+}
+
+// Save Profile
+if (btnSaveProfile) {
+    btnSaveProfile.addEventListener('click', () => {
+        const newColor = profileColorPicker.value;
+        const newBio = profileBioInput.value.trim();
+
+        // Update local frog color
+        if (world.localFrog) {
+            world.localFrog.color = newColor;
+        }
+
+        // Send to server (if authenticated)
+        if (network && network.socket) {
+            network.socket.emit('updateProfile', {
+                color: newColor,
+                bio: newBio
+            });
+        }
+
+        // Show toast
+        if (world && world.showToast) {
+            world.showToast('Profile saved!');
+        }
+
+        // Close panel
+        if (profileEditorOverlay) {
+            profileEditorOverlay.classList.remove('active');
+        }
+    });
+}
+
+// Open Friend List
+if (friendListBtn && friendListOverlay) {
+    friendListBtn.addEventListener('click', () => {
+        // Check if guest
+        if (window.game && !window.game.isAuthenticated) {
+            if (world && world.showToast) {
+                world.showToast('Register an account to use friend features!');
+            }
+            return;
+        }
+
+        friendListOverlay.classList.add('active');
+        // Request fresh friend data
+        if (network && network.socket) {
+            network.socket.emit('getFriends');
+            network.socket.emit('getFriendRequests');
+        }
+    });
+}
+
+// Close Friend List
+if (friendListClose && friendListOverlay) {
+    friendListClose.addEventListener('click', () => {
+        friendListOverlay.classList.remove('active');
+    });
+    // Click outside to close
+    friendListOverlay.addEventListener('click', (e) => {
+        if (e.target === friendListOverlay) {
+            friendListOverlay.classList.remove('active');
+        }
+    });
+}
+
+// Friend tabs switching
+if (tabFriends && tabRequests && friendsContent && requestsContent) {
+    tabFriends.addEventListener('click', () => {
+        tabFriends.classList.add('active');
+        tabRequests.classList.remove('active');
+        friendsContent.style.display = 'flex';
+        requestsContent.style.display = 'none';
+    });
+
+    tabRequests.addEventListener('click', () => {
+        tabRequests.classList.add('active');
+        tabFriends.classList.remove('active');
+        requestsContent.style.display = 'flex';
+        friendsContent.style.display = 'none';
+    });
+}
+
+// Listen for friend list updates from server
+if (network && network.socket) {
+    network.socket.on('friendList', (friends) => {
+        if (!friendsContent) return;
+
+        if (friends.length === 0) {
+            friendsContent.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🐸</div>
+                    <div>No friends yet. Click on players to add them!</div>
+                </div>
+            `;
+            return;
+        }
+
+        friendsContent.innerHTML = friends.map(f => `
+            <div class="friend-item" data-friend-id="${f.id}" data-friend-name="${f.username}" style="cursor: pointer;">
+                <div class="friend-avatar" style="background: ${f.color || '#4CAF50'}">🐸</div>
+                <div class="friend-info">
+                    <div class="friend-name">${f.username}</div>
+                    <div class="friend-status ${f.online ? 'online' : ''}">${f.online ? 'Online' : 'Offline'}</div>
+                </div>
+                <div class="friend-actions">
+                    <button class="friend-action-btn accept dm-btn" data-id="${f.id}" data-name="${f.username}" title="Message">💬</button>
+                </div>
+            </div>
+        `).join('');
+
+        // Add click handlers for DM
+        friendsContent.querySelectorAll('.dm-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.openDMChat(btn.dataset.id, btn.dataset.name);
+            });
+        });
+
+        // Also allow clicking on the whole friend item
+        friendsContent.querySelectorAll('.friend-item').forEach(item => {
+            item.addEventListener('click', () => {
+                window.openDMChat(item.dataset.friendId, item.dataset.friendName);
+            });
+        });
+    });
+
+    network.socket.on('friendRequests', (requests) => {
+        if (!requestsContent) return;
+
+        // Update request count badge
+        if (requestCount) {
+            requestCount.textContent = requests.length > 0 ? `(${requests.length})` : '';
+        }
+
+        // Update notification dot on friend button
+        const notificationDot = document.getElementById('friend-notification-dot');
+        if (notificationDot) {
+            notificationDot.style.display = requests.length > 0 ? 'block' : 'none';
+        }
+
+        if (requests.length === 0) {
+            requestsContent.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div>No pending friend requests</div>
+                </div>
+            `;
+            return;
+        }
+
+        requestsContent.innerHTML = requests.map(r => `
+            <div class="friend-item">
+                <div class="friend-avatar" style="background: ${r.color || '#4CAF50'}">🐸</div>
+                <div class="friend-info">
+                    <div class="friend-name">${r.username}</div>
+                    <div class="friend-status">Wants to be friends</div>
+                </div>
+                <div class="friend-actions">
+                    <button class="friend-action-btn accept" data-id="${r.id}" title="Accept">✓</button>
+                    <button class="friend-action-btn decline" data-id="${r.id}" title="Decline">✕</button>
+                </div>
+            </div>
+        `).join('');
+
+        // Add event listeners for accept/decline buttons
+        requestsContent.querySelectorAll('.accept').forEach(btn => {
+            btn.addEventListener('click', () => {
+                network.socket.emit('acceptFriend', btn.dataset.id);
+            });
+        });
+
+        requestsContent.querySelectorAll('.decline').forEach(btn => {
+            btn.addEventListener('click', () => {
+                network.socket.emit('declineFriend', btn.dataset.id);
+            });
+        });
+    });
+
+    // === UNREAD DMs TRACKING ===
+    let totalUnreadDMs = 0;
+
+    network.socket.on('unreadDMs', (data) => {
+        totalUnreadDMs = data.total || 0;
+        updateNotificationDot();
+    });
+
+    network.socket.on('dmReceived', (message) => {
+        // If DM panel is open for this friend, add message
+        const dmPanel = document.getElementById('dm-chat-panel');
+        const currentFriendId = dmPanel.dataset.friendId;
+
+        if (dmPanel.classList.contains('active') && currentFriendId == message.sender_id) {
+            appendDMMessage(message, false);
+            network.socket.emit('markDMRead', message.sender_id);
+        } else {
+            // Increment unread count
+            totalUnreadDMs++;
+            updateNotificationDot();
+        }
+    });
+
+    // === XP/LEVEL SYSTEM ===
+    network.socket.on('xpGained', (data) => {
+        // Show XP toast
+        const toast = document.createElement('div');
+        toast.className = 'xp-toast';
+        toast.textContent = `+${data.amount} XP`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+
+        // Update level display
+        updateLevelDisplay(data.level, data.xp, data.xpToNext);
+    });
+
+    function updateLevelDisplay(level, xp, xpToNext) {
+        const levelBadge = document.getElementById('level-badge');
+        const xpFill = document.getElementById('xp-fill');
+        if (levelBadge) levelBadge.textContent = `Lv.${level}`;
+        if (xpFill) xpFill.style.width = `${(xp / xpToNext) * 100}%`;
+    }
+}
+
+// Helper function to update notification dot
+function updateNotificationDot() {
+    const dot = document.getElementById('friend-notification-dot');
+    const requestCount = document.getElementById('request-count');
+    const requestCountNum = requestCount ? parseInt(requestCount.textContent.replace(/[()]/g, '') || '0') : 0;
+
+    if (dot) {
+        dot.style.display = (requestCountNum > 0 || window.totalUnreadDMs > 0) ? 'block' : 'none';
+    }
+}
+
+// Expose for global access
+window.totalUnreadDMs = 0;
+
+// === DM CHAT PANEL ===
+const dmPanel = document.getElementById('dm-chat-panel');
+const dmClose = document.getElementById('dm-close');
+const dmInput = document.getElementById('dm-input');
+const dmSend = document.getElementById('dm-send');
+const dmMessages = document.getElementById('dm-messages');
+const dmFriendName = document.getElementById('dm-friend-name');
+
+// Open DM chat for a friend
+window.openDMChat = function (friendId, friendName) {
+    if (!dmPanel) return;
+
+    dmPanel.dataset.friendId = friendId;
+    if (dmFriendName) dmFriendName.textContent = friendName;
+    dmPanel.classList.add('active');
+    if (dmMessages) dmMessages.innerHTML = '<div class="empty-state">Loading messages...</div>';
+
+    // Request message history
+    if (network && network.socket) {
+        network.socket.emit('getMessages', friendId);
+    }
+};
+
+// Close DM panel
+if (dmClose && dmPanel) {
+    dmClose.addEventListener('click', () => {
+        dmPanel.classList.remove('active');
+    });
+}
+
+// Send DM
+function sendDM() {
+    const content = dmInput?.value.trim();
+    const friendId = dmPanel?.dataset.friendId;
+
+    if (!content || !friendId) return;
+
+    if (network && network.socket) {
+        network.socket.emit('sendDM', { friendId: parseInt(friendId), content });
+    }
+    if (dmInput) dmInput.value = '';
+}
+
+if (dmSend) dmSend.addEventListener('click', sendDM);
+if (dmInput) dmInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendDM();
+});
+
+// Append message to DM panel
+function appendDMMessage(message, isSent) {
+    if (!dmMessages) return;
+
+    // Clear empty state if present
+    const emptyState = dmMessages.querySelector('.empty-state');
+    if (emptyState) emptyState.remove();
+
+    const msgEl = document.createElement('div');
+    msgEl.className = `dm-message ${isSent ? 'sent' : 'received'}`;
+    msgEl.textContent = message.content;
+    dmMessages.appendChild(msgEl);
+    dmMessages.scrollTop = dmMessages.scrollHeight;
+}
+
+// Listen for sent confirmation
+if (network && network.socket) {
+    network.socket.on('dmSent', (message) => {
+        appendDMMessage(message, true);
+    });
+
+    network.socket.on('messageHistory', (messages) => {
+        if (!dmMessages) return;
+        dmMessages.innerHTML = '';
+
+        if (messages.length === 0) {
+            dmMessages.innerHTML = '<div class="empty-state">No messages yet. Say hi!</div>';
+            return;
+        }
+
+        const myUserId = window.game?.currentUserId;
+        messages.forEach(msg => {
+            appendDMMessage(msg, msg.sender_id === myUserId);
+        });
+    });
+
+    // Request unread DMs on load
+    network.socket.emit('getUnreadDMs');
+}
+
+// === EMOTE WHEEL ===
+const emoteBtn = document.getElementById('emote-btn');
+const emoteWheel = document.getElementById('emote-wheel');
+
+if (emoteBtn && emoteWheel) {
+    emoteBtn.addEventListener('click', () => {
+        emoteWheel.classList.toggle('active');
+    });
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!emoteWheel.contains(e.target) && e.target !== emoteBtn) {
+            emoteWheel.classList.remove('active');
+        }
+    });
+
+    // Emote selection
+    emoteWheel.querySelectorAll('.emote-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const emote = opt.dataset.emote;
+            const emoji = opt.textContent;
+
+            // Send emote as chat message
+            if (network && network.socket) {
+                network.socket.emit('chatMessage', emoji);
+            }
+
+            emoteWheel.classList.remove('active');
+        });
+    });
+}
+
+// T key to toggle emote wheel
+window.addEventListener('keydown', (e) => {
+    if (e.key === 't' || e.key === 'T') {
+        const chatInput = document.getElementById('chat-input');
+        const dmInputEl = document.getElementById('dm-input');
+        if (document.activeElement === chatInput || document.activeElement === dmInputEl) return;
+
+        if (emoteWheel) emoteWheel.classList.toggle('active');
+    }
+});
 

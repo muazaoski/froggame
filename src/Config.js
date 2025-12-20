@@ -157,7 +157,7 @@ export const Config = {
     vfxWalkInterval: 0.12,
 
     // Combat Settings
-    maxHealth: 100,
+    maxHealth: 200,
     punchDamageMin: 6,         // Base damage min
     punchDamageMax: 10,        // Base damage max
     criticalDamageMin: 15,     // Critical damage min

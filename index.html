@@ -1055,13 +1055,13 @@
         }
 
         #profile-preview-container {
-            width: 120px;
-            height: 120px;
+            width: 140px;
+            height: 100px;
             margin: 0 auto 15px;
-            border-radius: 50%;
+            border-radius: 16px;
             overflow: hidden;
-            background: radial-gradient(circle, rgba(76, 175, 80, 0.2) 0%, transparent 70%);
-            border: 2px solid rgba(76, 175, 80, 0.4);
+            background: transparent;
+            border: none;
         }
 
         #profile-preview-container canvas {
@@ -1144,6 +1144,578 @@
         #profile-close:hover {
             background: rgba(255, 100, 100, 0.3);
             color: #ff6b6b;
+        }
+
+        /* Bottom Left Action Buttons */
+        .bottom-left-buttons {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .bottom-btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 22px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .bottom-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .bottom-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Hide buttons during spectator/login */
+        body.spectator-mode .bottom-left-buttons {
+            display: none !important;
+        }
+
+        /* Notification Dot */
+        .notification-dot {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 10px;
+            height: 10px;
+            background: #ff4444;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 0, 0, 0.5);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        .bottom-btn {
+            position: relative;
+        }
+
+        /* Panel Overlay Base */
+        .panel-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 800;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel-overlay.active {
+            display: flex;
+        }
+
+        /* Panel Base */
+        .panel {
+            width: 380px;
+            max-height: 80vh;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .panel-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .panel-close:hover {
+            background: rgba(255, 100, 100, 0.3);
+            color: #ff6b6b;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-label {
+            display: block;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .color-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .color-input-wrapper input[type="color"] {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .color-preview-text {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        .btn-save {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        /* Friend List Specific */
+        .friend-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .friend-tab {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .friend-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .friend-tab.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+            color: white;
+        }
+
+        .friend-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .friend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            transition: background 0.2s;
+        }
+
+        .friend-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .friend-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .friend-info {
+            flex: 1;
+        }
+
+        .friend-name {
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .friend-status {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+        }
+
+        .friend-status.online {
+            color: #4CAF50;
+        }
+
+        .friend-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .friend-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .friend-action-btn.accept {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4CAF50;
+        }
+
+        .friend-action-btn.accept:hover {
+            background: rgba(76, 175, 80, 0.5);
+        }
+
+        .friend-action-btn.decline {
+            background: rgba(255, 100, 100, 0.2);
+            color: #ff6b6b;
+        }
+
+        .friend-action-btn.decline:hover {
+            background: rgba(255, 100, 100, 0.4);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .empty-state-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        /* Level/XP Display */
+        #level-display {
+            position: fixed;
+            top: 75px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #level-display .level-badge {
+            background: linear-gradient(135deg, #ffd700, #ff9500);
+            color: #000;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        #level-display .xp-bar {
+            width: 80px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        #level-display .xp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s ease;
+        }
+
+        body.spectator-mode #level-display {
+            display: none !important;
+        }
+
+        /* DM Chat Panel */
+        #dm-chat-panel {
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            width: 320px;
+            height: 350px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            display: none;
+            flex-direction: column;
+            z-index: 600;
+            overflow: hidden;
+        }
+
+        #dm-chat-panel.active {
+            display: flex;
+        }
+
+        .dm-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dm-friend-name {
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .dm-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dm-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dm-message {
+            max-width: 85%;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            word-wrap: break-word;
+        }
+
+        .dm-message.sent {
+            align-self: flex-end;
+            background: #4CAF50;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .dm-message.received {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-bottom-left-radius: 4px;
+        }
+
+        .dm-input-area {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dm-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            color: white;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .dm-send-btn {
+            width: 40px;
+            height: 40px;
+            background: #4CAF50;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        /* Emote Wheel */
+        #emote-wheel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: none;
+            z-index: 900;
+        }
+
+        #emote-wheel.active {
+            display: block;
+        }
+
+        .emote-option {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .emote-option:hover {
+            background: rgba(76, 175, 80, 0.3);
+            transform: scale(1.15);
+        }
+
+        /* XP Gained Toast */
+        .xp-toast {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.9), rgba(139, 195, 74, 0.9));
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            animation: xpToastAnim 2s ease forwards;
+            z-index: 1000;
+        }
+
+        @keyframes xpToastAnim {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            80% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
         }
     </style>
 </head>
@@ -1323,6 +1895,106 @@
             <button id="btn-mute-player" class="profile-btn danger">Mute</button>
         </div>
         <div id="profile-about">No bio yet...</div>
+    </div>
+
+    <!-- Bottom Left Action Buttons -->
+    <div class="bottom-left-buttons">
+        <button class="bottom-btn" id="profile-editor-btn" title="Edit Profile">👤</button>
+        <button class="bottom-btn" id="friend-list-btn" title="Friends">
+            🤝
+            <span class="notification-dot" id="friend-notification-dot" style="display: none;"></span>
+        </button>
+        <button class="bottom-btn" id="emote-btn" title="Emotes (T)">😀</button>
+    </div>
+
+    <!-- Level/XP Display -->
+    <div id="level-display">
+        <span class="level-badge" id="level-badge">Lv.1</span>
+        <div class="xp-bar">
+            <div class="xp-fill" id="xp-fill" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- DM Chat Panel -->
+    <div id="dm-chat-panel">
+        <div class="dm-header">
+            <span class="dm-friend-name" id="dm-friend-name">Friend</span>
+            <button class="dm-close" id="dm-close">✕</button>
+        </div>
+        <div class="dm-messages" id="dm-messages">
+            <!-- Messages appear here -->
+        </div>
+        <div class="dm-input-area">
+            <input type="text" class="dm-input" id="dm-input" placeholder="Type a message..." maxlength="500">
+            <button class="dm-send-btn" id="dm-send">➤</button>
+        </div>
+    </div>
+
+    <!-- Emote Wheel -->
+    <div id="emote-wheel">
+        <div class="emote-option" style="top: -15px; left: 75px;" data-emote="wave">👋</div>
+        <div class="emote-option" style="top: 25px; right: -15px;" data-emote="laugh">😂</div>
+        <div class="emote-option" style="bottom: 25px; right: -15px;" data-emote="dance">💃</div>
+        <div class="emote-option" style="bottom: -15px; left: 75px;" data-emote="gg">👍</div>
+        <div class="emote-option" style="bottom: 25px; left: -15px;" data-emote="cry">😢</div>
+        <div class="emote-option" style="top: 25px; left: -15px;" data-emote="angry">😤</div>
+    </div>
+
+    <!-- Profile Editor Panel -->
+    <div class="panel-overlay" id="profile-editor-overlay">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">👤 Edit Profile</div>
+                <button class="panel-close" id="profile-editor-close">✕</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Frog Color</label>
+                <div class="color-input-wrapper">
+                    <input type="color" id="profile-color-picker" value="#4CAF50">
+                    <span class="color-preview-text" id="color-hex-display">#4CAF50</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Bio</label>
+                <textarea class="form-input form-textarea" id="profile-bio-input"
+                    placeholder="Write something about yourself..." maxlength="100"></textarea>
+            </div>
+
+            <button class="btn-save" id="btn-save-profile">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Friend List Panel -->
+    <div class="panel-overlay" id="friend-list-overlay">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">🤝 Friends</div>
+                <button class="panel-close" id="friend-list-close">✕</button>
+            </div>
+
+            <div class="friend-tabs">
+                <button class="friend-tab active" id="tab-friends">Friends</button>
+                <button class="friend-tab" id="tab-requests">Requests <span id="request-count"></span></button>
+            </div>
+
+            <!-- Friends Tab Content -->
+            <div id="friends-content" class="friend-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🐸</div>
+                    <div>No friends yet. Click on players to add them!</div>
+                </div>
+            </div>
+
+            <!-- Requests Tab Content -->
+            <div id="requests-content" class="friend-list" style="display: none;">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div>No pending friend requests</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Offline Overlay -->

@@ -1642,12 +1642,12 @@ export class World {
 
         // Setup mini Three.js scene
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-        camera.position.set(0, 0.5, 2.5);
+        const camera = new THREE.PerspectiveCamera(45, 140 / 100, 0.1, 10);
+        camera.position.set(0, 0.3, 2); // Adjusted for better full-body view
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(120, 120);
+        renderer.setSize(140, 100);
         renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
@@ -1658,25 +1658,35 @@ export class World {
         direct.position.set(2, 2, 5);
         scene.add(direct);
 
-        // Clone frog model for preview
+        // Get frog model - clone from bodyMesh or create fallback for dead frogs
+        let previewModel;
         if (frog.bodyMesh) {
-            const previewModel = frog.bodyMesh.clone();
-            previewModel.position.set(0, -0.3, 0);
-            previewModel.scale.set(1.5, 1.5, 1.5); // Slightly bigger for preview
-            scene.add(previewModel);
-
-            // Animation Loop
-            const animatePreview = () => {
-                if (!this.currentProfileFrog || this.currentProfileFrog.id !== frog.id) {
-                    renderer.dispose();
-                    return;
-                }
-
-                previewModel.rotation.y += 0.02; // 360 spinning
-                renderer.render(scene, camera);
-                this.previewFrameId = requestAnimationFrame(animatePreview);
-            };
-            animatePreview();
+            previewModel = frog.bodyMesh.clone();
+        } else if (frog.frogModel) {
+            // Try to use the original model
+            previewModel = frog.frogModel.clone();
+        } else {
+            // Fallback: create a simple colored box as placeholder
+            const geometry = new THREE.BoxGeometry(0.6, 0.5, 0.8);
+            const material = new THREE.MeshLambertMaterial({ color: frog.color || '#4CAF50' });
+            previewModel = new THREE.Mesh(geometry, material);
         }
+
+        previewModel.position.set(0, -0.2, 0);
+        previewModel.scale.set(1.0, 1.0, 1.0); // Smaller scale to fit container
+        scene.add(previewModel);
+
+        // Animation Loop
+        const animatePreview = () => {
+            if (!this.currentProfileFrog || this.currentProfileFrog.id !== frog.id) {
+                renderer.dispose();
+                return;
+            }
+
+            previewModel.rotation.y += 0.02; // 360 spinning
+            renderer.render(scene, camera);
+            this.previewFrameId = requestAnimationFrame(animatePreview);
+        };
+        animatePreview();
     }
 }

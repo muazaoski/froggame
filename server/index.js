@@ -243,33 +243,78 @@ io.on('connection', (socket) => {
 
     socket.on('acceptFriendRequest', (requesterId, callback) => {
         const userId = auth.getUserId(socket.id);
-        if (!userId) return callback({ success: false, error: 'Not logged in' });
+        if (!userId) {
+            if (callback) callback({ success: false, error: 'Not logged in' });
+            return;
+        }
 
-        const result = db.acceptFriendRequest(userId, requesterId);
+        const result = db.acceptFriendRequest(userId, parseInt(requesterId));
 
         // Notify requester if online
-        const requesterSocketId = auth.getSocketId(requesterId);
+        const requesterSocketId = auth.getSocketId(parseInt(requesterId));
         if (requesterSocketId) {
             io.to(requesterSocketId).emit('friendRequestAccepted', {
                 by: db.getPublicProfile(userId)
             });
         }
 
-        callback(result);
+        if (callback) callback(result);
+
+        // Refresh the friend lists for both users
+        socket.emit('friendList', db.getFriends(userId).map(f => ({
+            ...f,
+            online: auth.isOnline(f.id)
+        })));
+        socket.emit('friendRequests', db.getPendingRequests(userId));
     });
 
+    // Decline friend request
+    socket.on('declineFriend', (requesterId) => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return;
+
+        db.removeFriend(userId, parseInt(requesterId));
+
+        // Refresh requests
+        socket.emit('friendRequests', db.getPendingRequests(userId));
+    });
+
+    // Get friends list (emit-based for new UI)
     socket.on('getFriends', (callback) => {
         const userId = auth.getUserId(socket.id);
-        if (!userId) return callback({ success: false, error: 'Not logged in' });
+        if (!userId) {
+            if (typeof callback === 'function') {
+                return callback({ success: false, error: 'Not logged in' });
+            }
+            socket.emit('friendList', []);
+            return;
+        }
 
         const friends = db.getFriends(userId);
-        const pending = db.getPendingRequests(userId);
-        const sent = db.getSentRequests(userId);
 
         // Add online status
         friends.forEach(f => f.online = auth.isOnline(f.id));
 
-        callback({ success: true, friends, pending, sent });
+        // Support both callback and emit patterns
+        if (typeof callback === 'function') {
+            const pending = db.getPendingRequests(userId);
+            const sent = db.getSentRequests(userId);
+            callback({ success: true, friends, pending, sent });
+        } else {
+            socket.emit('friendList', friends);
+        }
+    });
+
+    // Get friend requests (emit-based for new UI)
+    socket.on('getFriendRequests', () => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) {
+            socket.emit('friendRequests', []);
+            return;
+        }
+
+        const pending = db.getPendingRequests(userId);
+        socket.emit('friendRequests', pending);
     });
 
     socket.on('removeFriend', (friendId, callback) => {
@@ -278,6 +323,97 @@ io.on('connection', (socket) => {
 
         const result = db.removeFriend(userId, friendId);
         callback(result);
+    });
+
+    // === ACCOUNT SYSTEM: Update Profile ===
+    socket.on('updateProfile', (data) => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return;
+
+        const { color, bio } = data;
+
+        // Update color in database
+        if (color) {
+            db.updateColor(userId, color);
+        }
+
+        // Update bio (need to add this to database)
+        if (bio !== undefined) {
+            db.updateBio(userId, bio);
+        }
+
+        // Update the player's color in the current session
+        if (players[socket.id] && color) {
+            players[socket.id].color = color;
+            // Broadcast color change to other players
+            socket.broadcast.emit('playerColorChanged', {
+                id: socket.id,
+                color: color
+            });
+        }
+
+        console.log(`Profile updated for user ${userId}: color=${color}, bio=${bio?.substring(0, 20)}...`);
+    });
+
+    // === MESSAGING SYSTEM ===
+    socket.on('sendDM', (data) => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return socket.emit('dmError', 'Not logged in');
+
+        const { friendId, content } = data;
+        if (!friendId || !content) return socket.emit('dmError', 'Invalid message');
+
+        const result = db.sendMessage(userId, parseInt(friendId), content);
+        if (result.success) {
+            const sender = db.getPublicProfile(userId);
+            const message = {
+                id: result.messageId,
+                sender_id: userId,
+                sender_name: sender.username,
+                sender_color: sender.color,
+                content: content.trim(),
+                created_at: new Date().toISOString()
+            };
+
+            // Send back to sender for confirmation
+            socket.emit('dmSent', message);
+
+            // Send to recipient if online
+            const recipientSocketId = auth.getSocketId(parseInt(friendId));
+            if (recipientSocketId) {
+                io.to(recipientSocketId).emit('dmReceived', message);
+            }
+        } else {
+            socket.emit('dmError', result.error);
+        }
+    });
+
+    socket.on('getMessages', (friendId) => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return socket.emit('messageHistory', []);
+
+        const messages = db.getMessages(userId, parseInt(friendId));
+        // Mark messages as read
+        db.markMessagesRead(userId, parseInt(friendId));
+        socket.emit('messageHistory', messages.reverse()); // oldest first
+    });
+
+    socket.on('getUnreadDMs', () => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) {
+            socket.emit('unreadDMs', { total: 0, byFriend: [] });
+            return;
+        }
+
+        const total = db.getUnreadCount(userId);
+        const byFriend = db.getUnreadByFriend(userId);
+        socket.emit('unreadDMs', { total, byFriend });
+    });
+
+    socket.on('markDMRead', (friendId) => {
+        const userId = auth.getUserId(socket.id);
+        if (!userId) return;
+        db.markMessagesRead(userId, parseInt(friendId));
     });
 
     // Wait for player to send name and color (supports both guest and authenticated)
@@ -295,10 +431,12 @@ io.on('connection', (socket) => {
                 flies: profile.flies,
                 kills: profile.kills,
                 deaths: profile.deaths,
+                level: profile.level || 1,
+                xp: profile.xp || 0,
                 totalPlaytime: profile.totalPlaytime,
                 userId: userId
             };
-            console.log(`Player ${socket.id} joining as ${playerData.name} (authenticated)`);
+            console.log(`Player ${socket.id} joining as ${playerData.name} (authenticated, Level ${playerData.level})`);
         } else {
             // Guest user
             playerData = {
@@ -307,6 +445,8 @@ io.on('connection', (socket) => {
                 flies: 0,
                 kills: 0,
                 deaths: 0,
+                level: 1,
+                xp: 0,
                 userId: null
             };
             console.log(`Player ${socket.id} joining as ${playerData.name} (guest)`);
@@ -365,6 +505,9 @@ io.on('connection', (socket) => {
                 flies: playerData.flies,
                 kills: playerData.kills,
                 deaths: playerData.deaths,
+                level: playerData.level,
+                xp: playerData.xp,
+                xpToNext: playerData.level * 100,
                 totalPlaytime: playerData.totalPlaytime
             } : null
         });
@@ -473,11 +616,32 @@ io.on('connection', (socket) => {
         io.emit('playerDamaged', data);
     });
 
-    socket.on('playerDied', (id) => {
-        socket.broadcast.emit('playerDied', id);
+    socket.on('playerDied', (data) => {
+        // data can be just id (legacy) or { id, killerId }
+        const victimId = typeof data === 'object' ? data.id : data;
+        const killerId = typeof data === 'object' ? data.killerId : null;
+
+        socket.broadcast.emit('playerDied', victimId);
 
         // Track kills/deaths for authenticated users
         auth.recordDeath(socket.id);
+
+        // Award XP to killer if authenticated
+        if (killerId && players[killerId]) {
+            const killerUserId = auth.getUserId(killerId);
+            if (killerUserId) {
+                const result = db.addXP(killerUserId, 25); // 25 XP per kill
+                if (result) {
+                    // Notify killer of XP gain
+                    io.to(killerId).emit('xpGained', {
+                        amount: 25,
+                        level: result.level,
+                        xp: result.xp,
+                        xpToNext: result.level * 100
+                    });
+                }
+            }
+        }
 
         // Server-side respawn timer (works even if tab is inactive)
         // Clear any existing respawn timer

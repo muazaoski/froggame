@@ -26,6 +26,7 @@ db.exec(`
         username TEXT UNIQUE NOT NULL COLLATE NOCASE,
         password_hash TEXT NOT NULL,
         color TEXT DEFAULT '#00ff00',
+        bio TEXT DEFAULT '',
         flies INTEGER DEFAULT 0,
         total_playtime_ms INTEGER DEFAULT 0,
         kills INTEGER DEFAULT 0,
@@ -46,9 +47,47 @@ db.exec(`
         UNIQUE(user_id, friend_id)
     );
 
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_id INTEGER NOT NULL,
+        receiver_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        is_read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sender_id) REFERENCES users(id),
+        FOREIGN KEY (receiver_id) REFERENCES users(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_friends_user ON friends(user_id);
     CREATE INDEX IF NOT EXISTS idx_friends_friend ON friends(friend_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id, is_read);
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(sender_id, receiver_id);
 `);
+
+// Migration: Add bio column if it doesn't exist (for existing databases)
+try {
+    db.exec(`ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''`);
+    console.log('📦 Added bio column to users table');
+} catch (e) {
+    // Column already exists, ignore
+}
+
+// Migration: Add level/xp columns
+try {
+    db.exec(`ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1`);
+    db.exec(`ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0`);
+    console.log('📦 Added level/xp columns to users table');
+} catch (e) {
+    // Columns already exist, ignore
+}
+
+// Migration: Add badges column
+try {
+    db.exec(`ALTER TABLE users ADD COLUMN badges TEXT DEFAULT '[]'`);
+    console.log('📦 Added badges column to users table');
+} catch (e) {
+    // Column already exists, ignore
+}
 
 console.log('📦 Database initialized at:', dbPath);
 
@@ -94,6 +133,57 @@ const statements = {
 
     updateCosmetics: db.prepare(`
         UPDATE users SET owned_cosmetics = ? WHERE id = ?
+    `),
+
+    updateBio: db.prepare(`
+        UPDATE users SET bio = ? WHERE id = ?
+    `),
+
+    // Level/XP operations
+    updateXP: db.prepare(`
+        UPDATE users SET xp = xp + ?, level = ? WHERE id = ?
+    `),
+
+    setLevel: db.prepare(`
+        UPDATE users SET level = ?, xp = ? WHERE id = ?
+    `),
+
+    // Messages operations
+    sendMessage: db.prepare(`
+        INSERT INTO messages (sender_id, receiver_id, content)
+        VALUES (?, ?, ?)
+    `),
+
+    getMessages: db.prepare(`
+        SELECT m.*, u.username as sender_name, u.color as sender_color
+        FROM messages m
+        JOIN users u ON u.id = m.sender_id
+        WHERE (m.sender_id = ? AND m.receiver_id = ?) 
+           OR (m.sender_id = ? AND m.receiver_id = ?)
+        ORDER BY m.created_at DESC
+        LIMIT 50
+    `),
+
+    markMessagesRead: db.prepare(`
+        UPDATE messages SET is_read = 1 
+        WHERE receiver_id = ? AND sender_id = ? AND is_read = 0
+    `),
+
+    getUnreadCount: db.prepare(`
+        SELECT COUNT(*) as count FROM messages 
+        WHERE receiver_id = ? AND is_read = 0
+    `),
+
+    getUnreadByFriend: db.prepare(`
+        SELECT sender_id, COUNT(*) as count 
+        FROM messages 
+        WHERE receiver_id = ? AND is_read = 0 
+        GROUP BY sender_id
+    `),
+
+    // Badges operations
+    updateBadges: db.prepare(`
+        UPDATE users SET badges = ? WHERE id = ?
     `),
 
     // Friends operations
@@ -168,6 +258,12 @@ module.exports = {
 
     updateColor: (userId, color) => {
         statements.updateColor.run(color, userId);
+    },
+
+    updateBio: (userId, bio) => {
+        // Limit bio to 100 characters
+        const safeBio = (bio || '').substring(0, 100);
+        statements.updateBio.run(safeBio, userId);
     },
 
     // Currency
@@ -251,13 +347,89 @@ module.exports = {
             id: user.id,
             username: user.username,
             color: user.color,
+            bio: user.bio || '',
             flies: user.flies,
+            level: user.level || 1,
+            xp: user.xp || 0,
             totalPlaytime: user.total_playtime_ms,
             kills: user.kills,
             deaths: user.deaths,
-            cosmetics: JSON.parse(user.owned_cosmetics),
+            cosmetics: JSON.parse(user.owned_cosmetics || '[]'),
+            badges: JSON.parse(user.badges || '[]'),
             createdAt: user.created_at
         };
+    },
+
+    // Messages
+    sendMessage: (senderId, receiverId, content) => {
+        if (!content || content.trim().length === 0) return { success: false, error: 'Empty message' };
+        if (content.length > 500) content = content.substring(0, 500);
+
+        try {
+            const result = statements.sendMessage.run(senderId, receiverId, content.trim());
+            return { success: true, messageId: result.lastInsertRowid };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    },
+
+    getMessages: (userId, friendId) => {
+        return statements.getMessages.all(userId, friendId, friendId, userId);
+    },
+
+    markMessagesRead: (userId, senderId) => {
+        statements.markMessagesRead.run(userId, senderId);
+    },
+
+    getUnreadCount: (userId) => {
+        const result = statements.getUnreadCount.get(userId);
+        return result ? result.count : 0;
+    },
+
+    getUnreadByFriend: (userId) => {
+        return statements.getUnreadByFriend.all(userId);
+    },
+
+    // Level/XP System
+    addXP: (userId, amount) => {
+        const user = statements.getUserById.get(userId);
+        if (!user) return null;
+
+        let currentXP = (user.xp || 0) + amount;
+        let currentLevel = user.level || 1;
+
+        // XP required per level: 100 * level (e.g., level 2 needs 200 XP)
+        while (currentXP >= currentLevel * 100) {
+            currentXP -= currentLevel * 100;
+            currentLevel++;
+        }
+
+        statements.setLevel.run(currentLevel, currentXP, userId);
+        return { level: currentLevel, xp: currentXP };
+    },
+
+    getLevel: (userId) => {
+        const user = statements.getUserById.get(userId);
+        return user ? { level: user.level || 1, xp: user.xp || 0 } : null;
+    },
+
+    // Badges
+    getBadges: (userId) => {
+        const user = statements.getUserById.get(userId);
+        return user ? JSON.parse(user.badges || '[]') : [];
+    },
+
+    addBadge: (userId, badgeId) => {
+        const user = statements.getUserById.get(userId);
+        if (!user) return false;
+
+        const badges = JSON.parse(user.badges || '[]');
+        if (!badges.includes(badgeId)) {
+            badges.push(badgeId);
+            statements.updateBadges.run(JSON.stringify(badges), userId);
+            return true;
+        }
+        return false; // Already has badge
     },
 
     // Close database (for graceful shutdown)
