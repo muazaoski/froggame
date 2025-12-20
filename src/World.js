@@ -1695,21 +1695,23 @@ export class World {
         // Initial badge display
         updateBadges(frog.badges || []);
 
-        // If frog doesn't have full profile data (clicked in-game), fetch it from server
-        if (!frog.userId && frog.id && this.network && this.network.socket) {
+        // Fetch fresh profile data from server every time profile is opened (ensures badges/bio are up to date)
+        if (frog.id && this.network && this.network.socket) {
             // This is likely an in-game frog (socket ID), get profile via their socket
             this.network.socket.emit('getProfileBySocket', frog.id, (profileData) => {
                 if (profileData) {
-                    // Store the userId for chat functionality
+                    // Update frog cache with fresh data
                     frog.userId = profileData.id;
                     frog.bio = profileData.bio || frog.bio;
                     frog.badges = profileData.badges || [];
                     frog.level = profileData.level || frog.level;
 
-                    // Update display
-                    if (bioEl) bioEl.textContent = profileData.bio || 'No bio yet...';
-                    levelEl.textContent = `level ${profileData.level || 1}`;
-                    updateBadges(profileData.badges || []);
+                    // Update display (if this is still the current profile being viewed)
+                    if (this.currentProfileFrog === frog) {
+                        if (bioEl) bioEl.textContent = frog.bio || 'No bio yet...';
+                        levelEl.textContent = `level ${frog.level || 1}`;
+                        updateBadges(frog.badges || []);
+                    }
                 }
             });
         }

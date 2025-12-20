@@ -454,16 +454,16 @@ io.on('connection', (socket) => {
                     color: color
                 });
             }
-            if (bio !== undefined) {
-                players[socket.id].bio = bio;
-                // Broadcast bio change to other players
+            if (bio !== undefined || badges !== undefined) {
+                if (bio !== undefined) players[socket.id].bio = bio;
+                if (badges !== undefined) players[socket.id].badges = badges;
+
+                // Broadcast profile updates to other players
                 socket.broadcast.emit('playerProfileUpdated', {
                     id: socket.id,
-                    bio: bio
+                    bio: players[socket.id].bio,
+                    badges: players[socket.id].badges
                 });
-            }
-            if (badges !== undefined) {
-                players[socket.id].badges = badges;
             }
         }
 

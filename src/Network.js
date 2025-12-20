@@ -126,11 +126,12 @@ export class Network {
             }
         });
 
-        // Player Profile Updated (bio, etc)
-        this.socket.on('playerProfileUpdated', ({ id, bio }) => {
+        // Player Profile Updated (bio, badges, etc)
+        this.socket.on('playerProfileUpdated', ({ id, bio, badges }) => {
             const frog = this.world.frogs[id];
             if (frog) {
-                frog.bio = bio || '';
+                if (bio !== undefined) frog.bio = bio;
+                if (badges !== undefined) frog.badges = badges;
             }
         });
 
