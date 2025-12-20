@@ -430,9 +430,16 @@ export class Input {
                 document.activeElement.tagName === 'TEXTAREA');
 
         // Chat toggle - only if not typing in other inputs
-        if (e.code === 'Enter' && !isTyping) {
-            this.toggleChat();
-            return;
+        if (e.code === 'Enter') {
+            if (this.chatOpen) {
+                this.toggleChat();
+                e.preventDefault();
+                return;
+            } else if (!isTyping) {
+                this.toggleChat();
+                e.preventDefault();
+                return;
+            }
         }
 
         // F3 - Toggle tongue debug mode
