@@ -369,9 +369,12 @@ io.on('connection', (socket) => {
     socket.on('getProfileBySocket', (targetSocketId, callback) => {
         if (typeof callback !== 'function') return;
 
+        console.log(`📡 getProfileBySocket request for: ${targetSocketId}`);
+
         // Get the user ID associated with this socket
         const targetUserId = auth.getUserId(targetSocketId);
         if (!targetUserId) {
+            console.log(`   - Player ${targetSocketId} is a GUEST`);
             // Player is a guest - return basic info from players object
             const player = players[targetSocketId];
             if (player) {
@@ -390,6 +393,8 @@ io.on('connection', (socket) => {
 
         // Authenticated player - get full profile
         const profile = db.getPublicProfile(targetUserId);
+        console.log(`   - Player ${targetSocketId} is AUTHENTICATED (UID: ${targetUserId})`);
+        console.log(`   - Badges found in DB: ${JSON.stringify(profile.badges)}`);
         callback(profile);
     });
 

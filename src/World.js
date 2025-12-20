@@ -1697,9 +1697,11 @@ export class World {
 
         // Fetch fresh profile data from server every time profile is opened (ensures badges/bio are up to date)
         if (frog.id && this.network && this.network.socket) {
+            console.log(`🔍 Opening profile for ${frog.name} (ID: ${frog.id}). Fetching fresh data...`);
             // This is likely an in-game frog (socket ID), get profile via their socket
             this.network.socket.emit('getProfileBySocket', frog.id, (profileData) => {
                 if (profileData) {
+                    console.log(`✅ Received fresh profile for ${frog.name}:`, profileData);
                     // Update frog cache with fresh data
                     frog.userId = profileData.id;
                     frog.bio = profileData.bio || frog.bio;
@@ -1708,10 +1710,13 @@ export class World {
 
                     // Update display (if this is still the current profile being viewed)
                     if (this.currentProfileFrog === frog) {
+                        console.log(`✨ Updating UI with fresh data for ${frog.name}`);
                         if (bioEl) bioEl.textContent = frog.bio || 'No bio yet...';
                         levelEl.textContent = `level ${frog.level || 1}`;
                         updateBadges(frog.badges || []);
                     }
+                } else {
+                    console.warn(`⚠️ No profile data found for ${frog.id}`);
                 }
             });
         }
