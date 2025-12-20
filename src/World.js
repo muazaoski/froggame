@@ -18,8 +18,8 @@ export class World {
 
         // SCENE
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x00f2ff); // Vibrant Cyan Sky
-        this.scene.fog = new THREE.Fog(0x00f2ff, 30, 100); // Further fog for clarity
+        this.scene.background = new THREE.Color(0xff4ead); // Hot Pink Base for Sunset
+        this.scene.fog = new THREE.Fog(0xff4ead, 50, 150);
 
         // CAMERA
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
@@ -162,7 +162,8 @@ export class World {
                 // Toon / Outline
                 "uToonEnabled": { value: 1.0 },
                 "uOutlineEnabled": { value: 1.0 },
-                "uOutlineIntensity": { value: 0.15 }
+                "uOutlineIntensity": { value: 0.15 },
+                "uSkyColor": { value: new THREE.Vector3(1.0, 0.3, 0.68) } // Match scene background
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -219,6 +220,7 @@ export class World {
                 uniform float uToonEnabled;
                 uniform float uOutlineEnabled;
                 uniform float uOutlineIntensity;
+                uniform vec3 uSkyColor;
                 
                 varying vec2 vUv;
                 
@@ -315,15 +317,19 @@ export class World {
                     }
                     
                     // === CEL SHADING (Luminance Stepping) ===
-                    if (uToonEnabled > 0.5) {
-                        float levels = 4.0;
+                    bool isSky = distance(color.rgb, uSkyColor) < 0.1;
+                    
+                    if (uToonEnabled > 0.5 && !isSky) {
+                        float levels = 6.0;
                         float lum = getLuminance(color.rgb);
                         float stepped = floor(lum * levels) / levels;
+                        // Add a tiny bit of the original lum back to prevent dead blacks
+                        stepped = max(stepped, 0.05); 
                         color.rgb *= (stepped / max(0.01, lum));
                     }
 
                     // === SOBEL OUTLINE ===
-                    if (uOutlineEnabled > 0.5) {
+                    if (uOutlineEnabled > 0.5 && !isSky) {
                         float thickness = 1.0;
                         vec2 offset = thickness / uResolution;
                         
@@ -340,8 +346,8 @@ export class World {
                         float gy = t00 + 2.0 * t10 + t20 - t02 - 2.0 * t12 - t22;
                         float edge = sqrt(gx * gx + gy * gy);
                         
-                        if (edge > 0.15) { // Sensitivity threshold
-                            color.rgb *= (1.0 - uOutlineIntensity * 2.5);
+                        if (edge > 0.25) { // Increased threshold to reduce surface noise
+                            color.rgb *= (1.0 - uOutlineIntensity * 3.0);
                         }
                     }
 
