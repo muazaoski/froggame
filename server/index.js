@@ -376,14 +376,6 @@ io.on('connection', (socket) => {
         socket.emit('friendRequests', pending);
     });
 
-    socket.on('removeFriend', (friendId, callback) => {
-        const userId = auth.getUserId(socket.id);
-        if (!userId) return callback({ success: false, error: 'Not logged in' });
-
-        const result = db.removeFriend(userId, friendId);
-        callback(result);
-    });
-
     // === ACCOUNT SYSTEM: Update Profile ===
     socket.on('updateProfile', (data) => {
         const userId = auth.getUserId(socket.id);

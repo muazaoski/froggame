@@ -56,6 +56,19 @@ docker compose ps
 docker compose logs -f froggame
 ```
 
+# Logger
+
+# Become root
+sudo -i
+# Navigate to app directory
+cd /opt/apps/froggame
+# View live logs (follows new output)
+docker compose logs -f
+# Or view just the last 100 lines
+docker compose logs --tail=100
+# View logs for a specific service (if named)
+docker compose logs -f froggame
+
 ---
 
 ## First Time Setup
