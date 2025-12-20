@@ -1360,6 +1360,287 @@
             box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
         }
 
+        /* ================ REVAMPED PROFILE PANEL ================ */
+        .profile-panel-large {
+            display: flex;
+            width: 700px;
+            max-width: 95vw;
+            height: 550px;
+            max-height: 85vh;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .profile-sidebar {
+            width: 180px;
+            background: rgba(30, 30, 40, 0.95);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .profile-tab {
+            padding: 14px 16px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .profile-tab:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .profile-tab.active {
+            background: rgba(76, 175, 80, 0.2);
+            color: white;
+        }
+
+        .profile-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .profile-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+        }
+
+        .profile-tab-content {
+            display: none;
+        }
+
+        .profile-tab-content.active {
+            display: block;
+        }
+
+        .profile-section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: white;
+            margin: 0 0 24px 0;
+        }
+
+        .profile-section {
+            margin-bottom: 24px;
+        }
+
+        .profile-label {
+            display: block;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .profile-bio-input {
+            width: 100%;
+            min-height: 100px;
+            padding: 14px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+        }
+
+        .profile-bio-input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .profile-bio-input:focus {
+            border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        /* Badge Grid */
+        .badge-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .badge-item {
+            width: 52px;
+            height: 52px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .badge-item:hover:not(.locked) {
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .badge-item.selected {
+            border-color: rgba(76, 175, 80, 0.8);
+            background: rgba(76, 175, 80, 0.15);
+        }
+
+        .badge-item.locked {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .badge-preview {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge-preview-box {
+            width: 80px;
+            height: 80px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        /* Color Picker */
+        .color-picker-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .color-picker-input {
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .color-hex {
+            color: rgba(255, 255, 255, 0.6);
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .color-presets {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .color-preset {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .color-preset:hover {
+            transform: scale(1.1);
+            border-color: white;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        /* Save Button for Profile */
+        .btn-save-profile {
+            width: 100%;
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 16px;
+        }
+
+        .btn-save-profile:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        @media (max-width: 700px) {
+            .profile-panel-large {
+                flex-direction: column;
+                width: 95vw;
+                height: 90vh;
+            }
+
+            .profile-sidebar {
+                width: 100%;
+                flex-direction: row;
+                padding: 10px;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .profile-tab {
+                flex: 1;
+                text-align: center;
+                padding: 10px;
+                font-size: 12px;
+            }
+
+            .badge-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
         /* Friend List Specific */
         .friend-tabs {
             display: flex;
@@ -1940,29 +2221,127 @@
         <div class="emote-option" style="top: 25px; left: -15px;" data-emote="angry">😤</div>
     </div>
 
-    <!-- Profile Editor Panel -->
+    <!-- Profile Editor Panel - Revamped -->
     <div class="panel-overlay" id="profile-editor-overlay">
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">👤 Edit Profile</div>
-                <button class="panel-close" id="profile-editor-close">✕</button>
+        <div class="panel profile-panel-large">
+            <!-- Left Sidebar -->
+            <div class="profile-sidebar">
+                <button class="profile-tab active" data-tab="profile">👤 Profile</button>
+                <button class="profile-tab" data-tab="outfit">👕 Outfit</button>
+                <button class="profile-tab" data-tab="stats">📊 Stats</button>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Frog Color</label>
-                <div class="color-input-wrapper">
-                    <input type="color" id="profile-color-picker" value="#4CAF50">
-                    <span class="color-preview-text" id="color-hex-display">#4CAF50</span>
+            <!-- Main Content -->
+            <div class="profile-content">
+                <button class="panel-close profile-close" id="profile-editor-close">✕</button>
+
+                <!-- Profile Tab -->
+                <div class="profile-tab-content active" id="tab-content-profile">
+                    <h2 class="profile-section-title">👤 Edit Profile</h2>
+
+                    <div class="profile-section">
+                        <label class="profile-label">BIO</label>
+                        <textarea class="profile-bio-input" id="profile-bio-input"
+                            placeholder="Write something about yourself..." maxlength="100"></textarea>
+                    </div>
+
+                    <div class="profile-section">
+                        <label class="profile-label">BADGE CUSTOMIZATION</label>
+                        <div class="badge-grid">
+                            <div class="badge-item" data-badge="star" title="Star">⭐</div>
+                            <div class="badge-item" data-badge="trophy" title="Trophy">🏆</div>
+                            <div class="badge-item selected" data-badge="frog" title="Frog">🐸</div>
+                            <div class="badge-item" data-badge="frog2" title="Baby Frog">🐸</div>
+                            <div class="badge-item locked" data-badge="invader" title="Locked">👾</div>
+                            <div class="badge-item" data-badge="crystal" title="Crystal">💎</div>
+                            <div class="badge-item" data-badge="smile" title="Smile">😊</div>
+                            <div class="badge-item" data-badge="verified" title="Verified">✅</div>
+                            <div class="badge-item locked" data-badge="pixel" title="Locked">🎮</div>
+                            <div class="badge-item locked" data-badge="medal" title="Locked">🏅</div>
+                            <div class="badge-item" data-badge="gem" title="Gem">💎</div>
+                            <div class="badge-item locked" data-badge="king" title="Locked">👑</div>
+                            <div class="badge-item" data-badge="star2" title="Gold Star">⭐</div>
+                            <div class="badge-item locked" data-badge="snowflake" title="Locked">❄️</div>
+                            <div class="badge-item locked" data-badge="bag" title="Locked">🎒</div>
+                            <div class="badge-item" data-badge="crown" title="Crown">👑</div>
+                            <div class="badge-item locked" data-badge="rock" title="Locked">🪨</div>
+                            <div class="badge-item" data-badge="tree" title="Tree">🌲</div>
+                            <div class="badge-item locked" data-badge="silver" title="Locked">⚪</div>
+                            <div class="badge-item locked" data-badge="lock" title="Locked">🔒</div>
+                        </div>
+
+                        <!-- Selected Badge Preview -->
+                        <div class="badge-preview">
+                            <div class="badge-preview-box">
+                                <span id="selected-badge-display">⭐</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn-save-profile" id="btn-save-profile">Save Changes</button>
+                </div>
+
+                <!-- Outfit Tab -->
+                <div class="profile-tab-content" id="tab-content-outfit">
+                    <h2 class="profile-section-title">👕 Outfit</h2>
+
+                    <div class="profile-section">
+                        <label class="profile-label">FROG COLOR</label>
+                        <div class="color-picker-row">
+                            <input type="color" id="profile-color-picker" value="#4CAF50" class="color-picker-input">
+                            <span class="color-hex" id="color-hex-display">#4CAF50</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <label class="profile-label">COLOR PRESETS</label>
+                        <div class="color-presets">
+                            <div class="color-preset" style="background: #4CAF50;" data-color="#4CAF50"></div>
+                            <div class="color-preset" style="background: #2196F3;" data-color="#2196F3"></div>
+                            <div class="color-preset" style="background: #9C27B0;" data-color="#9C27B0"></div>
+                            <div class="color-preset" style="background: #FF9800;" data-color="#FF9800"></div>
+                            <div class="color-preset" style="background: #E91E63;" data-color="#E91E63"></div>
+                            <div class="color-preset" style="background: #00BCD4;" data-color="#00BCD4"></div>
+                            <div class="color-preset" style="background: #FFEB3B;" data-color="#FFEB3B"></div>
+                            <div class="color-preset" style="background: #795548;" data-color="#795548"></div>
+                        </div>
+                    </div>
+
+                    <button class="btn-save-profile" id="btn-save-outfit">Save Changes</button>
+                </div>
+
+                <!-- Stats Tab -->
+                <div class="profile-tab-content" id="tab-content-stats">
+                    <h2 class="profile-section-title">📊 Stats</h2>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Level</div>
+                            <div class="stat-value" id="stat-level">1</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total XP</div>
+                            <div class="stat-value" id="stat-xp">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Kills</div>
+                            <div class="stat-value" id="stat-kills">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Deaths</div>
+                            <div class="stat-value" id="stat-deaths">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">K/D Ratio</div>
+                            <div class="stat-value" id="stat-kd">0.00</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Playtime</div>
+                            <div class="stat-value" id="stat-playtime">0h</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <div class="form-group">
-                <label class="form-label">Bio</label>
-                <textarea class="form-input form-textarea" id="profile-bio-input"
-                    placeholder="Write something about yourself..." maxlength="100"></textarea>
-            </div>
-
-            <button class="btn-save" id="btn-save-profile">Save Changes</button>
         </div>
     </div>
 

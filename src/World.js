@@ -984,6 +984,8 @@ export class World {
 
         const frog = new Frog(id, data.color, this.physics, false);
         if (data.name) frog.setName(data.name);
+        frog.level = data.level || 1;
+        frog.bio = data.bio || '';
         frog.updatePosition(
             { x: data.x, y: data.y, z: data.z },
             { qx: data.qx, qy: data.qy, qz: data.qz, qw: data.qw }

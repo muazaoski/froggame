@@ -97,6 +97,14 @@ export class Network {
             }
         });
 
+        // Player Profile Updated (bio, etc)
+        this.socket.on('playerProfileUpdated', ({ id, bio }) => {
+            const frog = this.world.frogs[id];
+            if (frog) {
+                frog.bio = bio || '';
+            }
+        });
+
         // Player Moved (legacy - still used for extra state like tongue, scooter)
         this.socket.on('playerMoved', (playerInfo) => {
             // Skip local player - they use their own physics

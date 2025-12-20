@@ -337,19 +337,29 @@ io.on('connection', (socket) => {
             db.updateColor(userId, color);
         }
 
-        // Update bio (need to add this to database)
+        // Update bio in database
         if (bio !== undefined) {
             db.updateBio(userId, bio);
         }
 
-        // Update the player's color in the current session
-        if (players[socket.id] && color) {
-            players[socket.id].color = color;
-            // Broadcast color change to other players
-            socket.broadcast.emit('playerColorChanged', {
-                id: socket.id,
-                color: color
-            });
+        // Update the player's data in the current session
+        if (players[socket.id]) {
+            if (color) {
+                players[socket.id].color = color;
+                // Broadcast color change to other players
+                socket.broadcast.emit('playerColorChanged', {
+                    id: socket.id,
+                    color: color
+                });
+            }
+            if (bio !== undefined) {
+                players[socket.id].bio = bio;
+                // Broadcast bio change to other players
+                socket.broadcast.emit('playerProfileUpdated', {
+                    id: socket.id,
+                    bio: bio
+                });
+            }
         }
 
         console.log(`Profile updated for user ${userId}: color=${color}, bio=${bio?.substring(0, 20)}...`);
@@ -433,6 +443,7 @@ io.on('connection', (socket) => {
                 deaths: profile.deaths,
                 level: profile.level || 1,
                 xp: profile.xp || 0,
+                bio: profile.bio || '',
                 totalPlaytime: profile.totalPlaytime,
                 userId: userId
             };
@@ -447,6 +458,7 @@ io.on('connection', (socket) => {
                 deaths: 0,
                 level: 1,
                 xp: 0,
+                bio: '',
                 userId: null
             };
             console.log(`Player ${socket.id} joining as ${playerData.name} (guest)`);
@@ -473,6 +485,8 @@ io.on('connection', (socket) => {
             qx: 0, qy: 0, qz: 0, qw: 1,
             color: playerData.color,
             name: playerData.name,
+            level: playerData.level,
+            bio: playerData.bio,
             joinTime: Date.now(),
             flies: playerData.flies,
             userId: playerData.userId

@@ -1206,6 +1206,73 @@ if (btnSaveProfile) {
     });
 }
 
+// Profile Tab Switching
+document.querySelectorAll('.profile-sidebar .profile-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        // Remove active from all tabs and contents
+        document.querySelectorAll('.profile-sidebar .profile-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+
+        // Add active to clicked tab
+        tab.classList.add('active');
+
+        // Show corresponding content
+        const tabName = tab.dataset.tab;
+        const content = document.getElementById(`tab-content-${tabName}`);
+        if (content) content.classList.add('active');
+    });
+});
+
+// Badge Selection
+document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
+    badge.addEventListener('click', () => {
+        document.querySelectorAll('.badge-item').forEach(b => b.classList.remove('selected'));
+        badge.classList.add('selected');
+
+        // Update preview
+        const previewDisplay = document.getElementById('selected-badge-display');
+        if (previewDisplay) {
+            previewDisplay.textContent = badge.textContent;
+        }
+    });
+});
+
+// Color Presets
+document.querySelectorAll('.color-preset').forEach(preset => {
+    preset.addEventListener('click', () => {
+        const color = preset.dataset.color;
+        if (profileColorPicker) profileColorPicker.value = color;
+        if (colorHexDisplay) colorHexDisplay.textContent = color;
+
+        // Live preview
+        if (world.localFrog && world.localFrog.setColor) {
+            world.localFrog.setColor(color);
+        }
+    });
+});
+
+// Outfit Save Button
+const btnSaveOutfit = document.getElementById('btn-save-outfit');
+if (btnSaveOutfit) {
+    btnSaveOutfit.addEventListener('click', () => {
+        const newColor = profileColorPicker?.value || '#4CAF50';
+
+        // Update local frog
+        if (world.localFrog) {
+            world.localFrog.color = newColor;
+        }
+
+        // Send to server
+        if (network && network.socket) {
+            network.socket.emit('updateProfile', { color: newColor });
+        }
+
+        if (world && world.showToast) {
+            world.showToast('Outfit saved!');
+        }
+    });
+}
+
 // Open Friend List
 if (friendListBtn && friendListOverlay) {
     friendListBtn.addEventListener('click', () => {
