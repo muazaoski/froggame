@@ -1617,253 +1617,241 @@ export class World {
     // Removed hideProfileButton and updateProfileButtonPosition as they are no longer needed
     hideProfileButton() { }
     updateProfileButtonPosition() { }
-    const pos = frog.mesh.position.clone();
-        pos.y += 2.5; // Above head
 
-        // Project to screen coordinates
-        pos.project(this.camera);
-
-    const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
-
-        btn.style.left = `${x - 40} px`;
-        btn.style.top = `${y - 20} px`;
-}
-
-/**
+    /**
  * Open Profile Popup with standardized data object (POJO)
  * @param {Object} data - Profile data { id, userId, name, color, level, bio, badges, isFriend }
  */
-openProfile(data) {
-    this.currentProfileId = data.id; // Track ID instead of object ref
-    this.currentProfileData = data;  // Store current data for reference
+    openProfile(data) {
+        this.currentProfileId = data.id; // Track ID instead of object ref
+        this.currentProfileData = data;  // Store current data for reference
 
-    const modal = document.getElementById('profile-modal');
-    const nameEl = document.getElementById('p-username');
-    const levelEl = document.getElementById('p-level');
-    const bioEl = document.getElementById('p-bio');
-    const badgesEl = document.getElementById('p-badges-row');
-    const actionBtn = document.getElementById('p-btn-action');
-    const muteBtn = document.getElementById('p-btn-mute');
-    const closeBtn = document.getElementById('p-close-btn');
-    const avatarContainer = document.getElementById('p-avatar-container');
-    const headerBg = document.getElementById('p-header-bg');
+        const modal = document.getElementById('profile-modal');
+        const nameEl = document.getElementById('p-username');
+        const levelEl = document.getElementById('p-level');
+        const bioEl = document.getElementById('p-bio');
+        const badgesEl = document.getElementById('p-badges-row');
+        const actionBtn = document.getElementById('p-btn-action');
+        const muteBtn = document.getElementById('p-btn-mute');
+        const closeBtn = document.getElementById('p-close-btn');
+        const avatarContainer = document.getElementById('p-avatar-container');
+        const headerBg = document.getElementById('p-header-bg');
 
-    // Null checks
-    if (!modal || !nameEl || !levelEl || !actionBtn || !muteBtn) {
-        console.error('Profile modal elements missing!');
-        return;
-    }
-
-    // populate content
-    const idStr = String(data.id || '');
-    nameEl.textContent = data.name || `Frog ${idStr.substring(0, 4)}`;
-    levelEl.textContent = `LEVEL ${data.level || 1}`;
-    bioEl.textContent = data.bio || 'No bio set.';
-
-    // Set Header Color from Frog Color
-    if (data.color && headerBg) {
-        headerBg.style.background = `linear-gradient(45deg, ${data.color} 0%, #2a2a35 100%)`;
-    }
-
-    // Render Badges
-    if (badgesEl) {
-        let badgeArray = [];
-        try {
-            badgeArray = Array.isArray(data.badges) ? data.badges : JSON.parse(data.badges || '[]');
-        } catch (e) { badgeArray = []; }
-
-        badgesEl.innerHTML = '';
-        // Display empty slots if no badges, or just badges? Let's show badges
-        if (badgeArray.length === 0) {
-            badgesEl.innerHTML = '<span style="color:rgba(255,255,255,0.3); font-size:12px;">No badges yet</span>';
-        } else {
-            badgeArray.forEach(emoji => {
-                const slot = document.createElement('div');
-                slot.className = 'profile-badge-slot';
-                slot.textContent = emoji;
-                badgesEl.appendChild(slot);
-            });
-        }
-    }
-
-    // --- AVATAR PREVIEW ---
-    // We'll reuse showFrogPreview logic but targeting the new container
-    if (avatarContainer) {
-        avatarContainer.innerHTML = ''; // Clear previous
-        // For now, let's just use a high-res emoji or color block if 3D is too complex for this overlay
-        // But user wanted "Wow", so let's try to clone the 3D preview if possible, 
-        // Or simpler: Just a big colored circle with the level?
-        // Let's stick effectively to a 2D representation for stability, or re-implement 3D later.
-        // Actually, let's just put a big emoji frog head or the frog color.
-        const avatarParams = document.createElement('div');
-        avatarParams.style.width = '100%';
-        avatarParams.style.height = '100%';
-        avatarParams.style.backgroundColor = data.color || '#4CAF50';
-        avatarParams.style.display = 'flex';
-        avatarParams.style.alignItems = 'center';
-        avatarParams.style.justifyContent = 'center';
-        avatarParams.style.fontSize = '50px';
-        avatarParams.textContent = '🐸';
-        avatarContainer.appendChild(avatarParams);
-    }
-
-    // --- MUTE BUTTON ---
-    const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
-    muteBtn.innerHTML = isMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
-    muteBtn.className = isMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary'; // Toggle styles
-
-    muteBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (this.network) {
-            this.network.toggleMute(data.id);
-            // Update UI immediately (toggle state)
-            const nowMuted = this.network.mutedPlayers.has(data.id);
-            muteBtn.innerHTML = nowMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
-            muteBtn.className = nowMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary';
-        }
-    };
-
-    // --- ACTION BUTTON (Add Friend / Chat) ---
-    // Helper to update button text
-    const updateActionBtn = (isFriend) => {
-        if (isFriend) {
-            actionBtn.innerHTML = '<span>💬</span> Chat';
-            actionBtn.className = 'p-btn p-btn-primary';
-        } else {
-            actionBtn.innerHTML = '<span>➕</span> Add Friend';
-            actionBtn.className = 'p-btn p-btn-secondary';
-        }
-    };
-
-    // Initial state
-    updateActionBtn(data.isFriend);
-
-    // Logic
-    actionBtn.onclick = (e) => {
-        e.stopPropagation();
-        // Check if authenticated
-        if (window.game && !window.game.isAuthenticated) {
-            this.showToast('Register an account to interact!');
+        // Null checks
+        if (!modal || !nameEl || !levelEl || !actionBtn || !muteBtn) {
+            console.error('Profile modal elements missing!');
             return;
         }
 
-        if (data.isFriend) {
-            // Open DM
-            if (this.network) {
-                this.network.openDM(data.id, data.name);
-                modal.classList.remove('active'); // Close modal
-            }
-        } else {
-            // Send Request
-            if (this.network && this.network.socket) {
-                this.network.socket.emit('sendFriendRequest', data.name, (result) => {
-                    if (result.success) {
-                        this.showToast(`Friend request sent to ${data.name}!`);
-                        actionBtn.innerHTML = '<span>🕒</span> Sent';
-                    } else {
-                        this.showToast(result.error || 'Failed to send');
-                    }
+        // populate content
+        const idStr = String(data.id || '');
+        nameEl.textContent = data.name || `Frog ${idStr.substring(0, 4)}`;
+        levelEl.textContent = `LEVEL ${data.level || 1}`;
+        bioEl.textContent = data.bio || 'No bio set.';
+
+        // Set Header Color from Frog Color
+        if (data.color && headerBg) {
+            headerBg.style.background = `linear-gradient(45deg, ${data.color} 0%, #2a2a35 100%)`;
+        }
+
+        // Render Badges
+        if (badgesEl) {
+            let badgeArray = [];
+            try {
+                badgeArray = Array.isArray(data.badges) ? data.badges : JSON.parse(data.badges || '[]');
+            } catch (e) { badgeArray = []; }
+
+            badgesEl.innerHTML = '';
+            // Display empty slots if no badges, or just badges? Let's show badges
+            if (badgeArray.length === 0) {
+                badgesEl.innerHTML = '<span style="color:rgba(255,255,255,0.3); font-size:12px;">No badges yet</span>';
+            } else {
+                badgeArray.forEach(emoji => {
+                    const slot = document.createElement('div');
+                    slot.className = 'profile-badge-slot';
+                    slot.textContent = emoji;
+                    badgesEl.appendChild(slot);
                 });
             }
         }
-    };
 
-    // Check friendship status if undefined (async)
-    if (data.isFriend === undefined && this.network && this.network.socket) {
-        this.network.socket.emit('checkFriendship', data.id, (result) => {
-            if (result && result.isFriend) {
-                data.isFriend = true;
-                updateActionBtn(true);
-            }
-        });
-    }
-
-    // --- CLOSE LOGIC ---
-    const closeModal = () => {
-        modal.classList.remove('active');
-        setTimeout(() => { modal.style.display = 'none'; }, 300); // Wait for transition
-    }
-
-    if (closeBtn) closeBtn.onclick = closeModal;
-
-    // Open Modal
-    modal.style.display = 'flex';
-    // Force reflow
-    void modal.offsetWidth;
-    modal.classList.add('active');
-}
-
-closeProfile() {
-    const modal = document.getElementById('profile-modal');
-    if (modal) {
-        modal.classList.remove('active');
-        setTimeout(() => { modal.style.display = 'none'; }, 300);
-    }
-    this.currentProfileId = null;
-    this.currentProfileData = null;
-
-    // Stop preview animation
-    if (this.previewFrameId) {
-        cancelAnimationFrame(this.previewFrameId);
-        this.previewFrameId = null;
-    }
-}
-
-showFrogPreview(frog) {
-    const container = document.getElementById('profile-preview-container');
-    if (!container) return;
-
-    // Clear existing preview
-    container.innerHTML = '';
-
-    // Setup mini Three.js scene
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 140 / 100, 0.1, 10);
-    camera.position.set(0, 0.3, 2); // Adjusted for better full-body view
-    camera.lookAt(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(140, 100);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
-
-    // Lights
-    const ambient = new THREE.AmbientLight(0xffffff, 1.5);
-    scene.add(ambient);
-    const direct = new THREE.DirectionalLight(0xffffff, 2);
-    direct.position.set(2, 2, 5);
-    scene.add(direct);
-
-    // Get frog model - clone from bodyMesh or create fallback for dead frogs
-    let previewModel;
-    if (frog.bodyMesh) {
-        previewModel = frog.bodyMesh.clone();
-    } else if (frog.frogModel) {
-        // Try to use the original model
-        previewModel = frog.frogModel.clone();
-    } else {
-        // Fallback: create a simple colored box as placeholder
-        const geometry = new THREE.BoxGeometry(0.6, 0.5, 0.8);
-        const material = new THREE.MeshLambertMaterial({ color: frog.color || '#4CAF50' });
-        previewModel = new THREE.Mesh(geometry, material);
-    }
-
-    previewModel.position.set(0, -0.2, 0);
-    previewModel.scale.set(1.0, 1.0, 1.0); // Smaller scale to fit container
-    scene.add(previewModel);
-
-    // Animation Loop
-    const animatePreview = () => {
-        if (!this.currentProfileFrog || this.currentProfileFrog.id !== frog.id) {
-            renderer.dispose();
-            return;
+        // --- AVATAR PREVIEW ---
+        // We'll reuse showFrogPreview logic but targeting the new container
+        if (avatarContainer) {
+            avatarContainer.innerHTML = ''; // Clear previous
+            // For now, let's just use a high-res emoji or color block if 3D is too complex for this overlay
+            // But user wanted "Wow", so let's try to clone the 3D preview if possible, 
+            // Or simpler: Just a big colored circle with the level?
+            // Let's stick effectively to a 2D representation for stability, or re-implement 3D later.
+            // Actually, let's just put a big emoji frog head or the frog color.
+            const avatarParams = document.createElement('div');
+            avatarParams.style.width = '100%';
+            avatarParams.style.height = '100%';
+            avatarParams.style.backgroundColor = data.color || '#4CAF50';
+            avatarParams.style.display = 'flex';
+            avatarParams.style.alignItems = 'center';
+            avatarParams.style.justifyContent = 'center';
+            avatarParams.style.fontSize = '50px';
+            avatarParams.textContent = '🐸';
+            avatarContainer.appendChild(avatarParams);
         }
 
-        previewModel.rotation.y += 0.02; // 360 spinning
-        renderer.render(scene, camera);
-        this.previewFrameId = requestAnimationFrame(animatePreview);
-    };
-    animatePreview();
-}
+        // --- MUTE BUTTON ---
+        const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
+        muteBtn.innerHTML = isMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
+        muteBtn.className = isMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary'; // Toggle styles
+
+        muteBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (this.network) {
+                this.network.toggleMute(data.id);
+                // Update UI immediately (toggle state)
+                const nowMuted = this.network.mutedPlayers.has(data.id);
+                muteBtn.innerHTML = nowMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
+                muteBtn.className = nowMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary';
+            }
+        };
+
+        // --- ACTION BUTTON (Add Friend / Chat) ---
+        // Helper to update button text
+        const updateActionBtn = (isFriend) => {
+            if (isFriend) {
+                actionBtn.innerHTML = '<span>💬</span> Chat';
+                actionBtn.className = 'p-btn p-btn-primary';
+            } else {
+                actionBtn.innerHTML = '<span>➕</span> Add Friend';
+                actionBtn.className = 'p-btn p-btn-secondary';
+            }
+        };
+
+        // Initial state
+        updateActionBtn(data.isFriend);
+
+        // Logic
+        actionBtn.onclick = (e) => {
+            e.stopPropagation();
+            // Check if authenticated
+            if (window.game && !window.game.isAuthenticated) {
+                this.showToast('Register an account to interact!');
+                return;
+            }
+
+            if (data.isFriend) {
+                // Open DM
+                if (this.network) {
+                    this.network.openDM(data.id, data.name);
+                    modal.classList.remove('active'); // Close modal
+                }
+            } else {
+                // Send Request
+                if (this.network && this.network.socket) {
+                    this.network.socket.emit('sendFriendRequest', data.name, (result) => {
+                        if (result.success) {
+                            this.showToast(`Friend request sent to ${data.name}!`);
+                            actionBtn.innerHTML = '<span>🕒</span> Sent';
+                        } else {
+                            this.showToast(result.error || 'Failed to send');
+                        }
+                    });
+                }
+            }
+        };
+
+        // Check friendship status if undefined (async)
+        if (data.isFriend === undefined && this.network && this.network.socket) {
+            this.network.socket.emit('checkFriendship', data.id, (result) => {
+                if (result && result.isFriend) {
+                    data.isFriend = true;
+                    updateActionBtn(true);
+                }
+            });
+        }
+
+        // --- CLOSE LOGIC ---
+        const closeModal = () => {
+            modal.classList.remove('active');
+            setTimeout(() => { modal.style.display = 'none'; }, 300); // Wait for transition
+        }
+
+        if (closeBtn) closeBtn.onclick = closeModal;
+
+        // Open Modal
+        modal.style.display = 'flex';
+        // Force reflow
+        void modal.offsetWidth;
+        modal.classList.add('active');
+    }
+
+    closeProfile() {
+        const modal = document.getElementById('profile-modal');
+        if (modal) {
+            modal.classList.remove('active');
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
+        this.currentProfileId = null;
+        this.currentProfileData = null;
+
+        // Stop preview animation
+        if (this.previewFrameId) {
+            cancelAnimationFrame(this.previewFrameId);
+            this.previewFrameId = null;
+        }
+    }
+
+    showFrogPreview(frog) {
+        const container = document.getElementById('profile-preview-container');
+        if (!container) return;
+
+        // Clear existing preview
+        container.innerHTML = '';
+
+        // Setup mini Three.js scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 140 / 100, 0.1, 10);
+        camera.position.set(0, 0.3, 2); // Adjusted for better full-body view
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(140, 100);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // Lights
+        const ambient = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambient);
+        const direct = new THREE.DirectionalLight(0xffffff, 2);
+        direct.position.set(2, 2, 5);
+        scene.add(direct);
+
+        // Get frog model - clone from bodyMesh or create fallback for dead frogs
+        let previewModel;
+        if (frog.bodyMesh) {
+            previewModel = frog.bodyMesh.clone();
+        } else if (frog.frogModel) {
+            // Try to use the original model
+            previewModel = frog.frogModel.clone();
+        } else {
+            // Fallback: create a simple colored box as placeholder
+            const geometry = new THREE.BoxGeometry(0.6, 0.5, 0.8);
+            const material = new THREE.MeshLambertMaterial({ color: frog.color || '#4CAF50' });
+            previewModel = new THREE.Mesh(geometry, material);
+        }
+
+        previewModel.position.set(0, -0.2, 0);
+        previewModel.scale.set(1.0, 1.0, 1.0); // Smaller scale to fit container
+        scene.add(previewModel);
+
+        // Animation Loop
+        const animatePreview = () => {
+            if (!this.currentProfileFrog || this.currentProfileFrog.id !== frog.id) {
+                renderer.dispose();
+                return;
+            }
+
+            previewModel.rotation.y += 0.02; // 360 spinning
+            renderer.render(scene, camera);
+            this.previewFrameId = requestAnimationFrame(animatePreview);
+        };
+        animatePreview();
+    }
 }
