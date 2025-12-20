@@ -1,7 +1,7 @@
 # Frog Multiplayer Game - Caddy Configuration
-# Replace YOUR_DOMAIN with your actual domain (e.g., frog.muazaoski.online)
+# Domain: frog.muazaoski.online
 
-YOUR_DOMAIN {
+frog.muazaoski.online {
     # Reverse proxy to the game server
     reverse_proxy froggame:3000
     
@@ -29,7 +29,7 @@ YOUR_DOMAIN {
     }
 }
 
-# Optional: Redirect www to non-www
-www.YOUR_DOMAIN {
-    redir https://YOUR_DOMAIN{uri} permanent
+# Redirect www to non-www
+www.frog.muazaoski.online {
+    redir https://frog.muazaoski.online{uri} permanent
 }
