@@ -1699,125 +1699,160 @@ export class World {
         this.currentProfileId = data.id; // Track ID instead of object ref
         this.currentProfileData = data;  // Store current data for reference
 
-        const popup = document.getElementById('profile-popup');
-        const nameEl = document.getElementById('profile-name');
-        const levelEl = document.getElementById('profile-level');
-        const bioEl = document.getElementById('profile-about');
-        const muteBtn = document.getElementById('btn-mute-player');
-        const addFriendBtn = document.getElementById('btn-add-friend');
+        const modal = document.getElementById('profile-modal');
+        const nameEl = document.getElementById('p-username');
+        const levelEl = document.getElementById('p-level');
+        const bioEl = document.getElementById('p-bio');
+        const badgesEl = document.getElementById('p-badges-row');
+        const actionBtn = document.getElementById('p-btn-action');
+        const muteBtn = document.getElementById('p-btn-mute');
+        const closeBtn = document.getElementById('p-close-btn');
+        const avatarContainer = document.getElementById('p-avatar-container');
+        const headerBg = document.getElementById('p-header-bg');
 
         // Null checks
-        if (!popup || !nameEl || !levelEl || !muteBtn || !addFriendBtn) return;
+        if (!modal || !nameEl || !levelEl || !actionBtn || !muteBtn) {
+            console.error('Profile modal elements missing!');
+            return;
+        }
 
-        // Populate Basic Info
+        // populate content
         const idStr = String(data.id || '');
         nameEl.textContent = data.name || `Frog ${idStr.substring(0, 4)}`;
-        levelEl.textContent = `level ${data.level || 1}`;
-        if (bioEl) bioEl.textContent = data.bio || 'No bio yet...';
+        levelEl.textContent = `LEVEL ${data.level || 1}`;
+        bioEl.textContent = data.bio || 'No bio set.';
 
-        // Populate Badges
-        const badgesEl = document.getElementById('profile-badges-display');
+        // Set Header Color from Frog Color
+        if (data.color && headerBg) {
+            headerBg.style.background = `linear-gradient(45deg, ${data.color} 0%, #2a2a35 100%)`;
+        }
+
+        // Render Badges
         if (badgesEl) {
             let badgeArray = [];
             try {
                 badgeArray = Array.isArray(data.badges) ? data.badges : JSON.parse(data.badges || '[]');
             } catch (e) { badgeArray = []; }
 
-            let badgeHtml = '';
-            for (let i = 0; i < 6; i++) {
-                const emoji = badgeArray[i] || '';
-                badgeHtml += `<div class="popup-badge">${emoji}</div>`;
+            badgesEl.innerHTML = '';
+            // Display empty slots if no badges, or just badges? Let's show badges
+            if (badgeArray.length === 0) {
+                badgesEl.innerHTML = '<span style="color:rgba(255,255,255,0.3); font-size:12px;">No badges yet</span>';
+            } else {
+                badgeArray.forEach(emoji => {
+                    const slot = document.createElement('div');
+                    slot.className = 'profile-badge-slot';
+                    slot.textContent = emoji;
+                    badgesEl.appendChild(slot);
+                });
             }
-            badgesEl.innerHTML = badgeHtml;
         }
 
-        // Preview Render (Needs valid color)
-        this.showFrogPreview({
-            color: data.color,
-            mesh: (this.frogs[data.id] && this.frogs[data.id].mesh) // Try to find mesh for preview if available
-        });
+        // --- AVATAR PREVIEW ---
+        // We'll reuse showFrogPreview logic but targeting the new container
+        if (avatarContainer) {
+            avatarContainer.innerHTML = ''; // Clear previous
+            // For now, let's just use a high-res emoji or color block if 3D is too complex for this overlay
+            // But user wanted "Wow", so let's try to clone the 3D preview if possible, 
+            // Or simpler: Just a big colored circle with the level?
+            // Let's stick effectively to a 2D representation for stability, or re-implement 3D later.
+            // Actually, let's just put a big emoji frog head or the frog color.
+            const avatarParams = document.createElement('div');
+            avatarParams.style.width = '100%';
+            avatarParams.style.height = '100%';
+            avatarParams.style.backgroundColor = data.color || '#4CAF50';
+            avatarParams.style.display = 'flex';
+            avatarParams.style.alignItems = 'center';
+            avatarParams.style.justifyContent = 'center';
+            avatarParams.style.fontSize = '50px';
+            avatarParams.textContent = '🐸';
+            avatarContainer.appendChild(avatarParams);
+        }
 
-        // Mute Button Logic
+        // --- MUTE BUTTON ---
         const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
-        muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
-        muteBtn.className = isMuted ? 'profile-btn' : 'profile-btn danger';
+        muteBtn.innerHTML = isMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
+        muteBtn.className = isMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary'; // Toggle styles
 
-        popup.style.display = 'block';
-
-        // Initialize/Update Preview
-        this.showFrogPreview(frog);
-
-        // Add event listeners for buttons
         muteBtn.onclick = (e) => {
             e.stopPropagation();
             if (this.network) {
                 this.network.toggleMute(data.id);
-                // Update UI immediately
-                const isMutedNow = this.network.mutedPlayers && this.network.mutedPlayers.has(data.id);
-                muteBtn.textContent = isMutedNow ? 'Unmute' : 'Mute';
-                muteBtn.className = isMutedNow ? 'profile-btn' : 'profile-btn danger';
+                // Update UI immediately (toggle state)
+                const nowMuted = this.network.mutedPlayers.has(data.id);
+                muteBtn.innerHTML = nowMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
+                muteBtn.className = nowMuted ? 'p-btn p-btn-primary' : 'p-btn p-btn-secondary';
             }
         };
 
-        addFriendBtn.onclick = (e) => {
+        // --- ACTION BUTTON (Add Friend / Chat) ---
+        // Helper to update button text
+        const updateActionBtn = (isFriend) => {
+            if (isFriend) {
+                actionBtn.innerHTML = '<span>💬</span> Chat';
+                actionBtn.className = 'p-btn p-btn-primary';
+            } else {
+                actionBtn.innerHTML = '<span>➕</span> Add Friend';
+                actionBtn.className = 'p-btn p-btn-secondary';
+            }
+        };
+
+        // Initial state
+        updateActionBtn(data.isFriend);
+
+        // Logic
+        actionBtn.onclick = (e) => {
             e.stopPropagation();
             // Check if authenticated
             if (window.game && !window.game.isAuthenticated) {
-                this.showToast('Register an account to chat!');
+                this.showToast('Register an account to interact!');
                 return;
             }
 
             if (data.isFriend) {
-                // Open Chat
+                // Open DM
                 if (this.network) {
                     this.network.openDM(data.id, data.name);
-                    popup.style.display = 'none';
+                    modal.classList.remove('active'); // Close modal
                 }
             } else {
-                // Add Friend
+                // Send Request
                 if (this.network && this.network.socket) {
                     this.network.socket.emit('sendFriendRequest', data.name, (result) => {
                         if (result.success) {
                             this.showToast(`Friend request sent to ${data.name}!`);
+                            actionBtn.innerHTML = '<span>🕒</span> Sent';
                         } else {
-                            this.showToast(result.error || 'Failed to send request');
+                            this.showToast(result.error || 'Failed to send');
                         }
                     });
                 }
             }
         };
 
-        // Update button text based on friend status
-        // If isFriend is not set, check with server (for frogs clicked in-world)
+        // Check friendship status if undefined (async)
         if (data.isFriend === undefined && this.network && this.network.socket) {
-            // Default to Add Friend while checking
-            addFriendBtn.textContent = 'Add Friend';
-
-            // Check if this player is a friend
             this.network.socket.emit('checkFriendship', data.id, (result) => {
                 if (result && result.isFriend) {
                     data.isFriend = true;
-                    addFriendBtn.textContent = 'Chat';
+                    updateActionBtn(true);
                 }
             });
-        } else if (data.isFriend) {
-            addFriendBtn.textContent = 'Chat';
-        } else {
-            addFriendBtn.textContent = 'Add Friend';
         }
 
-        // Close button handler
-        const closeBtn = document.getElementById('profile-close-btn'); // Assuming closeBtn is defined somewhere
-        if (closeBtn) {
-            closeBtn.onclick = (e) => {
-                e.stopPropagation();
-                this.closeProfile();
-            };
+        // --- CLOSE LOGIC ---
+        const closeModal = () => {
+            modal.classList.remove('active');
+            setTimeout(() => { modal.style.display = 'none'; }, 300); // Wait for transition
         }
 
-        // Prevent click through to game
-        popup.onclick = (e) => e.stopPropagation();
-        popup.onmousedown = (e) => e.stopPropagation();
+        if (closeBtn) closeBtn.onclick = closeModal;
+
+        // Open Modal
+        modal.style.display = 'flex';
+        // Force reflow
+        void modal.offsetWidth;
+        modal.classList.add('active');
     }
 
     closeProfile() {
