@@ -1685,40 +1685,50 @@ export class World {
             if (badgesEl) {
                 let badgeHtml = '';
                 for (let i = 0; i < 6; i++) {
-                    const emoji = badges[i] || '';
+                    const emoji = (badges && badges[i]) || '';
                     badgeHtml += `<div class="popup-badge">${emoji}</div>`;
                 }
                 badgesEl.innerHTML = badgeHtml;
             }
         };
 
-        // Initial badge display
+        // Helper to update UI with profile data
+        const applyProfileToUI = (data) => {
+            if (!data) return;
+
+            // Update frog cache
+            frog.userId = data.id || frog.userId;
+            frog.bio = data.bio || frog.bio || '';
+            frog.badges = data.badges || [];
+            frog.level = data.level || frog.level || 1;
+
+            // Only update UI if we are still viewing this frog
+            if (this.currentProfileFrog === frog) {
+                if (bioEl) bioEl.textContent = frog.bio || 'No bio yet...';
+                levelEl.textContent = `level ${frog.level || 1}`;
+                updateBadges(frog.badges || []);
+
+                // Refresh preview
+                this.showFrogPreview(frog);
+            }
+        };
+
+        // Initial display from cache
         updateBadges(frog.badges || []);
 
-        // Fetch fresh profile data from server every time profile is opened (ensures badges/bio are up to date)
-        if (frog.id && this.network && this.network.socket) {
-            console.log(`🔍 Opening profile for ${frog.name} (ID: ${frog.id}). Fetching fresh data...`);
-            // This is likely an in-game frog (socket ID), get profile via their socket
-            this.network.socket.emit('getProfileBySocket', frog.id, (profileData) => {
-                if (profileData) {
-                    console.log(`✅ Received fresh profile for ${frog.name}:`, profileData);
-                    // Update frog cache with fresh data
-                    frog.userId = profileData.id;
-                    frog.bio = profileData.bio || frog.bio;
-                    frog.badges = profileData.badges || [];
-                    frog.level = profileData.level || frog.level;
-
-                    // Update display (if this is still the current profile being viewed)
-                    if (this.currentProfileFrog === frog) {
-                        console.log(`✨ Updating UI with fresh data for ${frog.name}`);
-                        if (bioEl) bioEl.textContent = frog.bio || 'No bio yet...';
-                        levelEl.textContent = `level ${frog.level || 1}`;
-                        updateBadges(frog.badges || []);
-                    }
-                } else {
-                    console.warn(`⚠️ No profile data found for ${frog.id}`);
-                }
-            });
+        // Fetch FRESH data from server
+        if (this.network && this.network.socket) {
+            // If we have a userId, use the getProfile route (which we know works from the Friend UI)
+            if (frog.userId) {
+                this.network.socket.emit('getProfile', frog.userId, (data) => {
+                    if (data) applyProfileToUI(data);
+                });
+            } else if (frog.id) {
+                // Fallback to socket-based lookup for guests or first-time views
+                this.network.socket.emit('getProfileBySocket', frog.id, (data) => {
+                    if (data) applyProfileToUI(data);
+                });
+            }
         }
 
         // Update mute button text based on status
