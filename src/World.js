@@ -1585,7 +1585,7 @@ export class World {
                     level: freshData?.level || frog.level || 1,
                     bio: freshData?.bio || frog.bio || '',
                     badges: freshData?.badges || frog.badges || [],
-                    isFriend: false // Can trigger checkFriendship here if needed
+                    isFriend: undefined // Trigger checkFriendship in openProfile
                 };
 
                 // If fresh data, update the local frog object too just in case
@@ -1609,7 +1609,7 @@ export class World {
                 level: frog.level || 1,
                 bio: frog.bio || '',
                 badges: frog.badges || [],
-                isFriend: false
+                isFriend: undefined
             });
         }
     }
@@ -1648,42 +1648,7 @@ export class World {
         levelEl.textContent = `LEVEL ${data.level || 1}`;
         bioEl.textContent = data.bio || 'No bio set.';
 
-        // --- BADGE RENDERING (Max 4) ---
-        if (badgesEl) {
-            let badgeArray = [];
-            try {
-                badgeArray = Array.isArray(data.badges) ? data.badges : JSON.parse(data.badges || '[]');
-            } catch (e) { badgeArray = []; }
-
-            badgesEl.innerHTML = '';
-            // Only show up to 4 badges
-            const displayBadges = badgeArray.slice(0, 4);
-
-            if (displayBadges.length === 0) {
-                // Show 4 empty slots as in the image or just empty message? 
-                // Image has 4 icons. Let's show empty slots if less than 4
-                for (let i = 0; i < 4; i++) {
-                    const slot = document.createElement('div');
-                    slot.className = 'profile-badge-slot-new';
-                    slot.style.opacity = '0.3';
-                    badgesEl.appendChild(slot);
-                }
-            } else {
-                displayBadges.forEach(emoji => {
-                    const slot = document.createElement('div');
-                    slot.className = 'profile-badge-slot-new';
-                    slot.textContent = emoji;
-                    badgesEl.appendChild(slot);
-                });
-                // Fill remaining up to 4
-                for (let i = displayBadges.length; i < 4; i++) {
-                    const slot = document.createElement('div');
-                    slot.className = 'profile-badge-slot-new';
-                    slot.style.opacity = '0.1';
-                    badgesEl.appendChild(slot);
-                }
-            }
-        }
+        bioEl.textContent = data.bio || 'No bio set.';
 
         // --- AVATAR PREVIEW (3D 360 Spin) ---
         if (avatarContainer) {
@@ -1748,8 +1713,10 @@ export class World {
         };
 
         // Check friendship status if undefined (async)
-        if (data.isFriend === undefined && this.network && this.network.socket) {
-            this.network.socket.emit('checkFriendship', data.id, (result) => {
+        // Use userId for persistent friendship check, fallback to id
+        const targetId = data.userId || data.id;
+        if (data.isFriend === undefined && this.network && this.network.socket && targetId) {
+            this.network.socket.emit('checkFriendship', targetId, (result) => {
                 if (result && result.isFriend) {
                     data.isFriend = true;
                     updateActionBtn(true);
@@ -1790,11 +1757,11 @@ export class World {
         // Setup mini Three.js scene
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-        camera.position.set(0, 0.5, 2.5); // Adjusted for better full-body view
-        camera.lookAt(0, 0.2, 0);
+        camera.position.set(0, 0.4, 3.5); // Further back to reduce zoom
+        camera.lookAt(0, 0.1, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(200, 200);
+        renderer.setSize(120, 120); // Scaled down matching new UI
         renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
@@ -1831,8 +1798,8 @@ export class World {
             previewModel = new THREE.Mesh(geometry, material);
         }
 
-        previewModel.position.set(0, 0, 0);
-        previewModel.scale.set(1.5, 1.5, 1.5);
+        previewModel.position.set(0, -0.1, 0); // Center slightly
+        previewModel.scale.set(1.2, 1.2, 1.2); // Reduced scale
         scene.add(previewModel);
 
         // Animation Loop

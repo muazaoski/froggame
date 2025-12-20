@@ -37,15 +37,26 @@ The VPS uses Docker Compose V2 which uses space:
 ## 🚀 Quick Deploy (After Code Changes)
 
 ### On Your Local Machine (Windows):
-```powershell
-# Build the frontend first!
-npm run build
 
-# Commit and push (dist/ is now included in git)
-git add .
-git commit -m "Your commit message"
-git push
+**One-liner to push everything (Fast):**
+```powershell
+npm run build; git add .; git commit -m "Update profile UI"; git push
 ```
+
+**Step-by-step:**
+1. **Build the frontend:**
+   ```powershell
+   npm run build
+   ```
+2. **Add and Commit:**
+   ```powershell
+   git add .
+   git commit -m "Your descriptive message"  # Use -m (lowercase), NOT -M
+   ```
+3. **Push to GitHub:**
+   ```powershell
+   git push
+   ```
 
 ### On Your VPS:
 ```bash

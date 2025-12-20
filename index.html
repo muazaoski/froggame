@@ -1051,7 +1051,7 @@
         }
 
         .profile-card {
-            width: 520px;
+            width: 360px;
             background: #1a1c23;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -1070,7 +1070,7 @@
         /* White Header */
         .profile-header-new {
             background: white;
-            padding: 12px 20px;
+            padding: 8px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -1079,11 +1079,11 @@
         .profile-header-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .profile-username-new {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: 800;
             color: #1a1c23;
             margin: 0;
@@ -1092,9 +1092,9 @@
         .profile-level-pill {
             background: #393e46;
             color: white;
-            font-size: 11px;
+            font-size: 9px;
             font-weight: 700;
-            padding: 4px 10px;
+            padding: 2px 8px;
             border-radius: 20px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -1104,7 +1104,7 @@
             background: transparent;
             border: none;
             color: #1a1c23;
-            font-size: 24px;
+            font-size: 20px;
             cursor: pointer;
             padding: 4px;
             line-height: 1;
@@ -1117,16 +1117,16 @@
 
         /* Body Layout */
         .profile-body-new {
-            padding: 24px;
+            padding: 16px;
             display: grid;
-            grid-template-columns: 200px 1fr;
-            gap: 24px;
+            grid-template-columns: 120px 1fr;
+            gap: 16px;
         }
 
         /* Left Side: Avatar */
         .profile-avatar-box {
-            width: 200px;
-            height: 200px;
+            width: 120px;
+            height: 120px;
             background: transparent;
             display: flex;
             align-items: center;
@@ -1144,71 +1144,53 @@
             cursor: grabbing;
         }
 
-        /* Right Side: Bio & Badges */
+        /* Right Side: Bio */
         .profile-info-column {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 10px;
         }
 
         .profile-section-label {
             color: white;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .profile-bio-box {
             background: #252833;
-            border-radius: 12px;
-            padding: 16px;
+            border-radius: 10px;
+            padding: 10px;
             color: #949ba2;
-            font-size: 14px;
-            line-height: 1.5;
-            min-height: 100px;
-        }
-
-        .profile-badges-row-new {
-            display: flex;
-            gap: 12px;
-        }
-
-        .profile-badge-slot-new {
-            width: 52px;
-            height: 52px;
-            background: #252833;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: transform 0.2s;
+            font-size: 12px;
+            line-height: 1.4;
+            min-height: 60px;
         }
 
         /* Footer Actions */
         .profile-footer-new {
-            padding: 0 24px 24px 24px;
+            padding: 0 16px 16px 16px;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 16px;
+            gap: 10px;
         }
 
         .p-btn-new {
             background: #2c2f3a;
             color: white;
             border: none;
-            padding: 14px;
+            padding: 8px;
             border-radius: 8px;
             font-weight: 700;
-            font-size: 15px;
+            font-size: 12px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 6px;
             transition: background 0.2s;
         }
 
@@ -2315,14 +2297,7 @@
                     <div class="profile-section">
                         <div class="profile-section-label">BIO</div>
                         <div class="profile-bio-box" id="p-bio">
-                            No bio set.<br>Game enthusiast and frog lover.
-                        </div>
-                    </div>
-
-                    <div class="profile-section">
-                        <div class="profile-section-label">BADGE SHOW OFF</div>
-                        <div class="profile-badges-row-new" id="p-badges-row">
-                            <!-- JS will inject max 4 badges here -->
+                            No bio set.
                         </div>
                     </div>
                 </div>
