@@ -75,6 +75,9 @@ export const Config = {
 
     // Film Grain
     grainEnabled: false, // Cleaner toon look
+    grainIntensity: 0.02,
+    grainSpeed: 0.1,
+    grainSize: 3.5,
 
     // Sharpen Filter
     sharpenEnabled: true,

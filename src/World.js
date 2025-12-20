@@ -1409,9 +1409,6 @@ export class World {
             this.checkFrogClick(input);
         }
 
-        // Update floating profile button position
-        this.updateProfileButtonPosition();
-
         if (Config.useShader && this.composer) {
             const u = this.customPass.uniforms;
 
@@ -1672,9 +1669,7 @@ export class World {
         }
     }
 
-    // Removed hideProfileButton and updateProfileButtonPosition as they are no longer needed
-    hideProfileButton() { }
-    updateProfileButtonPosition() { }
+
 
     /**
  * Open Profile Popup with standardized data object (POJO)
