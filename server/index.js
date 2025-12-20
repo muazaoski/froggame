@@ -145,6 +145,7 @@ const serverPhysics = new ServerPhysics(io, {
     }
 });
 serverPhysics.startSimulation();
+console.log('⚔️  Combat System: Client-Authoritative Hit Registration Active');
 
 // AFK Tracking - mark players as AFK after 3 minutes of no movement
 const AFK_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
@@ -749,7 +750,8 @@ io.on('connection', (socket) => {
         const physicsPlayer = serverPhysics.players[targetId];
         if (physicsPlayer) {
             physicsPlayer.health -= damage;
-            console.log(`🥊 ${attacker.name} hit ${target.name} (-${damage}), HP: ${physicsPlayer.health}/${Config.maxHealth}`);
+            const maxHP = (Config && Config.maxHealth) ? Config.maxHealth : 200;
+            console.log(`🥊 ${attacker.name} hit ${target.name} (-${damage}), HP: ${physicsPlayer.health}/${maxHP}`);
 
             // Propagate death if killed
             if (physicsPlayer.health <= 0) {
