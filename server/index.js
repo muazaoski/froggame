@@ -627,7 +627,11 @@ io.on('connection', (socket) => {
 
     // Legacy hit event - kept for compatibility
     socket.on('playerHit', (data) => {
-        io.emit('playerDamaged', data);
+        // Add attackerId for kill credit
+        io.emit('playerDamaged', {
+            ...data,
+            attackerId: socket.id
+        });
     });
 
     socket.on('playerDied', (data) => {
@@ -641,10 +645,14 @@ io.on('connection', (socket) => {
         auth.recordDeath(socket.id);
 
         // Award XP to killer if authenticated
+        console.log(`💀 Death event: victim=${victimId}, killer=${killerId}`);
         if (killerId && players[killerId]) {
+            auth.recordKill(killerId);
             const killerUserId = auth.getUserId(killerId);
+            console.log(`  Killer userId: ${killerUserId}`);
             if (killerUserId) {
                 const result = db.addXP(killerUserId, 25); // 25 XP per kill
+                console.log(`  XP result:`, result);
                 if (result) {
                     // Notify killer of XP gain
                     io.to(killerId).emit('xpGained', {
@@ -653,6 +661,7 @@ io.on('connection', (socket) => {
                         xp: result.xp,
                         xpToNext: result.level * 100
                     });
+                    console.log(`  ⭐ XP awarded to ${players[killerId]?.name}: +25 XP (Level ${result.level})`);
                 }
             }
         }

@@ -1363,16 +1363,17 @@
         /* ================ REVAMPED PROFILE PANEL ================ */
         .profile-panel-large {
             display: flex;
-            width: 700px;
+            width: 600px;
             max-width: 95vw;
-            height: 550px;
+            height: 520px;
             max-height: 85vh;
             padding: 0;
             overflow: hidden;
         }
 
         .profile-sidebar {
-            width: 180px;
+            width: 160px;
+            min-width: 160px;
             background: rgba(30, 30, 40, 0.95);
             border-right: 1px solid rgba(255, 255, 255, 0.1);
             padding: 20px 10px;
@@ -1407,7 +1408,27 @@
             flex: 1;
             padding: 24px;
             overflow-y: auto;
+            overflow-x: hidden;
             position: relative;
+        }
+
+        /* Custom Scrollbar */
+        .profile-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .profile-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .profile-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .profile-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .profile-close {
@@ -1446,7 +1467,8 @@
 
         .profile-bio-input {
             width: 100%;
-            min-height: 100px;
+            min-height: 80px;
+            max-width: 300px;
             padding: 14px;
             background: rgba(40, 40, 50, 0.9);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1456,6 +1478,7 @@
             font-family: inherit;
             resize: none;
             outline: none;
+            box-sizing: border-box;
         }
 
         .profile-bio-input::placeholder {
@@ -1469,9 +1492,10 @@
         /* Badge Grid */
         .badge-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
+            grid-template-columns: repeat(5, 52px);
+            gap: 8px;
             margin-bottom: 16px;
+            width: fit-content;
         }
 
         .badge-item {

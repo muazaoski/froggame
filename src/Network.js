@@ -59,6 +59,10 @@ export class Network {
                 if (xpFill && playerInfo.accountData.xpToNext) {
                     xpFill.style.width = `${(playerInfo.accountData.xp / playerInfo.accountData.xpToNext) * 100}%`;
                 }
+
+                // Request friend requests and unread DMs for notification dot
+                this.socket.emit('getFriendRequests');
+                this.socket.emit('getUnreadDMs');
             }
         });
 

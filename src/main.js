@@ -1223,16 +1223,35 @@ document.querySelectorAll('.profile-sidebar .profile-tab').forEach(tab => {
     });
 });
 
-// Badge Selection
+// Badge Selection - Up to 6 badges
+const MAX_BADGES = 6;
+let selectedBadges = [];
+
 document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
     badge.addEventListener('click', () => {
-        document.querySelectorAll('.badge-item').forEach(b => b.classList.remove('selected'));
-        badge.classList.add('selected');
+        const badgeEmoji = badge.textContent;
+        const isSelected = badge.classList.contains('selected');
 
-        // Update preview
+        if (isSelected) {
+            // Remove from selection
+            badge.classList.remove('selected');
+            selectedBadges = selectedBadges.filter(b => b !== badgeEmoji);
+        } else {
+            // Add to selection if under limit
+            if (selectedBadges.length < MAX_BADGES) {
+                badge.classList.add('selected');
+                selectedBadges.push(badgeEmoji);
+            } else {
+                if (world && world.showToast) {
+                    world.showToast(`Maximum ${MAX_BADGES} badges allowed!`);
+                }
+            }
+        }
+
+        // Update preview to show all selected badges
         const previewDisplay = document.getElementById('selected-badge-display');
         if (previewDisplay) {
-            previewDisplay.textContent = badge.textContent;
+            previewDisplay.textContent = selectedBadges.join(' ') || '⭐';
         }
     });
 });
@@ -1407,8 +1426,9 @@ if (network && network.socket) {
 
         // Add event listeners for accept/decline buttons
         requestsContent.querySelectorAll('.accept').forEach(btn => {
-            btn.addEventListener('click', () => {
-                network.socket.emit('acceptFriend', btn.dataset.id);
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                network.socket.emit('acceptFriendRequest', btn.dataset.id);
             });
         });
 
@@ -1600,9 +1620,11 @@ if (emoteBtn && emoteWheel) {
 // T key to toggle emote wheel
 window.addEventListener('keydown', (e) => {
     if (e.key === 't' || e.key === 'T') {
-        const chatInput = document.getElementById('chat-input');
-        const dmInputEl = document.getElementById('dm-input');
-        if (document.activeElement === chatInput || document.activeElement === dmInputEl) return;
+        // Don't toggle if any input/textarea is focused
+        const isTyping = document.activeElement &&
+            (document.activeElement.tagName === 'INPUT' ||
+                document.activeElement.tagName === 'TEXTAREA');
+        if (isTyping) return;
 
         if (emoteWheel) emoteWheel.classList.toggle('active');
     }
