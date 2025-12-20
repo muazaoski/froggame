@@ -1161,13 +1161,9 @@ if (profileEditorClose && profileEditorOverlay) {
 if (profileColorPicker && colorHexDisplay) {
     profileColorPicker.addEventListener('input', (e) => {
         colorHexDisplay.textContent = e.target.value;
-        // Live preview on local frog
-        if (world.localFrog && world.localFrog.bodyMesh) {
-            world.localFrog.bodyMesh.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    child.material.color.set(e.target.value);
-                }
-            });
+        // Live preview on local frog using proper setColor method
+        if (world.localFrog && world.localFrog.setColor) {
+            world.localFrog.setColor(e.target.value);
         }
     });
 }

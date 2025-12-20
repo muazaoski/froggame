@@ -919,6 +919,35 @@ export class Frog {
         console.log(`Ass found: Left=${!!this.assLeft}, Right=${!!this.assRight}`);
     }
 
+    // Change frog color at runtime
+    setColor(newColor) {
+        this.color = newColor;
+
+        // Update all mesh materials
+        if (this.bodyMesh) {
+            this.bodyMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const name = child.name.toLowerCase();
+
+                    // Skip eyes and pupils
+                    if (name.includes('pupil') || name.includes('eye') || name.includes('white')) {
+                        return;
+                    }
+
+                    // Mouth is darker version
+                    if (name.includes('mouth')) {
+                        const darkColor = new THREE.Color(newColor);
+                        darkColor.multiplyScalar(0.8);
+                        child.material.color.set(darkColor);
+                    } else {
+                        // Body, legs, etc
+                        child.material.color.set(newColor);
+                    }
+                }
+            });
+        }
+    }
+
     updateAnimations(dt, isMoving, isGrounded) {
         if (!this.leftLeg || !this.rightLeg) return;
 

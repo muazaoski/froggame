@@ -352,12 +352,16 @@ export class Input {
             this.mouseDelta.y = 0;
             e.preventDefault();
         }
+
+        // Check if clicking on UI elements - don't trigger game actions
+        const isUIClick = e.target.closest('button, input, textarea, .panel, .panel-overlay, .bottom-left-buttons, #profile-popup, #dm-chat-panel, #emote-wheel, #friend-list-overlay, #profile-editor-overlay');
+
         // Left mouse button (button 0) for punch
-        if (e.button === 0 && !this.chatOpen) {
+        if (e.button === 0 && !this.chatOpen && !isUIClick) {
             this.leftClickPunch = true;
         }
         // Right mouse button (button 2) for tongue
-        if (e.button === 2 && !this.chatOpen) {
+        if (e.button === 2 && !this.chatOpen && !isUIClick) {
             this.rightClickTongue = true;
             this.tongueHeld = true;
             e.preventDefault();
@@ -420,8 +424,13 @@ export class Input {
     }
 
     onKeyDown(e) {
-        // Chat toggle
-        if (e.code === 'Enter') {
+        // Check if any input/textarea is focused
+        const isTyping = document.activeElement &&
+            (document.activeElement.tagName === 'INPUT' ||
+                document.activeElement.tagName === 'TEXTAREA');
+
+        // Chat toggle - only if not typing in other inputs
+        if (e.code === 'Enter' && !isTyping) {
             this.toggleChat();
             return;
         }
@@ -434,7 +443,8 @@ export class Input {
             return;
         }
 
-        if (this.chatOpen) return; // Disable movement while chatting
+        // Disable movement while chatting or typing in any input
+        if (this.chatOpen || isTyping) return;
 
         switch (e.code) {
             case 'ArrowUp':
@@ -458,7 +468,12 @@ export class Input {
     }
 
     onKeyUp(e) {
-        if (this.chatOpen) return;
+        // Check if any input/textarea is focused
+        const isTyping = document.activeElement &&
+            (document.activeElement.tagName === 'INPUT' ||
+                document.activeElement.tagName === 'TEXTAREA');
+
+        if (this.chatOpen || isTyping) return;
 
         switch (e.code) {
             case 'ArrowUp':

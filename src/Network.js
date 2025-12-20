@@ -89,6 +89,14 @@ export class Network {
             }
         });
 
+        // Player Color Changed
+        this.socket.on('playerColorChanged', ({ id, color }) => {
+            const frog = this.world.frogs[id];
+            if (frog && frog.setColor) {
+                frog.setColor(color);
+            }
+        });
+
         // Player Moved (legacy - still used for extra state like tongue, scooter)
         this.socket.on('playerMoved', (playerInfo) => {
             // Skip local player - they use their own physics
