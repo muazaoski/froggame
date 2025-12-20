@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Multiplayer Frog Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #chat-input {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            padding: 10px;
+            border-radius: 20px;
+            border: 2px solid #4CAF50;
+            outline: none;
+            display: none;
+            /* Hidden by default, toggle with Enter */
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column-reverse;
+            /* Stack from bottom up */
+            align-items: center;
+            width: 200px;
+            pointer-events: none;
+            /* Container doesn't need height, it grows up */
+        }
+
+        .chat-bubble {
+            background: white;
+            padding: 5px 10px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 1;
+            /* Start visible */
+            max-width: 150px;
+            word-wrap: break-word;
+            text-align: center;
+            margin-bottom: 5px;
+            /* Space between bubbles */
+
+            /* Animation for floating/fading */
+            animation: chat-float 10s linear forwards;
+        }
+
+        @keyframes chat-float {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-20px);
+                /* Move up 1 bit */
+            }
+        }
+
+        /* Chat Panel */
+        #chat-panel {
+            position: fixed;
+            top: 75px;
+            left: 20px;
+            width: 280px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            border-radius: 10px;
+            padding: 10px;
+            z-index: 100;
+            pointer-events: auto;
+        }
+
+        /* Offline Overlay */
+        #offline-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #offline-overlay.visible {
+            display: flex;
+        }
+
+        .offline-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .offline-title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #ff6b6b;
+        }
+
+        .offline-message {
+            font-size: 18px;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        .offline-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            color: #ffa500;
+        }
+
+        .offline-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 165, 0, 0.3);
+            border-top-color: #ffa500;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.95);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .chat-history {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: 180px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+            pointer-events: auto;
+        }
+
+        .chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .chat-message {
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            word-wrap: break-word;
+        }
+
+        .chat-message .chat-name {
+            font-weight: bold;
+            margin-right: 6px;
+        }
+
+        .chat-message.system {
+            color: #888;
+            font-style: italic;
+            background: transparent;
+        }
+
+        /* Health Bar */
+        .health-bar-container {
+            pointer-events: none;
+            transform: translateX(-50%);
+            /* Center above frog */
+        }
+
+        .health-bar-bg {
+            width: 60px;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .health-bar-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #4ade80, #22c55e);
+            transition: width 0.2s ease-out;
+            border-radius: 3px;
+        }
+
+        .health-bar-fill.low {
+            background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+        }
+
+        .health-bar-fill.critical {
+            background: linear-gradient(to bottom, #f87171, #ef4444);
+        }
+
+        /* Damage Toast */
+        .damage-toast {
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 18px;
+            pointer-events: none;
+            white-space: nowrap;
+            /* Black Stroke / Outline effect like name tag */
+            text-shadow:
+                -1px -1px 0 #000,
+                1px -1px 0 #000,
+                -1px 1px 0 #000,
+                1px 1px 0 #000,
+                0 2px 4px rgba(0, 0, 0, 0.5);
+            animation: damage-float 1s ease-out forwards;
+        }
+
+        .damage-toast.critical {
+            color: #ff4444;
+            font-size: 24px;
+        }
+
+        @keyframes damage-float {
+            0% {
+                opacity: 1;
+                margin-top: 0px;
+            }
+
+            100% {
+                opacity: 0;
+                margin-top: -50px;
+            }
+        }
+
+        /* Name Tag */
+        .name-tag {
+            background: transparent;
+            color: white;
+            padding: 0;
+            font-size: 14px;
+            font-weight: 900;
+            font-family: 'Segoe UI', sans-serif;
+            pointer-events: none;
+            white-space: nowrap;
+            /* Black Stroke / Outline effect */
+            text-shadow:
+                -1px -1px 0 #000,
+                1px -1px 0 #000,
+                -1px 1px 0 #000,
+                1px 1px 0 #000,
+                0 2px 4px rgba(0, 0, 0, 0.5);
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* AFK Badge */
+        .afk-badge {
+            background: #3b82f6;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-shadow: none;
+            font-family: 'Segoe UI', sans-serif;
+            letter-spacing: 0.5px;
+        }
+
+        /* Login Modal */
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+
+        /* Blur the canvas during spectator/login mode */
+        body.spectator-mode #canvas-container canvas {
+            filter: blur(4px);
+            transition: filter 0.3s ease;
+        }
+
+        /* Hide UI elements during spectator/login mode */
+        body.spectator-mode #settings-btn,
+        body.spectator-mode #music-btn,
+        body.spectator-mode #player-table,
+        body.spectator-mode #chat-panel,
+        body.spectator-mode #chat-input,
+        body.spectator-mode .name-tag,
+        body.spectator-mode .health-bar-container {
+            display: none !important;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .color-picker-label {
+            display: block;
+            margin: 10px 0 5px;
+            color: #666;
+            font-weight: bold;
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            border-radius: 30px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: transform 0.1s, background 0.2s;
+            font-weight: bold;
+        }
+
+        .btn-start:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+
+        .btn-start:disabled {
+            background: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Auth Tabs */
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #ddd;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            background: #f5f5f5;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            color: #666;
+        }
+
+        .auth-tab:hover {
+            background: #e8e8e8;
+        }
+
+        .auth-tab.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* Password field container */
+        .password-container {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.6;
+        }
+
+        .password-toggle:hover {
+            opacity: 1;
+        }
+
+        /* Error/Success messages */
+        .auth-message {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .auth-message.error {
+            background: #ffe0e0;
+            color: #d32f2f;
+            border: 1px solid #ffcdd2;
+            display: block;
+        }
+
+        .auth-message.success {
+            background: #e0ffe0;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+            display: block;
+        }
+
+        /* Guest button */
+        .btn-guest {
+            background: transparent;
+            color: #666;
+            border: 2px solid #ddd;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 25px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.2s;
+        }
+
+        .btn-guest:hover {
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        /* Account stats display */
+        .account-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        /* Divider */
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        .auth-divider::before,
+        .auth-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #ddd;
+        }
+
+        .auth-divider span {
+            padding: 0 10px;
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        /* Death Screen Overlay */
+        #death-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease, background 0.5s ease;
+        }
+
+        #death-screen.active {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.85);
+            pointer-events: auto;
+        }
+
+        #death-screen .death-text {
+            color: #800000;
+            font-size: 6rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            text-shadow:
+                0 0 20px rgba(128, 0, 0, 0.5),
+                0 0 40px rgba(128, 0, 0, 0.3),
+                4px 4px 0 #400000;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+            font-family: 'Georgia', serif;
+        }
+
+        #death-screen.active .death-text {
+            transform: scale(1);
+        }
+
+        #death-screen .respawn-text {
+            position: absolute;
+            bottom: 30%;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+        }
+
+        /* Player Table */
+        #player-table {
+            position: fixed;
+            top: 20px;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 10px 0 0 10px;
+            padding: 15px 20px;
+            min-width: 180px;
+            z-index: 100;
+            transform: translateX(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-right: none;
+        }
+
+        #player-table.hidden {
+            transform: translateX(100%);
+        }
+
+        #player-table .table-header {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            flex-wrap: wrap;
+        }
+
+        #player-table .table-hint {
+            font-size: 10px;
+            font-weight: normal;
+            opacity: 0.6;
+            margin-left: auto;
+        }
+
+        #player-table .player-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #player-table .player-item {
+            color: white;
+            padding: 6px 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #player-table .player-icon {
+            display: flex;
+            align-items: center;
+        }
+
+        #player-table .player-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        #player-table .player-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #player-table .player-ping {
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        #player-table .tab-hint {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 10px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        /* Settings Button */
+        #settings-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #settings-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #settings-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Music Button */
+        #music-btn {
+            position: fixed;
+            top: 20px;
+            left: 74px;
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #music-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #music-btn:active {
+            transform: translateY(0);
+        }
+
+        #music-btn.muted {
+            opacity: 0.5;
+        }
+
+        /* Volume Slider */
+        .volume-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+
+        .volume-icon {
+            font-size: 20px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .volume-icon:hover {
+            opacity: 0.8;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .volume-value {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            min-width: 35px;
+            text-align: right;
+        }
+
+        /* Settings Overlay */
+        #settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #settings-overlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Settings Panel */
+        #settings-panel {
+            background: rgba(30, 30, 40, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px 40px;
+            min-width: 320px;
+            max-width: 400px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+        }
+
+        #settings-overlay.visible #settings-panel {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .settings-title {
+            color: white;
+            font-size: 24px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-close {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-close:hover {
+            background: rgba(255, 100, 100, 0.3);
+            color: #ff6b6b;
+        }
+
+        .settings-section {
+            margin-bottom: 20px;
+        }
+
+        .settings-section-title {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .settings-btn-action {
+            width: 100%;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-align: left;
+        }
+
+        .settings-btn-action:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.1));
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .settings-btn-action:active {
+            transform: translateY(0);
+        }
+
+        .settings-btn-action.primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: none;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .settings-btn-action.primary:hover {
+            background: linear-gradient(135deg, #5dbf61, #4CAF50);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .settings-btn-icon {
+            font-size: 20px;
+            width: 28px;
+            text-align: center;
+        }
+
+        .settings-options {
+            display: flex;
+            gap: 10px;
+        }
+
+        .settings-option {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .settings-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .settings-option.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+            color: white;
+        }
+
+        .settings-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+
+        .control-key {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: monospace;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .control-action {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+        }
+
+        .settings-hint {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        /* Profile Popup (Old - Removing/Replacing) */
+        #profile-popup {
+            display: none;
+            /* Hide old popup completely */
+        }
+
+        /* =========================================
+           NEW UNIFIED PROFILE MODAL (Glassmorphism)
+           ================================********* */
+        #profile-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #profile-modal.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .profile-card {
+            width: 400px;
+            background: linear-gradient(135deg, rgba(30, 30, 40, 0.95), rgba(20, 20, 30, 0.98));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+            transform: translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #profile-modal.active .profile-card {
+            transform: translateY(0);
+        }
+
+        /* Header with Avatar & Gradient */
+        .profile-header-bg {
+            height: 100px;
+            background: linear-gradient(45deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%);
+            /* Placeholder Gradient */
+            position: relative;
+        }
+
+        .profile-avatar-container {
+            width: 90px;
+            height: 90px;
+            background: #1e1e28;
+            /* Fallback */
+            border-radius: 50%;
+            border: 4px solid #1e1e28;
+            position: absolute;
+            bottom: -45px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            /* For canvas preview */
+        }
+
+        /* Close Button */
+        .profile-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .profile-close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Body Content */
+        .profile-body {
+            padding: 55px 24px 24px 24px;
+            /* Top padding clears avatar */
+            text-align: center;
+        }
+
+        .profile-username {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+
+        .profile-level-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            margin-top: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .profile-bio {
+            margin-top: 16px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            line-height: 1.5;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px;
+            border-radius: 12px;
+            min-height: 40px;
+        }
+
+        /* Badges Row */
+        .profile-badges-row {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .profile-badge-slot {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .profile-badge-slot:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Action Buttons Footer */
+        .profile-footer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 20px;
+        }
+
+        .p-btn {
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .p-btn-primary {
+            background: white;
+            color: black;
+        }
+
+        .p-btn-primary:hover {
+            background: #f0f0f0;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.2);
+        }
+
+        .p-btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+        }
+
+        .p-btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .p-btn-danger {
+            background: rgba(255, 59, 48, 0.15);
+            color: #ff3b30;
+        }
+
+        .p-btn-danger:hover {
+            background: rgba(255, 59, 48, 0.25);
+        }
+
+        /* Bottom Left Action Buttons */
+        .bottom-left-buttons {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .bottom-btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 22px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .bottom-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .bottom-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Hide buttons during spectator/login */
+        body.spectator-mode .bottom-left-buttons {
+            display: none !important;
+        }
+
+        /* Notification Dot */
+        .notification-dot {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 10px;
+            height: 10px;
+            background: #ff4444;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 0, 0, 0.5);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        .bottom-btn {
+            position: relative;
+        }
+
+        /* Panel Overlay Base */
+        .panel-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 800;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel-overlay.active {
+            display: flex;
+        }
+
+        /* Panel Base */
+        .panel {
+            width: 380px;
+            max-height: 80vh;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .panel-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .panel-close:hover {
+            background: rgba(255, 100, 100, 0.3);
+            color: #ff6b6b;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-label {
+            display: block;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .color-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .color-input-wrapper input[type="color"] {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .color-preview-text {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        .btn-save {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        /* ================ REVAMPED PROFILE PANEL ================ */
+        .profile-panel-large {
+            display: flex;
+            width: 600px;
+            max-width: 95vw;
+            height: 520px;
+            max-height: 85vh;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .profile-sidebar {
+            width: 160px;
+            min-width: 160px;
+            background: rgba(30, 30, 40, 0.95);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .profile-tab {
+            padding: 14px 16px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .profile-tab:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .profile-tab.active {
+            background: rgba(76, 175, 80, 0.2);
+            color: white;
+        }
+
+        .profile-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Custom Scrollbar */
+        .profile-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .profile-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .profile-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .profile-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .profile-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+        }
+
+        .profile-tab-content {
+            display: none;
+        }
+
+        .profile-tab-content.active {
+            display: block;
+        }
+
+        .profile-section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: white;
+            margin: 0 0 24px 0;
+        }
+
+        .profile-section {
+            margin-bottom: 24px;
+        }
+
+        .profile-label {
+            display: block;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .profile-bio-input {
+            width: 100%;
+            min-height: 80px;
+            max-width: 300px;
+            padding: 14px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .profile-bio-input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .profile-bio-input:focus {
+            border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        /* Badge Grid */
+        .badge-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 52px);
+            gap: 8px;
+            margin-bottom: 16px;
+            width: fit-content;
+        }
+
+        .badge-item {
+            width: 52px;
+            height: 52px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .badge-item:hover:not(.locked) {
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .badge-item.selected {
+            border-color: rgba(76, 175, 80, 0.8);
+            background: rgba(76, 175, 80, 0.15);
+        }
+
+        .badge-item.locked {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .badge-preview {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge-preview-box {
+            width: 80px;
+            height: 80px;
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        /* Color Picker */
+        .color-picker-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .color-picker-input {
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .color-hex {
+            color: rgba(255, 255, 255, 0.6);
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .color-presets {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .color-preset {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .color-preset:hover {
+            transform: scale(1.1);
+            border-color: white;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: rgba(40, 40, 50, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        /* Save Button for Profile */
+        .btn-save-profile {
+            width: 100%;
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 16px;
+        }
+
+        .btn-save-profile:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        @media (max-width: 700px) {
+            .profile-panel-large {
+                flex-direction: column;
+                width: 95vw;
+                height: 90vh;
+            }
+
+            .profile-sidebar {
+                width: 100%;
+                flex-direction: row;
+                padding: 10px;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .profile-tab {
+                flex: 1;
+                text-align: center;
+                padding: 10px;
+                font-size: 12px;
+            }
+
+            .badge-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Profile Popup Badge Display */
+        .profile-popup-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 10px;
+            margin-top: 25px;
+            /* Space for close button */
+        }
+
+        .profile-badges-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        .profile-badges-grid .popup-badge {
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        /* Friend List Specific */
+        .friend-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .friend-tab {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .friend-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .friend-tab.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+            color: white;
+        }
+
+        .friend-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .friend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            transition: background 0.2s;
+        }
+
+        .friend-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .friend-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .friend-info {
+            flex: 1;
+        }
+
+        .friend-name {
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .friend-status {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+        }
+
+        .friend-status.online {
+            color: #4CAF50;
+        }
+
+        .friend-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .friend-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .friend-action-btn.accept {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4CAF50;
+        }
+
+        .friend-action-btn.accept:hover {
+            background: rgba(76, 175, 80, 0.5);
+        }
+
+        .friend-action-btn.decline {
+            background: rgba(255, 100, 100, 0.2);
+            color: #ff6b6b;
+        }
+
+        .friend-action-btn.decline:hover {
+            background: rgba(255, 100, 100, 0.4);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .empty-state-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        /* Level/XP Display */
+        #level-display {
+            position: fixed;
+            bottom: 20px;
+            left: 200px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #level-display .level-badge {
+            background: linear-gradient(135deg, #ffd700, #ff9500);
+            color: #000;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        #level-display .xp-bar {
+            width: 80px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        #level-display .xp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s ease;
+        }
+
+        body.spectator-mode #level-display {
+            display: none !important;
+        }
+
+        /* DM Chat Panel */
+        #dm-chat-panel {
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            width: 320px;
+            height: 350px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            display: none;
+            flex-direction: column;
+            z-index: 600;
+            overflow: hidden;
+        }
+
+        #dm-chat-panel.active {
+            display: flex;
+        }
+
+        .dm-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dm-friend-name {
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .dm-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dm-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dm-message {
+            max-width: 85%;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            word-wrap: break-word;
+        }
+
+        .dm-message.sent {
+            align-self: flex-end;
+            background: #4CAF50;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .dm-message.received {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-bottom-left-radius: 4px;
+        }
+
+        .dm-input-area {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dm-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            color: white;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .dm-send-btn {
+            width: 40px;
+            height: 40px;
+            background: #4CAF50;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        /* Emote Wheel */
+        #emote-wheel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: none;
+            z-index: 900;
+        }
+
+        #emote-wheel.active {
+            display: block;
+        }
+
+        .emote-option {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .emote-option:hover {
+            background: rgba(76, 175, 80, 0.3);
+            transform: scale(1.15);
+        }
+
+        /* XP Gained Toast */
+        .xp-toast {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.9), rgba(139, 195, 74, 0.9));
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            animation: xpToastAnim 2s ease forwards;
+            z-index: 1000;
+        }
+
+        @keyframes xpToastAnim {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            80% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/index-l9O7jg37.js"></script>
+</head>
+
+<body class="spectator-mode">
+    <!-- Login Screen -->
+    <div id="login-modal">
+        <div class="login-card">
+            <div class="login-title">🐸 Frog Battle</div>
+
+            <!-- Auth Tabs -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login">Login</button>
+                <button class="auth-tab" id="tab-register">Register</button>
+            </div>
+
+            <!-- Error/Success Message -->
+            <div id="auth-message" class="auth-message"></div>
+
+            <!-- Account Stats (shown after login) -->
+            <div id="account-stats" class="account-stats" style="display: none;">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-flies">0</div>
+                    <div class="stat-label">Flies</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-kills">0</div>
+                    <div class="stat-label">Kills</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-deaths">0</div>
+                    <div class="stat-label">Deaths</div>
+                </div>
+            </div>
+
+            <!-- Username input -->
+            <input type="text" id="player-name" class="login-input" placeholder="Username" maxlength="20" autofocus>
+
+            <!-- Password input -->
+            <div class="password-container">
+                <input type="password" id="player-password" class="login-input" placeholder="Password" maxlength="50">
+                <button class="password-toggle" id="password-toggle" type="button">👁️</button>
+            </div>
+
+            <!-- Color picker -->
+            <label class="color-picker-label">Pick your color:</label>
+            <input type="color" id="player-color" class="login-input" value="#4CAF50"
+                style="height: 50px; cursor: pointer;">
+
+            <!-- Login/Register Button -->
+            <button id="btn-auth" class="btn-start">LOGIN</button>
+
+            <!-- Divider -->
+            <div class="auth-divider">
+                <span>or</span>
+            </div>
+
+            <!-- Guest Mode Button -->
+            <button id="btn-guest" class="btn-guest">Play as Guest</button>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- Death Screen -->
+    <div id="death-screen">
+        <div class="death-text">YOU DIED</div>
+        <div class="respawn-text">Respawning...</div>
+    </div>
+
+    <!-- Player Table -->
+    <div id="player-table">
+        <div class="table-header">Players</div>
+        <ul class="player-list" id="player-list">
+            <!-- Players will be added here dynamically -->
+        </ul>
+        <div class="tab-hint">Press TAB to hide</div>
+    </div>
+
+    <!-- Settings Button -->
+    <button id="settings-btn" title="Settings (ESC)">⚙️</button>
+
+    <!-- Music Button -->
+    <button id="music-btn" title="Toggle Music (M)">🎵</button>
+
+    <!-- Settings Overlay -->
+    <div id="settings-overlay">
+        <div id="settings-panel">
+            <div class="settings-header">
+                <div class="settings-title">⚙️ Settings</div>
+                <button class="settings-close" id="settings-close">✕</button>
+            </div>
+
+            <div class="settings-section">
+                <button class="settings-btn-action primary" id="btn-respawn">
+                    <span class="settings-btn-icon">🔄</span>
+                    Respawn Character
+                </button>
+            </div>
+
+            <div class="settings-section">
+                <div class="settings-section-title">Music</div>
+                <div class="volume-slider-container">
+                    <span class="volume-icon" id="volume-icon">🔊</span>
+                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="20">
+                    <span class="volume-value" id="volume-value">20%</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="settings-section-title">Controls</div>
+                <div class="settings-controls">
+                    <div class="control-item">
+                        <span class="control-action">Move</span>
+                        <span class="control-key">WASD</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Jump</span>
+                        <span class="control-key">SPACE</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Kick</span>
+                        <span class="control-key">CLICK</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Tongue</span>
+                        <span class="control-key">RMB</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Camera</span>
+                        <span class="control-key">Mouse</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Chat</span>
+                        <span class="control-key">ENTER</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Players</span>
+                        <span class="control-key">TAB</span>
+                    </div>
+                    <div class="control-item">
+                        <span class="control-action">Mount</span>
+                        <span class="control-key">E</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <button class="settings-btn-action" id="btn-logout"
+                    style="background: linear-gradient(135deg, #ff6b6b, #ee5a5a); border: none;">
+                    <span class="settings-btn-icon">🚪</span>
+                    Leave Game
+                </button>
+            </div>
+
+            <div class="settings-hint">Press ESC to close</div>
+        </div>
+    </div>
+
+    <!-- Chat History Panel -->
+    <div id="chat-panel">
+        <div class="chat-history" id="chat-history">
+            <!-- Chat messages will appear here -->
+        </div>
+    </div>
+
+    <input type="text" id="chat-input" placeholder="Press ENTER to chat..." maxlength="50">
+
+    <!-- NEW Unified Profile Modal -->
+    <div id="profile-modal">
+        <div class="profile-card">
+            <!-- Header Background (Dynamic Color) -->
+            <div class="profile-header-bg" id="p-header-bg">
+                <div style="position: absolute; top: 10px; left: 10px; font-size: 10px; opacity: 0.5; color: white;">
+                    V2.0</div>
+                <button class="profile-close-btn" id="p-close-btn">✕</button>
+            </div>
+
+            <!-- Avatar (Centered Overlap) -->
+            <div class="profile-avatar-container" id="p-avatar-container">
+                <!-- Canvas or Image goes here -->
+            </div>
+
+            <div class="profile-body">
+                <h2 class="profile-username" id="p-username">Username</h2>
+                <span class="profile-level-badge" id="p-level">Level 1</span>
+
+                <div class="profile-bio" id="p-bio">
+                    No bio set.
+                </div>
+
+                <div class="profile-badges-row" id="p-badges-row">
+                    <!-- Badges injected by JS -->
+                </div>
+
+                <div class="profile-footer">
+                    <button class="p-btn p-btn-primary" id="p-btn-action">
+                        <span>➕</span> Add Friend
+                    </button>
+                    <button class="p-btn p-btn-secondary" id="p-btn-mute">
+                        <span>🔇</span> Mute
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Left Action Buttons -->
+    <div class="bottom-left-buttons">
+        <button class="bottom-btn" id="profile-editor-btn" title="Edit Profile">👤</button>
+        <button class="bottom-btn" id="friend-list-btn" title="Friends">
+            🤝
+            <span class="notification-dot" id="friend-notification-dot" style="display: none;"></span>
+        </button>
+        <button class="bottom-btn" id="emote-btn" title="Emotes (T)">😀</button>
+    </div>
+
+    <!-- Level/XP Display -->
+    <div id="level-display">
+        <span class="level-badge" id="level-badge">Lv.1</span>
+        <div class="xp-bar">
+            <div class="xp-fill" id="xp-fill" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- DM Chat Panel -->
+    <div id="dm-chat-panel">
+        <div class="dm-header">
+            <span class="dm-friend-name" id="dm-friend-name">Friend</span>
+            <button class="dm-close" id="dm-close">✕</button>
+        </div>
+        <div class="dm-messages" id="dm-messages">
+            <!-- Messages appear here -->
+        </div>
+        <div class="dm-input-area">
+            <input type="text" class="dm-input" id="dm-input" placeholder="Type a message..." maxlength="500">
+            <button class="dm-send-btn" id="dm-send">➤</button>
+        </div>
+    </div>
+
+    <!-- Emote Wheel -->
+    <div id="emote-wheel">
+        <div class="emote-option" style="top: -15px; left: 75px;" data-emote="wave">👋</div>
+        <div class="emote-option" style="top: 25px; right: -15px;" data-emote="laugh">😂</div>
+        <div class="emote-option" style="bottom: 25px; right: -15px;" data-emote="dance">💃</div>
+        <div class="emote-option" style="bottom: -15px; left: 75px;" data-emote="gg">👍</div>
+        <div class="emote-option" style="bottom: 25px; left: -15px;" data-emote="cry">😢</div>
+        <div class="emote-option" style="top: 25px; left: -15px;" data-emote="angry">😤</div>
+    </div>
+
+    <!-- Profile Editor Panel - Revamped -->
+    <div class="panel-overlay" id="profile-editor-overlay">
+        <div class="panel profile-panel-large">
+            <!-- Left Sidebar -->
+            <div class="profile-sidebar">
+                <button class="profile-tab active" data-tab="profile">👤 Profile</button>
+                <button class="profile-tab" data-tab="outfit">👕 Outfit</button>
+                <button class="profile-tab" data-tab="stats">📊 Stats</button>
+            </div>
+
+            <!-- Main Content -->
+            <div class="profile-content">
+                <button class="panel-close profile-close" id="profile-editor-close">✕</button>
+
+                <!-- Profile Tab -->
+                <div class="profile-tab-content active" id="tab-content-profile">
+                    <h2 class="profile-section-title">👤 Edit Profile</h2>
+
+                    <div class="profile-section">
+                        <label class="profile-label">BIO</label>
+                        <textarea class="profile-bio-input" id="profile-bio-input"
+                            placeholder="Write something about yourself..." maxlength="100"></textarea>
+                    </div>
+
+                    <div class="profile-section">
+                        <label class="profile-label">BADGE CUSTOMIZATION</label>
+                        <div class="badge-grid">
+                            <div class="badge-item" data-badge="star" title="Star">⭐</div>
+                            <div class="badge-item" data-badge="trophy" title="Trophy">🏆</div>
+                            <div class="badge-item selected" data-badge="frog" title="Frog">🐸</div>
+                            <div class="badge-item" data-badge="frog2" title="Baby Frog">🐸</div>
+                            <div class="badge-item locked" data-badge="invader" title="Locked">👾</div>
+                            <div class="badge-item" data-badge="crystal" title="Crystal">💎</div>
+                            <div class="badge-item" data-badge="smile" title="Smile">😊</div>
+                            <div class="badge-item" data-badge="verified" title="Verified">✅</div>
+                            <div class="badge-item locked" data-badge="pixel" title="Locked">🎮</div>
+                            <div class="badge-item locked" data-badge="medal" title="Locked">🏅</div>
+                            <div class="badge-item" data-badge="gem" title="Gem">💎</div>
+                            <div class="badge-item locked" data-badge="king" title="Locked">👑</div>
+                            <div class="badge-item" data-badge="star2" title="Gold Star">⭐</div>
+                            <div class="badge-item locked" data-badge="snowflake" title="Locked">❄️</div>
+                            <div class="badge-item locked" data-badge="bag" title="Locked">🎒</div>
+                            <div class="badge-item" data-badge="crown" title="Crown">👑</div>
+                            <div class="badge-item locked" data-badge="rock" title="Locked">🪨</div>
+                            <div class="badge-item" data-badge="tree" title="Tree">🌲</div>
+                            <div class="badge-item locked" data-badge="silver" title="Locked">⚪</div>
+                            <div class="badge-item locked" data-badge="lock" title="Locked">🔒</div>
+                        </div>
+                    </div>
+
+                    <button class="btn-save-profile" id="btn-save-profile">Save Changes</button>
+                </div>
+
+                <!-- Outfit Tab -->
+                <div class="profile-tab-content" id="tab-content-outfit">
+                    <h2 class="profile-section-title">👕 Outfit</h2>
+
+                    <div class="profile-section">
+                        <label class="profile-label">FROG COLOR</label>
+                        <div class="color-picker-row">
+                            <input type="color" id="profile-color-picker" value="#4CAF50" class="color-picker-input">
+                            <span class="color-hex" id="color-hex-display">#4CAF50</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <label class="profile-label">COLOR PRESETS</label>
+                        <div class="color-presets">
+                            <div class="color-preset" style="background: #4CAF50;" data-color="#4CAF50"></div>
+                            <div class="color-preset" style="background: #2196F3;" data-color="#2196F3"></div>
+                            <div class="color-preset" style="background: #9C27B0;" data-color="#9C27B0"></div>
+                            <div class="color-preset" style="background: #FF9800;" data-color="#FF9800"></div>
+                            <div class="color-preset" style="background: #E91E63;" data-color="#E91E63"></div>
+                            <div class="color-preset" style="background: #00BCD4;" data-color="#00BCD4"></div>
+                            <div class="color-preset" style="background: #FFEB3B;" data-color="#FFEB3B"></div>
+                            <div class="color-preset" style="background: #795548;" data-color="#795548"></div>
+                        </div>
+                    </div>
+
+                    <button class="btn-save-profile" id="btn-save-outfit">Save Changes</button>
+                </div>
+
+                <!-- Stats Tab -->
+                <div class="profile-tab-content" id="tab-content-stats">
+                    <h2 class="profile-section-title">📊 Stats</h2>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Level</div>
+                            <div class="stat-value" id="stat-level">1</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total XP</div>
+                            <div class="stat-value" id="stat-xp">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Kills</div>
+                            <div class="stat-value" id="stat-kills">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Deaths</div>
+                            <div class="stat-value" id="stat-deaths">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">K/D Ratio</div>
+                            <div class="stat-value" id="stat-kd">0.00</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Playtime</div>
+                            <div class="stat-value" id="stat-playtime">0h</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Friend List Panel -->
+    <div class="panel-overlay" id="friend-list-overlay">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">🤝 Friends</div>
+                <button class="panel-close" id="friend-list-close">✕</button>
+            </div>
+
+            <div class="friend-tabs">
+                <button class="friend-tab active" id="tab-friends">Friends</button>
+                <button class="friend-tab" id="tab-requests">Requests <span id="request-count"></span></button>
+            </div>
+
+            <!-- Friends Tab Content -->
+            <div id="friends-content" class="friend-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🐸</div>
+                    <div>No friends yet. Click on players to add them!</div>
+                </div>
+            </div>
+
+            <!-- Requests Tab Content -->
+            <div id="requests-content" class="friend-list" style="display: none;">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div>No pending friend requests</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Overlay -->
+    <div id="offline-overlay">
+        <div class="offline-icon">🐸</div>
+        <div class="offline-title">Connection Lost</div>
+        <div class="offline-message">The game server is currently unavailable</div>
+        <div class="offline-status">
+            <div class="offline-spinner"></div>
+            <span>Attempting to reconnect...</span>
+        </div>
+    </div>
+
+</body>
+
+</html>
