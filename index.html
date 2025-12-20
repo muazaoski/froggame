@@ -1117,7 +1117,8 @@
 
         /* Body Layout */
         .profile-body-new {
-            padding: 16px;
+            padding: 16px 16px 8px 16px;
+            /* Reduced bottom padding */
             display: grid;
             grid-template-columns: 120px 1fr;
             gap: 16px;
@@ -1148,9 +1149,8 @@
         .profile-info-column {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            height: 130px;
-            /* Increased to avoid overlapping buttons */
+            gap: 0;
+            min-height: 120px;
         }
 
         .profile-section-label {
@@ -1177,14 +1177,14 @@
             justify-content: space-between;
             /* Spread flush left/right */
             align-items: center;
-            margin-top: auto;
-            /* Push to the very bottom of the info column */
-            padding-bottom: 2px;
+            min-height: 40px;
+            /* Dedicated space */
+            margin-top: 4px;
         }
 
         .profile-badge-new {
-            font-size: 24px;
-            /* Slightly larger to fit better */
+            font-size: 20px;
+            /* Back to 20px for better fit */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1194,7 +1194,8 @@
 
         /* Footer Actions */
         .profile-footer-new {
-            padding: 0 16px 16px 16px;
+            padding: 10px 16px 16px 16px;
+            /* Added 10px top padding for gap */
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
