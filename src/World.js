@@ -1856,9 +1856,13 @@ export class World {
     }
 
     closeProfile() {
-        const popup = document.getElementById('profile-popup');
-        if (popup) popup.style.display = 'none';
-        this.currentProfileFrog = null;
+        const modal = document.getElementById('profile-modal');
+        if (modal) {
+            modal.classList.remove('active');
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
+        this.currentProfileId = null;
+        this.currentProfileData = null;
 
         // Stop preview animation
         if (this.previewFrameId) {
