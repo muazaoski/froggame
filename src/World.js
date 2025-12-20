@@ -1345,6 +1345,10 @@ export class World {
         this.updateTongueDebug();
 
         // Render
+        if (this.localFrog) {
+            this.checkFrogClick(input);
+        }
+
         if (Config.useShader && this.composer) {
             const u = this.customPass.uniforms;
 
@@ -1518,5 +1522,146 @@ export class World {
         this.toastTimeout = setTimeout(() => {
             toast.style.opacity = '0';
         }, 2000);
+    }
+
+    // --- PROFILE SYSTEM ---
+
+    checkFrogClick(input) {
+        if (!input || !input.leftClickPunch) return;
+
+        this.raycaster.setFromCamera(input.mouse, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+
+        for (const hit of intersects) {
+            // Find if hit object belongs to a remote frog
+            let obj = hit.object;
+            while (obj) {
+                // Check if this object is a frog mesh
+                for (const frog of Object.values(this.frogs)) {
+                    if (frog.mesh === obj && !frog.isLocal) {
+                        this.openProfile(frog);
+                        input.leftClickPunch = false; // Consume click
+                        return true;
+                    }
+                }
+                obj = obj.parent;
+            }
+        }
+
+        // Close profile if clicking elsewhere (and not on the popup itself)
+        const profilePopup = document.getElementById('profile-popup');
+        if (profilePopup && profilePopup.style.display === 'block') {
+            const hitPopup = intersects.some(h => {
+                // Since popup is CSS, intersectObjects won't find it easily if it's not a mesh.
+                // But we can check if the mouse is over the DOM element.
+                return false; // Handled by CSS/DOM events usually
+            });
+            // Simple approach: if we clicked scene geometry and it wasn't a frog, close it.
+            // But we need to be careful not to close it when clicking the buttons on the popup.
+        }
+
+        return false;
+    }
+
+    openProfile(frog) {
+        this.currentProfileFrog = frog;
+
+        const popup = document.getElementById('profile-popup');
+        const nameEl = document.getElementById('profile-name');
+        const levelEl = document.getElementById('profile-level');
+        const muteBtn = document.getElementById('btn-mute-player');
+
+        nameEl.textContent = frog.name || `Frog ${frog.id.substr(0, 4)}`;
+        levelEl.textContent = `level ${frog.level || 20}`; // Placeholder for now
+
+        // Update mute button text based on status
+        const isMuted = this.network && this.network.mutedPlayers && this.network.mutedPlayers.has(frog.id);
+        muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+        muteBtn.className = isMuted ? 'profile-btn' : 'profile-btn danger';
+
+        popup.style.display = 'block';
+
+        // Initialize/Update Preview
+        this.showFrogPreview(frog);
+
+        // Add event listeners for buttons
+        muteBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (this.network) {
+                const nowMuted = this.network.toggleMute(frog.id);
+                muteBtn.textContent = nowMuted ? 'Unmute' : 'Mute';
+                muteBtn.className = nowMuted ? 'profile-btn' : 'profile-btn danger';
+            }
+        };
+
+        const addFriendBtn = document.getElementById('btn-add-friend');
+        addFriendBtn.onclick = (e) => {
+            e.stopPropagation();
+            console.log("Add friend placeholder clicked for:", frog.id);
+            this.showToast(`Friend request sent to ${frog.name || 'Frog'}`);
+        };
+
+        // Prevent click through to game
+        popup.onclick = (e) => e.stopPropagation();
+        popup.onmousedown = (e) => e.stopPropagation();
+    }
+
+    closeProfile() {
+        const popup = document.getElementById('profile-popup');
+        if (popup) popup.style.display = 'none';
+        this.currentProfileFrog = null;
+
+        // Stop preview animation
+        if (this.previewFrameId) {
+            cancelAnimationFrame(this.previewFrameId);
+            this.previewFrameId = null;
+        }
+    }
+
+    showFrogPreview(frog) {
+        const container = document.getElementById('profile-preview-container');
+        if (!container) return;
+
+        // Clear existing preview
+        container.innerHTML = '';
+
+        // Setup mini Three.js scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+        camera.position.set(0, 0.5, 2.5);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(120, 120);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // Lights
+        const ambient = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambient);
+        const direct = new THREE.DirectionalLight(0xffffff, 2);
+        direct.position.set(2, 2, 5);
+        scene.add(direct);
+
+        // Clone frog model for preview
+        if (frog.bodyMesh) {
+            const previewModel = frog.bodyMesh.clone();
+            previewModel.position.set(0, -0.3, 0);
+            previewModel.scale.set(1.5, 1.5, 1.5); // Slightly bigger for preview
+            scene.add(previewModel);
+
+            // Animation Loop
+            const animatePreview = () => {
+                if (!this.currentProfileFrog || this.currentProfileFrog.id !== frog.id) {
+                    renderer.dispose();
+                    return;
+                }
+
+                previewModel.rotation.y += 0.02; // 360 spinning
+                renderer.render(scene, camera);
+                this.previewFrameId = requestAnimationFrame(animatePreview);
+            };
+            animatePreview();
+        }
     }
 }

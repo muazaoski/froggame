@@ -65,7 +65,10 @@ export class Network {
         // Player Disconnected
         this.socket.on('playerDisconnected', (id) => {
             this.world.removeFrog(id);
+            if (this.mutedPlayers) this.mutedPlayers.delete(id);
         });
+
+        this.mutedPlayers = new Set();
 
         // Player AFK Status Change
         this.socket.on('playerAFKStatus', ({ id, isAFK }) => {
@@ -138,6 +141,8 @@ export class Network {
 
         // Chat
         this.socket.on('chatMessage', (data) => {
+            if (this.mutedPlayers.has(data.id)) return; // Filter muted players
+
             const frog = this.world.frogs[data.id];
             if (frog) {
                 frog.showChat(data.text);
@@ -327,4 +332,15 @@ export class Network {
         }
     }
 
+    toggleMute(id) {
+        if (this.mutedPlayers.has(id)) {
+            this.mutedPlayers.delete(id);
+            console.log(`Unmuted player: ${id}`);
+            return false;
+        } else {
+            this.mutedPlayers.add(id);
+            console.log(`Muted player: ${id}`);
+            return true;
+        }
+    }
 }
