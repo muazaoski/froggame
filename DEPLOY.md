@@ -1,143 +1,154 @@
 # 🐸 Frog Multiplayer - VPS Deployment Guide
 
-## Prerequisites
-- OVH VPS with Docker pre-installed (Debian 12)
-- Domain pointed to your VPS IP
-- SSH access to the VPS
+## VPS Details
+- **IP:** 51.79.161.63
+- **User:** debian
+- **OS:** Debian 12 + Docker
+- **Domain:** frog.muazaoski.online
+- **App Directory:** /opt/apps/froggame
 
 ---
 
-## Step 1: Connect to Your VPS
+## Quick Connect (Windows)
 
+Double-click `connect_vps.bat` or run:
+```powershell
+ssh debian@51.79.161.63
+```
+
+Once connected, switch to root:
 ```bash
-# From Windows Terminal or PowerShell
-ssh root@YOUR_VPS_IP
+sudo -i
+cd /opt/apps/froggame
 ```
 
 ---
 
-## Step 2: Install Required Tools
+## ⚠️ IMPORTANT: Docker Commands
+
+**Use `docker compose` (with SPACE), NOT `docker-compose` (with hyphen)!**
+
+The VPS uses Docker Compose V2 which uses space:
+- ✅ `docker compose up -d`
+- ❌ `docker-compose up -d` (old, may cause errors)
+
+---
+
+## Quick Deploy (After Code Changes)
 
 ```bash
-# Update system
-apt update && apt upgrade -y
+# SSH into VPS
+ssh debian@51.79.161.63
 
-# Install Git and Docker Compose (Docker is pre-installed)
-apt install -y git docker-compose curl
+# Switch to root and go to app
+sudo -i
+cd /opt/apps/froggame
 
-# Verify Docker is running
-docker --version
-docker-compose --version
+# Pull latest code
+git pull
+
+# Rebuild and restart
+docker compose down
+docker compose up -d --build
+
+# Check status
+docker compose ps
+docker compose logs -f froggame
 ```
 
 ---
 
-## Step 3: Clone Your Game
+## First Time Setup
 
+### Step 1: Connect to VPS
 ```bash
-# Create apps directory
+ssh debian@51.79.161.63
+sudo -i
+```
+
+### Step 2: Install Docker (if not installed)
+```bash
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker
+systemctl start docker
+```
+
+### Step 3: Clone Repository
+```bash
 mkdir -p /opt/apps
 cd /opt/apps
-
-# Option A: Clone from GitHub
-git clone https://github.com/YOUR_USERNAME/frogmultiplayer.git
-cd frogmultiplayer
-
-# Option B: Upload files via SFTP (use FileZilla or WinSCP)
-# Upload to /opt/apps/frogmultiplayer/
+git clone https://github.com/muazaoski/froggame.git
+cd froggame
 ```
 
----
-
-## Step 4: Configure Environment
-
+### Step 4: Configure Environment
 ```bash
 # Create .env file
-cp .env.example .env
-nano .env
-```
-
-Edit the `.env` file:
-```
+cat > .env << 'EOF'
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 TELEGRAM_CHAT_ID=your_chat_id_here
 PORT=3000
 NODE_ENV=production
-```
+EOF
 
----
-
-## Step 5: Configure Domain
-
-```bash
-# Edit Caddyfile - replace YOUR_DOMAIN with your actual domain
+# Edit Caddyfile - set domain
 nano Caddyfile
+# Replace YOUR_DOMAIN with: frog.muazaoski.online
 ```
 
-Replace `YOUR_DOMAIN` with something like `frog.muazaoski.online`
-
----
-
-## Step 6: Build and Deploy
-
+### Step 5: Build and Run
 ```bash
-# Build the Docker image
-docker-compose build
-
-# Start the containers
-docker-compose up -d
-
-# Check if containers are running
-docker-compose ps
-
-# View logs
-docker-compose logs -f
+docker compose up -d --build
+docker compose ps
 ```
-
----
-
-## Step 7: Point Domain to VPS
-
-In your domain DNS (Cloudflare, etc.):
-
-| Type | Name | Value | Proxy |
-|------|------|-------|-------|
-| A | frog | YOUR_VPS_IP | DNS only (gray cloud) |
-
-Wait a few minutes for DNS propagation.
 
 ---
 
 ## Common Commands
 
 ```bash
-# Stop the game
-docker-compose down
+# View running containers
+docker compose ps
+
+# View logs (live)
+docker compose logs -f froggame
+
+# View Caddy (reverse proxy) logs
+docker compose logs -f caddy
+
+# Stop everything
+docker compose down
 
 # Restart
-docker-compose restart
-
-# View logs
-docker-compose logs -f froggame
+docker compose restart
 
 # Rebuild after code changes
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose up -d --build
 
-# Update from Git
-git pull
-docker-compose build
-docker-compose up -d
+# Full rebuild (clear cache)
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ---
 
 ## Troubleshooting
 
-### Can't connect?
+### Error: 'ContainerConfig' / Container Issues
+```bash
+# Nuclear option - remove everything and rebuild
+docker rm -f froggame caddy 2>/dev/null
+docker rmi froggame_froggame 2>/dev/null
+docker system prune -af
+docker compose up -d --build
+```
+
+### Can't connect to game?
 ```bash
 # Check if containers are running
-docker-compose ps
+docker compose ps
 
 # Check firewall
 ufw status
@@ -149,66 +160,59 @@ ufw allow 22
 ### SSL not working?
 ```bash
 # Check Caddy logs
-docker-compose logs caddy
+docker compose logs caddy
 
-# Make sure domain DNS is pointing to VPS IP (not proxied through Cloudflare)
+# Make sure DNS is set to "DNS only" (gray cloud) in Cloudflare
+# Orange cloud (proxied) can break WebSockets
 ```
 
-### Game not loading?
+### Game crashes on startup?
 ```bash
-# Check game logs
-docker-compose logs froggame
+# Check logs for errors
+docker compose logs froggame
 
-# Rebuild
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+# Common fix - rebuild
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ---
 
-## Backup
+## DNS Configuration (Cloudflare)
 
-Database is stored in `./data/` directory. Back it up regularly:
+| Type | Name | Content | Proxy Status |
+|------|------|---------|--------------|
+| A | frog | 51.79.161.63 | **DNS only** (gray cloud) |
 
-```bash
-# Create backup
-cp data/game.db data/game.db.backup
-
-# Or use automated backups from OVH
-```
+**IMPORTANT:** Must be "DNS only", not "Proxied" - WebSockets need direct connection!
 
 ---
 
-## Adding More Apps
+## File Locations
 
-Edit `docker-compose.yml` to add more services:
+| Path | Purpose |
+|------|---------|
+| `/opt/apps/froggame/` | Main app directory |
+| `/opt/apps/froggame/.env` | Environment variables |
+| `/opt/apps/froggame/Caddyfile` | Reverse proxy config |
+| `/opt/apps/froggame/data/` | SQLite database (persistent) |
 
-```yaml
-services:
-  froggame:
-    # ... existing config
-    
-  dashboard:
-    build: ../dashboard
-    ports:
-      - "3001:3001"
-    networks:
-      - web
+---
+
+## Architecture
+
+- **Caddy** - Reverse proxy with automatic HTTPS (port 80, 443)
+- **Froggame** - Node.js game server (port 3000 internal)
+- **SQLite** - Database stored in ./data/
+
+Traffic flow:
 ```
-
-Then add to `Caddyfile`:
-```
-dashboard.muazaoski.online {
-    reverse_proxy dashboard:3001
-}
+User → Caddy (HTTPS) → Froggame (Node.js)
 ```
 
 ---
 
 ## 🎉 Done!
 
-Your game should now be accessible at:
-- `https://YOUR_DOMAIN` (with automatic HTTPS!)
-
-Players can connect and play from anywhere in the world! 🐸
+Game accessible at: **https://frog.muazaoski.online**
