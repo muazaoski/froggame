@@ -1603,7 +1603,27 @@ export class World {
                 e.stopPropagation();
                 const targetFrog = this.profileButtonTarget;
                 this.hideProfileButton();
-                if (targetFrog) {
+                if (targetFrog && this.network && this.network.socket) {
+                    // Pre-fetch fresh data just like the Friend List does (this is the reliable route)
+                    const fetchRoute = (targetFrog.userId && String(targetFrog.userId).length < 15) ? 'getProfile' : 'getProfileBySocket';
+                    const fetchId = (fetchRoute === 'getProfile') ? targetFrog.userId : targetFrog.id;
+
+                    this.network.socket.emit(fetchRoute, fetchId, (freshData) => {
+                        if (freshData) {
+                            // Merge fresh data into the frog object
+                            targetFrog.userId = freshData.id || targetFrog.userId;
+                            targetFrog.bio = freshData.bio || targetFrog.bio || '';
+                            targetFrog.badges = freshData.badges || [];
+                            targetFrog.level = freshData.level || targetFrog.level || 1;
+
+                            // Open profile with the freshly merged data
+                            this.openProfile(targetFrog);
+                        } else {
+                            // Fallback to cached data if fetch fails
+                            this.openProfile(targetFrog);
+                        }
+                    });
+                } else if (targetFrog) {
                     this.openProfile(targetFrog);
                 }
             };
@@ -1667,8 +1687,10 @@ export class World {
             return;
         }
 
-        nameEl.textContent = frog.name || `Frog ${frog.id.substr(0, 4)} `;
-        levelEl.textContent = `level ${frog.level || 1} `;
+        // Set basic info initially
+        const frogIdStr = String(frog.id || '');
+        nameEl.textContent = frog.name || `Frog ${frogIdStr.substring(0, 4)}`;
+        levelEl.textContent = `level ${frog.level || 1}`;
 
         // Show bio if available
         if (bioEl) {

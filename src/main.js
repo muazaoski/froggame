@@ -1202,9 +1202,10 @@ if (btnSaveProfile) {
         const newColor = profileColorPicker.value;
         const newBio = profileBioInput.value.trim();
 
-        // Update local frog color
+        // Update local frog color and bio
         if (world.localFrog) {
             world.localFrog.color = newColor;
+            world.localFrog.bio = newBio;
             world.localFrog.badges = selectedBadges;
         }
 
