@@ -1650,6 +1650,25 @@ export class World {
 
         bioEl.textContent = data.bio || 'No bio set.';
 
+        // --- BADGE RENDERING (No background, just emojis) ---
+        if (badgesEl) {
+            let badgeArray = [];
+            try {
+                badgeArray = Array.isArray(data.badges) ? data.badges : JSON.parse(data.badges || '[]');
+            } catch (e) { badgeArray = []; }
+
+            badgesEl.innerHTML = '';
+            // Only show up to 4 badges
+            const displayBadges = badgeArray.slice(0, 4);
+
+            displayBadges.forEach(emoji => {
+                const badge = document.createElement('div');
+                badge.className = 'profile-badge-new';
+                badge.textContent = emoji;
+                badgesEl.appendChild(badge);
+            });
+        }
+
         // --- AVATAR PREVIEW (3D 360 Spin) ---
         if (avatarContainer) {
             this.showFrogPreviewInModal(data, avatarContainer);

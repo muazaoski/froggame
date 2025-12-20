@@ -1170,6 +1170,21 @@
             min-height: 60px;
         }
 
+        .profile-badges-row-new {
+            display: flex;
+            gap: 8px;
+            margin-top: -4px;
+            /* Move slightly closer to bio box */
+        }
+
+        .profile-badge-new {
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        }
+
         /* Footer Actions */
         .profile-footer-new {
             padding: 0 16px 16px 16px;
@@ -2299,6 +2314,9 @@
                         <div class="profile-bio-box" id="p-bio">
                             No bio set.
                         </div>
+                    </div>
+                    <div class="profile-badges-row-new" id="p-badges-row">
+                        <!-- Badges injected by JS -->
                     </div>
                 </div>
             </div>
