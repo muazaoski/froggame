@@ -147,7 +147,6 @@ export class Network {
         });
 
         // === SERVER-AUTHORITATIVE KNOCKBACK ===
-        // Server sends knockback impulse when player is hit
         this.socket.on('playerKnockback', (data) => {
             const frog = this.world.frogs[data.id];
             if (frog && frog.isLocal && frog.body) {
@@ -155,27 +154,6 @@ export class Network {
                 frog.body.velocity.x += data.velocity.x;
                 frog.body.velocity.y += data.velocity.y;
                 frog.body.velocity.z += data.velocity.z;
-            }
-        });
-
-        // === DAMAGE UPDATES ===
-        this.socket.on('playerDamaged', (data) => {
-            const frog = this.world.frogs[data.targetId];
-            if (frog) {
-                // Calculate new health
-                const newHealth = frog.health - data.damage;
-                frog.health = Math.max(0, newHealth);
-                frog.updateHealthBar();
-
-                // Show damage VFX
-                if (frog.showDamageEffect) {
-                    frog.showDamageEffect(data.damage, data.isCritical);
-                }
-
-                // Check death
-                if (frog.health <= 0 && !frog.isDead) {
-                    frog.die(true);
-                }
             }
         });
 
