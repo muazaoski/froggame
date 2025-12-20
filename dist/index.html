@@ -1148,7 +1148,9 @@
         .profile-info-column {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 0;
+            height: 120px;
+            /* Match avatar box height */
         }
 
         .profile-section-label {
@@ -1172,18 +1174,22 @@
 
         .profile-badges-row-new {
             display: flex;
-            gap: 10px;
-            margin-top: 12px;
-            justify-content: center;
-            /* Center badges horizontally */
+            justify-content: space-between;
+            /* Flush left/right */
+            align-items: center;
+            /* Center vertically in remaining space */
+            flex: 1;
+            /* Grow to fill space below bio */
         }
 
         .profile-badge-new {
-            font-size: 20px;
+            font-size: 24px;
+            /* Slightly larger to fit better */
             display: flex;
             align-items: center;
             justify-content: center;
             filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+            line-height: 1;
         }
 
         /* Footer Actions */
