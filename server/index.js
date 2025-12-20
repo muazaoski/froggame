@@ -10,7 +10,7 @@ require('dotenv').config();
 // Account system modules
 const db = require('./database');
 const auth = require('./auth');
-const { ServerPhysics } = require('./physics');
+const { ServerPhysics, Config } = require('./physics');
 
 const app = express();
 const httpServer = createServer(app);
