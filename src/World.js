@@ -18,8 +18,8 @@ export class World {
 
         // SCENE
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xff6600); // Vibrant Sunset Orange
-        this.scene.fog = new THREE.Fog(0xff6600, 40, 100);
+        this.scene.background = new THREE.Color(0xff8800); // Warmer Sunset Orange
+        this.scene.fog = new THREE.Fog(0xff8800, 40, 120);
 
         // CAMERA
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
@@ -162,8 +162,8 @@ export class World {
                 // Toon / Outline
                 "uToonEnabled": { value: 1.0 },
                 "uOutlineEnabled": { value: 1.0 },
-                "uOutlineIntensity": { value: 0.12 },
-                "uSkyColor": { value: new THREE.Vector3(1.0, 0.4, 0.0) } // Match vibrant orange
+                "uOutlineIntensity": { value: 0.1 },
+                "uSkyColor": { value: new THREE.Vector3(1.0, 0.53, 0.0) }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -316,25 +316,25 @@ export class World {
                         color.rgb += grain * uGrainIntensity;
                     }
                     
-                    // === CEL SHADING (Posterized) ===
-                    bool isSky = distance(color.rgb, uSkyColor) < 0.15;
+                    // === CEL SHADING (Smooth Posterize) ===
+                    bool isSky = distance(color.rgb, uSkyColor) < 0.25;
                     
                     if (uToonEnabled > 0.5 && !isSky) {
-                        float levels = 6.0;
-                        // Posterize channels for a more "inked" look
+                        float levels = 8.0;
                         vec3 originalCol = color.rgb;
-                        color.rgb = floor(color.rgb * levels) / levels;
                         
-                        // Smoothly mix a bit of original back to prevent muddy pits
-                        color.rgb = mix(color.rgb, originalCol, 0.1);
+                        // Use a smoother floor for cleaner ramps
+                        vec3 low = floor(color.rgb * levels) / levels;
+                        vec3 high = ceil(color.rgb * levels) / levels;
+                        vec3 posterized = mix(low, high, fract(color.rgb * levels) * 0.4);
                         
-                        // Increase saturation/vibrance of the shaded areas
-                        color.rgb *= 1.1;
+                        // Mix back heavily for that soft "Ghibli" feel
+                        color.rgb = mix(posterized, originalCol, 0.7);
                     }
 
                     // === SOBEL OUTLINE ===
                     if (uOutlineEnabled > 0.5 && !isSky) {
-                        float thickness = 0.8; // Thinner for sharper look
+                        float thickness = 0.6; // Even thinner edge
                         vec2 offset = thickness / uResolution;
                         
                         float t00 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x, -offset.y)).rgb);
@@ -350,8 +350,8 @@ export class World {
                         float gy = t00 + 2.0 * t10 + t20 - t02 - 2.0 * t12 - t22;
                         float edge = sqrt(gx * gx + gy * gy);
                         
-                        if (edge > 0.18) { // More sensitive but cleaner
-                            color.rgb *= (1.0 - uOutlineIntensity * 4.0);
+                        if (edge > 0.25) { // Protect smooth surfaces
+                            color.rgb *= (1.0 - uOutlineIntensity * 2.5);
                         }
                     }
 

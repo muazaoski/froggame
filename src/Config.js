@@ -25,8 +25,8 @@ export const Config = {
     walkLegHeight: 0.754,
 
     // Environment
-    sunIntensity: 4.5,
-    ambientIntensity: 1.5,
+    sunIntensity: 3.0,
+    ambientIntensity: 1.2,
 
     // Shadows
     shadowEnabled: true,
@@ -36,7 +36,7 @@ export const Config = {
     shadowBlurSamples: 8,
     shadowBias: -0.00032,
     shadowNormalBias: 0,
-    shadowIntensity: 0.45,
+    shadowIntensity: 0.35,
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
     shadowCameraSize: 55.03,
@@ -51,9 +51,9 @@ export const Config = {
     useShader: true,
 
     // Color Grading
-    shaderSaturation: 1.65, // More vibrant
-    shaderBrightness: 0.05,
-    shaderContrast: 1.25,  // Higher contrast
+    shaderSaturation: 1.45, // Balanced vibrance
+    shaderBrightness: 0.02,
+    shaderContrast: 1.15,  // Balanced contrast
     shaderGamma: 1.1,
 
     // Color Tint / Temperature
