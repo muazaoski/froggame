@@ -986,6 +986,7 @@ export class World {
         if (data.name) frog.setName(data.name);
         frog.level = data.level || 1;
         frog.bio = data.bio || '';
+        frog.badges = data.badges || [];
         frog.updatePosition(
             { x: data.x, y: data.y, z: data.z },
             { qx: data.qx, qy: data.qy, qz: data.qz, qw: data.qw }
@@ -1736,6 +1737,7 @@ export class World {
         };
 
         // Update button text based on friend status
+        console.log(`openProfile: isFriend=${frog.isFriend}, setting button to: ${frog.isFriend ? 'Chat' : 'Add Friend'}`);
         addFriendBtn.textContent = frog.isFriend ? 'Chat' : 'Add Friend';
 
         // Close button handler

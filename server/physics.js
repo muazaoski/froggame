@@ -14,7 +14,7 @@ const CANNON = require('cannon-es');
 
 const Config = {
     // Combat
-    maxHealth: 100,
+    maxHealth: 200,
     punchDamageMin: 6,
     punchDamageMax: 10,
     criticalDamageMin: 15,

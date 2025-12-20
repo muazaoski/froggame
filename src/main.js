@@ -1394,33 +1394,39 @@ if (network && network.socket) {
             item.addEventListener('click', () => {
                 // Close friend list
                 if (friendListOverlay) friendListOverlay.classList.remove('active');
-                // Open profile popup for this friend
-                const frogData = {
-                    name: item.dataset.friendName,
-                    color: item.dataset.friendColor,
-                    id: item.dataset.friendId,
-                    isFriend: true
-                };
-                if (world && world.openProfile) {
-                    world.openProfile(frogData);
-                }
+
+                // Request full profile data from server
+                const friendId = item.dataset.friendId;
+                network.socket.emit('getProfile', friendId, (profileData) => {
+                    if (profileData && world && world.openProfile) {
+                        world.openProfile({
+                            id: friendId,
+                            name: profileData.username || item.dataset.friendName,
+                            color: profileData.color || item.dataset.friendColor,
+                            level: profileData.level || 1,
+                            bio: profileData.bio || '',
+                            badges: profileData.badges || [],
+                            isFriend: true
+                        });
+                    }
+                });
             });
         });
     });
 
     network.socket.on('friendRequests', (requests) => {
-        if (!requestsContent) return;
+        // Update notification dot on friend button FIRST (always)
+        const notificationDot = document.getElementById('friend-notification-dot');
+        if (notificationDot) {
+            notificationDot.style.display = requests.length > 0 ? 'block' : 'none';
+        }
 
         // Update request count badge
         if (requestCount) {
             requestCount.textContent = requests.length > 0 ? `(${requests.length})` : '';
         }
 
-        // Update notification dot on friend button
-        const notificationDot = document.getElementById('friend-notification-dot');
-        if (notificationDot) {
-            notificationDot.style.display = requests.length > 0 ? 'block' : 'none';
-        }
+        if (!requestsContent) return;
 
         if (requests.length === 0) {
             requestsContent.innerHTML = `

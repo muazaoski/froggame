@@ -311,13 +311,19 @@ io.on('connection', (socket) => {
         const userId = auth.getUserId(socket.id);
         if (!userId) return;
 
-        db.removeFriend(userId, parseInt(friendId));
+        try {
+            db.removeFriend(userId, parseInt(friendId));
 
-        // Refresh friend list
-        socket.emit('friendList', db.getFriends(userId).map(f => ({
-            ...f,
-            online: auth.isOnline(f.id)
-        })));
+            // Refresh friend list
+            const friends = db.getFriends(userId) || [];
+            socket.emit('friendList', friends.map(f => ({
+                ...f,
+                online: auth.isOnline(f.id)
+            })));
+        } catch (error) {
+            console.error('Error removing friend:', error);
+            socket.emit('friendList', []); // Send empty list on error
+        }
     });
 
     // Get friends list (emit-based for new UI)
@@ -343,6 +349,18 @@ io.on('connection', (socket) => {
             callback({ success: true, friends, pending, sent });
         } else {
             socket.emit('friendList', friends);
+        }
+    });
+
+    // Get user profile by user ID
+    socket.on('getProfile', (userId, callback) => {
+        if (typeof callback !== 'function') return;
+
+        const profile = db.getPublicProfile(parseInt(userId));
+        if (profile) {
+            callback(profile);
+        } else {
+            callback(null);
         }
     });
 
@@ -485,6 +503,7 @@ io.on('connection', (socket) => {
                 level: profile.level || 1,
                 xp: profile.xp || 0,
                 bio: profile.bio || '',
+                badges: profile.badges || [],
                 totalPlaytime: profile.totalPlaytime,
                 userId: userId
             };
@@ -500,6 +519,7 @@ io.on('connection', (socket) => {
                 level: 1,
                 xp: 0,
                 bio: '',
+                badges: [],
                 userId: null
             };
             console.log(`Player ${socket.id} joining as ${playerData.name} (guest)`);
@@ -528,6 +548,7 @@ io.on('connection', (socket) => {
             name: playerData.name,
             level: playerData.level,
             bio: playerData.bio,
+            badges: playerData.badges,
             joinTime: Date.now(),
             flies: playerData.flies,
             userId: playerData.userId
