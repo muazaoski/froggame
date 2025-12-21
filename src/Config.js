@@ -48,8 +48,8 @@ export const Config = {
     shadowCascades: 1,
 
     // Cycles Mode Rendering (PBR)
-    toonEnabled: true, // Returning to Toon look as requested
-    outlineEnabled: true,
+    toonEnabled: false,
+    outlineEnabled: false,
     outlineIntensity: 0.471,
     saonEnabled: true,
 
@@ -101,7 +101,7 @@ export const Config = {
     grainSize: 3.5,
 
     // Sharpen Filter
-    sharpenEnabled: true,
+    sharpenEnabled: false,
     sharpenIntensity: 1, // Full sharpen
 
     // Bloom (glow effect)
