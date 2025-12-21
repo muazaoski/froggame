@@ -30,13 +30,13 @@ export const Config = {
 
     // Shadows
     shadowEnabled: true,
-    shadowMapSize: 4096,
-    shadowType: 'PCF',
-    shadowRadius: 12.256,
-    shadowBlurSamples: 22,
-    shadowBias: -0.00082,
+    shadowMapSize: 1024,
+    shadowType: 'Basic',
+    shadowRadius: 10.512,
+    shadowBlurSamples: 32,
+    shadowBias: -0.0045,
     shadowNormalBias: 0.0213,
-    shadowIntensity: 0.324,
+    shadowIntensity: 0.173,
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
     shadowCameraSize: 55.03,
@@ -46,6 +46,23 @@ export const Config = {
     shadowCameraBottom: -50,
     shadowAutoUpdate: true,
     shadowCascades: 1,
+
+    // Hemisphere Light
+    hemiSkyColor: 0xffeeff,
+    hemiGroundColor: 0x664422,
+    hemiIntensity: 0.72,
+
+    // Rim Light
+    rimColor: 0xffddaa,
+    rimIntensity: 1.5,
+    rimPosX: -20,
+    rimPosY: 15,
+    rimPosZ: -15,
+
+    // Local Frog Aura
+    auraIntensity: 2.0, // Lowered from 5.0 base to prevent floor burn
+    auraDistance: 6.0,
+    auraColor: 0x00f2ff,
 
     // Shader FX - Post Processing
     useShader: true,

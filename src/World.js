@@ -67,17 +67,19 @@ export class World {
         this.scene.add(ambientLight);
 
         // Hemisphere Light for natural sky/ground contrast
-        const hemiLight = new THREE.HemisphereLight(0xffeeff, 0x664422, Config.ambientIntensity * 0.6);
+        const hemiLight = new THREE.HemisphereLight(Config.hemiSkyColor, Config.hemiGroundColor, Config.hemiIntensity);
         this.scene.add(hemiLight);
+        this.hemiLight = hemiLight;
 
         const dirLight = new THREE.DirectionalLight(0xffffff, Config.sunIntensity);
         dirLight.position.set(20, 30, 10);
         this.dirLight = dirLight; // Store reference for config updates
 
         // Rim Light (Opposite side) for better definition
-        const rimLight = new THREE.DirectionalLight(0xffddaa, Config.sunIntensity * 0.5);
-        rimLight.position.set(-20, 15, -15);
+        const rimLight = new THREE.DirectionalLight(Config.rimColor, Config.rimIntensity);
+        rimLight.position.set(Config.rimPosX, Config.rimPosY, Config.rimPosZ);
         this.scene.add(rimLight);
+        this.rimLight = rimLight;
 
         // Shadow settings from Config
         dirLight.castShadow = Config.shadowEnabled;
@@ -1903,7 +1905,7 @@ export class World {
 
         // Create aura light if it doesn't exist
         if (!this.localAura) {
-            this.localAura = new THREE.PointLight(0x00f2ff, 5.0, 4.0);
+            this.localAura = new THREE.PointLight(Config.auraColor, Config.auraIntensity, Config.auraDistance);
             this.scene.add(this.localAura);
         }
 
@@ -1916,9 +1918,14 @@ export class World {
             this.localAura.position.copy(this.localFrog.mesh.position);
             this.localAura.position.y += 0.5;
 
-            // Subtle pulse
+            // Sync with Config values
+            this.localAura.color.set(Config.auraColor);
+            this.localAura.distance = Config.auraDistance;
+
+            // Subtle pulse based on Config base intensity
             const time = performance.now() / 1000;
-            this.localAura.intensity = 5.0 + Math.sin(time * 4.0) * 1.0;
+            const pulse = Math.sin(time * 4.0) * (Config.auraIntensity * 0.2);
+            this.localAura.intensity = Config.auraIntensity + pulse;
         }
     }
 }

@@ -132,6 +132,63 @@ world.scene.traverse(obj => {
     if (obj.isAmbientLight) obj.intensity = Config.ambientIntensity;
 });
 
+// Hemisphere Light Folder
+const hemiFolder = gui.addFolder('Hemisphere Light 🌓');
+hemiFolder.add(Config, 'hemiIntensity', 0, 3).name('Intensity').onChange(v => {
+    if (world.hemiLight) world.hemiLight.intensity = v;
+});
+hemiFolder.addColor(Config, 'hemiSkyColor').name('Sky Color').onChange(v => {
+    if (world.hemiLight) world.hemiLight.color.set(v);
+});
+hemiFolder.addColor(Config, 'hemiGroundColor').name('Ground Color').onChange(v => {
+    if (world.hemiLight) world.hemiLight.groundColor.set(v);
+});
+hemiFolder.close();
+
+// Rim Light Folder
+const rimFolder = gui.addFolder('Rim Light 💡');
+rimFolder.add(Config, 'rimIntensity', 0, 5).name('Intensity').onChange(v => {
+    if (world.rimLight) world.rimLight.intensity = v;
+});
+rimFolder.addColor(Config, 'rimColor').name('Color').onChange(v => {
+    if (world.rimLight) world.rimLight.color.set(v);
+});
+rimFolder.add(Config, 'rimPosX', -100, 100).name('Pos X').onChange(v => {
+    if (world.rimLight) world.rimLight.position.x = v;
+});
+rimFolder.add(Config, 'rimPosY', 0, 100).name('Pos Y').onChange(v => {
+    if (world.rimLight) world.rimLight.position.y = v;
+});
+rimFolder.add(Config, 'rimPosZ', -100, 100).name('Pos Z').onChange(v => {
+    if (world.rimLight) world.rimLight.position.z = v;
+});
+rimFolder.close();
+
+// Player Aura Folder
+const auraFolder = gui.addFolder('Player Aura 🌟');
+auraFolder.add(Config, 'auraIntensity', 0, 10).name('Intensity');
+auraFolder.add(Config, 'auraDistance', 1, 20).name('Distance');
+auraFolder.addColor(Config, 'auraColor').name('Color');
+auraFolder.close();
+
+// Sky & Fog Folder
+const skyFolder = gui.addFolder('Sky & Fog ☁️');
+skyFolder.addColor({ color: '#' + world.scene.background.getHexString() }, 'color').name('Background Color').onChange(v => {
+    world.scene.background.set(v);
+    world.scene.fog.color.set(v);
+    // Update shader uniform to match sky for toon masking
+    if (world.composer) {
+        const pass = world.composer.passes.find(p => p.uniforms && p.uniforms.uSkyColor);
+        if (pass) {
+            const c = new THREE.Color(v);
+            pass.uniforms.uSkyColor.value.set(c.r, c.g, c.b);
+        }
+    }
+});
+skyFolder.add(world.scene.fog, 'near', 0, 100).name('Fog Near');
+skyFolder.add(world.scene.fog, 'far', 50, 500).name('Fog Far');
+skyFolder.close();
+
 // === SHADER FX CONTROLS ===
 const shaderFolder = gui.addFolder('Shader FX');
 shaderFolder.add(Config, 'useShader').name('Enable Post-FX');
