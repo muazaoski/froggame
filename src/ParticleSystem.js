@@ -257,6 +257,45 @@ export class ParticleSystem {
         }
     }
 
+    // Spawn tongue impact (Pink/Wet splat)
+    spawnTongueImpact(position, color) {
+        if (!Config.vfxEnabled) return;
+
+        const count = 12;
+        const baseColor = new THREE.Color(color || Config.tongueColor);
+
+        for (let i = 0; i < count; i++) {
+            const particle = this.getImpactParticle();
+            if (!particle) return;
+
+            particle.position.copy(position);
+            particle.scale.setScalar(0.01);
+
+            const size = 0.2 * this.randRange(0.8, 2.0);
+
+            // Wet pink look
+            particle.material.color.copy(baseColor);
+            particle.visible = true;
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = this.randRange(2, 6);
+
+            this.particles.push({
+                mesh: particle,
+                velocity: new THREE.Vector3(
+                    Math.cos(angle) * speed,
+                    this.randRange(1, 4),
+                    Math.sin(angle) * speed
+                ),
+                angularVelocity: new THREE.Vector3(this.randRange(-10, 10), this.randRange(-10, 10), 0),
+                targetScale: size,
+                life: 0.6,
+                maxLife: 0.6,
+                type: 'impact'
+            });
+        }
+    }
+
     // Spawn Death Disperse (Exploding chunks)
     spawnDeathDisperse(position, color) {
         if (!Config.vfxEnabled) return;

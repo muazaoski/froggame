@@ -1419,16 +1419,18 @@ export class Frog {
     createTongueVisual() {
         if (this.tongueLine) return; // Already created
 
-        // Create tongue line geometry
+        // Create tongue line geometry with MULTIPLE SEGMENTS for sag/wobble
+        const segments = 16;
         const tongueGeometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(6); // 2 points * 3 coords
+        const positions = new Float32Array((segments + 1) * 3);
         tongueGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
         const tongueMaterial = new THREE.LineBasicMaterial({
             color: Config.tongueColor,
-            linewidth: 3
+            linewidth: 4
         });
 
+        this.tongueSegmentCount = segments;
         this.tongueLine = new THREE.Line(tongueGeometry, tongueMaterial);
         this.tongueLine.visible = false;
         this.tongueLine.frustumCulled = false;
@@ -1818,28 +1820,65 @@ export class Frog {
         if (!this.tongueLine || !this.tongueTip) return;
 
         // Calculate current tongue end based on progress
-        const targetPos = this.tongue.state === 'attached'
-            ? this.tongue.lockedPoint
-            : this.tongue.lockedPoint;
-
+        const targetPos = this.tongue.lockedPoint;
         const currentEnd = new THREE.Vector3().lerpVectors(
             this.tongueStartPos,
             targetPos,
             this.tongue.progress
         );
 
-        // Update line geometry
+        const segments = this.tongueSegmentCount || 1;
         const positions = this.tongueLine.geometry.attributes.position.array;
-        positions[0] = this.tongueStartPos.x;
-        positions[1] = this.tongueStartPos.y;
-        positions[2] = this.tongueStartPos.z;
-        positions[3] = currentEnd.x;
-        positions[4] = currentEnd.y;
-        positions[5] = currentEnd.z;
+
+        const time = performance.now() / 1000;
+        const isAttached = this.tongue.state === 'attached';
+
+        // --- High-End Visuals: Dynamic Sag & Wobble ---
+        const dist = this.tongueStartPos.distanceTo(currentEnd);
+
+        // Sag amount increases when attached but close to the point (slack)
+        let sagBase = 0;
+        if (isAttached) {
+            const maxSlackDist = 6.0;
+            sagBase = Math.max(0, (maxSlackDist - dist) * 0.15);
+        }
+
+        // Wobble amount (faster during extension)
+        const isExtending = this.tongue.state === 'extending';
+        const wobbleIntensity = isExtending ? 0.08 : (isAttached ? 0.02 : 0);
+        const wobbleSpeed = isExtending ? 25 : 10;
+        const wobble = Math.sin(time * wobbleSpeed) * wobbleIntensity;
+
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const p = new THREE.Vector3().lerpVectors(this.tongueStartPos, currentEnd, t);
+
+            // Apply Sag (Quadratic parabola)
+            if (sagBase > 0) {
+                const sagFactor = Math.sin(t * Math.PI); // Half-sine for arch
+                p.y -= sagFactor * sagBase;
+            }
+
+            // Apply organic wobble wave
+            if (isExtending || isAttached) {
+                const waveOffset = Math.sin(t * Math.PI * 2 + time * 10) * (wobble * Math.sin(t * Math.PI));
+                p.z += waveOffset;
+                p.x += waveOffset * 0.5;
+            }
+
+            positions[i * 3] = p.x;
+            positions[i * 3 + 1] = p.y;
+            positions[i * 3 + 2] = p.z;
+        }
+
         this.tongueLine.geometry.attributes.position.needsUpdate = true;
 
         // Update tip position
         this.tongueTip.position.copy(currentEnd);
+
+        // Pulse tip scale slightly
+        const tipPulse = 1.0 + Math.sin(time * 15) * 0.1;
+        this.tongueTip.scale.setScalar(tipPulse);
     }
 
     /**
@@ -1859,6 +1898,11 @@ export class Frog {
         // Camera punch/shake
         if (this.world && this.isLocal) {
             this.world.triggerScreenShake(0.5, 0.1);
+
+            // Spawn wet splatter at the hit point
+            if (this.particles && this.tongue.target) {
+                this.particles.spawnTongueImpact(this.tongue.lockedPoint, Config.tongueColor);
+            }
         }
 
         // TODO: Add wet snap sound cue

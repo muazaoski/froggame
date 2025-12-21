@@ -1059,6 +1059,14 @@ export class World {
         for (const hit of intersects) {
             // Skip invisible objects
             if (!hit.object.visible) continue;
+
+            // --- FIX: Back-shooting bug ---
+            // If we hit an object that is currently occluded (faded to 0.2 opacity), SKIP IT.
+            // This prevents shooting the tongue at the back of walls that the camera is "looking through".
+            if (hit.object.userData && hit.object.userData.targetOpacity !== undefined && hit.object.userData.targetOpacity < 1.0) {
+                continue;
+            }
+
             // Skip tongue visuals
             if (hit.object.parent && hit.object.parent.type === 'Line') continue;
             // Skip particles (very small meshes)
