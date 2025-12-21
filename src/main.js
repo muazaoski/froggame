@@ -711,10 +711,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Show account stats after login
     function showAccountStats(user) {
-        document.getElementById('stat-flies').textContent = user.flies || 0;
-        document.getElementById('stat-kills').textContent = user.kills || 0;
-        document.getElementById('stat-deaths').textContent = user.deaths || 0;
-        accountStats.style.display = 'flex';
+        const fliesEl = document.getElementById('stat-flies');
+        const killsEl = document.getElementById('stat-kills');
+        const deathsEl = document.getElementById('stat-deaths');
+
+        if (fliesEl) fliesEl.textContent = user.flies || 0;
+        if (killsEl) killsEl.textContent = user.kills || 0;
+        if (deathsEl) deathsEl.textContent = user.deaths || 0;
+
+        if (accountStats) accountStats.style.display = 'flex';
 
         // Update color picker with saved color
         if (user.color) {
