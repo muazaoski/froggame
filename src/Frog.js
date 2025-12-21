@@ -1691,19 +1691,40 @@ export class Frog {
             .subVectors(grapplePoint, this.mesh.position)
             .normalize();
 
-        const pullForce = Config.tongueGrappleForce;
+        const distToTarget = this.mesh.position.distanceTo(grapplePoint);
+
+        // --- Proximity Based Force Dampening ---
+        // As we get closer than 4 units, we start tapering off the force
+        let forceMultiplier = 1.0;
+        if (distToTarget < 4.0) {
+            forceMultiplier = Math.max(0, (distToTarget - 1.5) / 2.5);
+        }
+
+        const pullForce = Config.tongueGrappleForce * forceMultiplier;
 
         if (this.body) {
+            // Apply pull force
             this.body.velocity.x += pullDirection.x * pullForce * dt * 10;
             this.body.velocity.y += pullDirection.y * pullForce * dt * 10;
             this.body.velocity.z += pullDirection.z * pullForce * dt * 10;
+
+            // Cap max grapple velocity to prevent tunneling (glitching through thin walls)
+            const maxGrappleVel = 30.0;
+            const currentSpeed = this.body.velocity.length();
+            if (currentSpeed > maxGrappleVel) {
+                this.body.velocity.scale(maxGrappleVel / currentSpeed, this.body.velocity);
+            }
         }
 
         // Check if close enough to release
-        const distToTarget = this.mesh.position.distanceTo(grapplePoint);
-        if (distToTarget < 2) {
+        if (distToTarget < 1.8) {
             this.tongue.state = 'retracting';
             this.tongue.startTime = performance.now();
+
+            // Kill velocity towards the wall to prevent "sinking" into it
+            if (this.body) {
+                this.body.velocity.scale(0.5, this.body.velocity);
+            }
         }
     }
 

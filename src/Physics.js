@@ -6,7 +6,7 @@ export class Physics {
         this.world = new CANNON.World();
         this.world.gravity.set(0, Config.gravity, 0);
         this.world.broadphase = new CANNON.NaiveBroadphase();
-        this.world.solver.iterations = 10;
+        this.world.solver.iterations = 30; // Increased for better stability with fast movement
 
         // Materials
         this.groundMaterial = new CANNON.Material('ground');
@@ -40,7 +40,12 @@ export class Physics {
             contact = new CANNON.ContactMaterial(
                 this.groundMaterial,
                 this.frogMaterial,
-                { friction: Config.friction, restitution: Config.restitution }
+                {
+                    friction: Config.friction,
+                    restitution: Config.restitution,
+                    contactEquationStiffness: 1e7, // Harder contact to prevent sinking
+                    contactEquationRelaxation: 3
+                }
             );
             this.world.addContactMaterial(contact);
         } else {
@@ -67,6 +72,7 @@ export class Physics {
         this.world.gravity.set(0, Config.gravity, 0);
         this.updateMaterials();
 
-        this.world.step(1 / 60, dt, 3);
+        // Step with more substeps for high-speed tongue grapples
+        this.world.step(1 / 60, dt, 10);
     }
 }
