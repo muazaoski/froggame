@@ -282,7 +282,9 @@ export class Frog {
 
             // Apply force
             // Air control check? (Optional, but user asked for "more physics stuff")
-            const force = new CANNON.Vec3(moveVec.x * speed, 0, moveVec.z * speed);
+            const isGrappling = this.tongue.state === 'attached';
+            const moveSpeedMult = isGrappling ? 0.3 : 1.0; // Reduce base move force while grappling (swing handles it)
+            const force = new CANNON.Vec3(moveVec.x * speed * moveSpeedMult, 0, moveVec.z * speed * moveSpeedMult);
             this.body.applyForce(force, this.body.position);
 
             // ANIMATION (Simple Hop)
@@ -352,8 +354,8 @@ export class Frog {
         // Update Punch/Kick Animation
         this.updatePunch(dt, input);
 
-        // Update Tongue
-        this.updateTongue(dt);
+        // Update Tongue - pass input for swing mechanics
+        this.updateTongue(dt, input);
 
         // Animate Mouth
         if (this.isTalking && this.mouthMesh && this.mouthBaseScale) {
@@ -1192,9 +1194,9 @@ export class Frog {
      * Uses cone-based candidate gathering and scoring.
      * Returns: { type, id, object, point, distance, angle } or null
      */
-    selectTongueTarget(world) {
+    selectTongueTarget(world, customAimDir = null) {
         const mouthPos = this.getMouthPosition();
-        const forward = this.getForwardDirection();
+        const forward = customAimDir || this.getForwardDirection();
 
         const candidates = [];
         const maxRange = Config.tongueRange;
@@ -1422,7 +1424,9 @@ export class Frog {
         this.world = world;
 
         // === PHASE 1: AIM & LOCK (happens instantly in 1 frame) ===
-        const target = this.selectTongueTarget(world);
+        const mouthPos = this.getMouthPosition();
+        const aimDir = new THREE.Vector3().subVectors(targetWorldPos, mouthPos).normalize();
+        const target = this.selectTongueTarget(world, aimDir);
 
         if (!target) {
             // No valid target - play quick "miss" poke animation
@@ -1476,7 +1480,7 @@ export class Frog {
      * Main tongue update loop
      * Handles PHASE 2 (animation) and PHASE 3 (resolution)
      */
-    updateTongue(dt) {
+    updateTongue(dt, input = null) {
         // Update cooldown when idle
         if (this.tongue.state === 'idle') {
             this.tongue.cooldownTimer = Math.max(0, this.tongue.cooldownTimer - dt);
@@ -1519,7 +1523,7 @@ export class Frog {
         }
         // === ATTACHED STATE (grappling) ===
         else if (this.tongue.state === 'attached') {
-            this.updateGrapplePull(dt);
+            this.updateGrapplePull(dt, input);
         }
 
         // Always update visual
@@ -1683,7 +1687,7 @@ export class Frog {
     /**
      * Update grapple pull physics (when attached to wall/hook)
      */
-    updateGrapplePull(dt) {
+    updateGrapplePull(dt, input) {
         if (!this.tongue.target) return;
 
         const grapplePoint = this.tongue.lockedPoint;
@@ -1708,16 +1712,46 @@ export class Frog {
             this.body.velocity.y += pullDirection.y * pullForce * dt * 10;
             this.body.velocity.z += pullDirection.z * pullForce * dt * 10;
 
-            // Cap max grapple velocity to prevent tunneling (glitching through thin walls)
-            const maxGrappleVel = 30.0;
+            // --- Swing Mechanics ---
+            // Apply sideways force if using keys during grapple
+            if (input && input.keys) {
+                const forward = this.getForwardDirection();
+                const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+
+                const swingForce = Config.tongueSwingForce || 10;
+
+                if (input.keys.left) {
+                    this.body.velocity.x -= right.x * swingForce * dt * 10;
+                    this.body.velocity.z -= right.z * swingForce * dt * 10;
+                }
+                if (input.keys.right) {
+                    this.body.velocity.x += right.x * swingForce * dt * 10;
+                    this.body.velocity.z += right.z * swingForce * dt * 10;
+                }
+                // Air forward/backward
+                if (input.keys.forward) {
+                    this.body.velocity.x += forward.x * swingForce * 0.5 * dt * 10;
+                    this.body.velocity.z += forward.z * swingForce * 0.5 * dt * 10;
+                }
+                if (input.keys.backward) {
+                    this.body.velocity.x -= forward.x * swingForce * 0.5 * dt * 10;
+                    this.body.velocity.z -= forward.z * swingForce * 0.5 * dt * 10;
+                }
+            }
+
+            // Cap max grapple velocity to prevent tunneling
+            const maxGrappleVel = 35.0; // Slightly higher for swinging
             const currentSpeed = this.body.velocity.length();
             if (currentSpeed > maxGrappleVel) {
                 this.body.velocity.scale(maxGrappleVel / currentSpeed, this.body.velocity);
             }
         }
 
-        // Check if close enough to release
-        if (distToTarget < 1.8) {
+        // Release check
+        const isHolding = input ? input.tongueHeld : true;
+
+        // Release only if NOT holding or extremely close
+        if ((!isHolding && distToTarget < 2.5) || distToTarget < 1.0) {
             this.tongue.state = 'retracting';
             this.tongue.startTime = performance.now();
 

@@ -150,6 +150,7 @@ export const Config = {
     tongueAngleWeight: 0.7,         // Scoring weight for angle (lower = better)
     tongueDistanceWeight: 0.3,      // Scoring weight for distance
     tongueGrappleForce: 25,         // Pull force when attached to wall/hook
+    tongueSwingForce: 12,           // Sideways force from WASD during grapple
     tongueGrabForce: 15,            // Pull force applied to grabbed frogs
     tongueCooldown: 0.5,            // Seconds between tongue uses
     tongueColor: '#ff6b9d',         // Pink tongue color

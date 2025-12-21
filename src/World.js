@@ -633,20 +633,23 @@ export class World {
             return;
         }
 
-        // Get frog's forward direction
-        const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.localFrog.mesh.quaternion);
+        // Get frog's position and mouth offset
         const frogPos = this.localFrog.mesh.position;
         const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
         mouthOffset.applyQuaternion(this.localFrog.mesh.quaternion);
         const tongueStart = frogPos.clone().add(mouthOffset);
 
-        // Check if any interactive targets are in the cone (Phase 6 - visual feedback)
-        const potentialTargets = this.getPotentialTongueTargets();
+        // Direction to mouse (for vertical aiming)
+        let targetDir = new THREE.Vector3().subVectors(mouseWorldPos, tongueStart).normalize();
+
+        // Check if any interactive targets are in the cone
+        const potentialTargets = this.getPotentialTongueTargets(targetDir);
         const hasTargets = potentialTargets.length > 0;
 
-        // Calculate direction to mouse
+        // Calculate direction to mouse (horizontal check for body rotation)
         const toMouse = new THREE.Vector3().subVectors(mouseWorldPos, frogPos);
         const horizontalToMouse = new THREE.Vector3(toMouse.x, 0, toMouse.z).normalize();
+        const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.localFrog.mesh.quaternion);
         const horizontalForward = new THREE.Vector3(frogForward.x, 0, frogForward.z).normalize();
 
         // Check if within frontal cone (use spec's 18 degree cone)
@@ -657,9 +660,6 @@ export class World {
             this.tongueCursorIndicator.visible = false;
             return;
         }
-
-        // Direction (clamped to cone if needed)
-        let targetDir = new THREE.Vector3().subVectors(mouseWorldPos, tongueStart).normalize();
 
         // Use physics raycast
         const from = new CANNON.Vec3(tongueStart.x, tongueStart.y, tongueStart.z);
@@ -741,11 +741,11 @@ export class World {
      * Get potential tongue targets currently in the cone
      * Used for visual feedback on the cursor indicator
      */
-    getPotentialTongueTargets() {
+    getPotentialTongueTargets(customAimDir = null) {
         if (!this.localFrog) return [];
 
         const mouthPos = this.localFrog.getMouthPosition();
-        const forward = this.localFrog.getForwardDirection();
+        const forward = customAimDir || this.localFrog.getForwardDirection();
         const maxRange = Config.tongueRange;
         const coneAngleRad = THREE.MathUtils.degToRad(Config.tongueConeAngle);
         const candidates = [];
