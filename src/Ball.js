@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Config } from './Config.js';
 
 export class Ball {
@@ -16,39 +16,39 @@ export class Ball {
         this.mesh = new THREE.Group();
         this.mesh.position.set(position.x, position.y, position.z);
 
-        // Create fallback sphere immediately (visible while OBJ loads)
+        // Create fallback sphere immediately (visible while GLB loads)
         this.createFallbackSphere();
 
-        // Try to load OBJ model
-        const loader = new OBJLoader();
-        loader.load('/models/ball.obj', (obj) => {
+        // Load GLB model
+        const loader = new GLTFLoader();
+        loader.load('/models/ball.glb', (gltf) => {
             // Remove fallback sphere if it exists
             if (this.fallbackSphere) {
                 this.mesh.remove(this.fallbackSphere);
             }
 
-            // Scale the model appropriately - try different scales
-            obj.scale.set(0.5, 0.5, 0.5); // Adjust scale as needed
+            const model = gltf.scene;
+            // Scale and center the model
+            model.scale.set(0.65, 0.65, 0.65);
 
-            // Apply material to all meshes
-            obj.traverse((child) => {
+            // Apply material and shadows
+            model.traverse((child) => {
                 if (child.isMesh) {
-                    child.material = new THREE.MeshStandardMaterial({
-                        color: 0xffffff,
-                        roughness: 0.4,
-                        metalness: 0.1
-                    });
                     child.castShadow = true;
                     child.receiveShadow = true;
+                    // Preserve original materials if possible, but ensure they receive light
+                    if (child.material) {
+                        child.material.roughness = 0.4;
+                        child.material.metalness = 0.1;
+                    }
                 }
             });
 
-            this.mesh.add(obj);
+            this.mesh.add(model);
             this.modelLoaded = true;
-            console.log('Ball model loaded successfully!');
+            console.log('Ball GLB model loaded successfully!');
         }, undefined, (error) => {
-            console.error('Error loading ball model, using fallback sphere:', error);
-            // Keep the fallback sphere
+            console.error('Error loading ball GLB, using fallback sphere:', error);
         });
 
         scene.add(this.mesh);
