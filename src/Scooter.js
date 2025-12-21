@@ -57,7 +57,7 @@ export class Scooter {
         const placeholderGeo = new THREE.BoxGeometry(0.5, 0.1, 1.0);
         const placeholderMat = new THREE.MeshStandardMaterial({ color: this.color });
         const placeholder = new THREE.Mesh(placeholderGeo, placeholderMat);
-        placeholder.position.y = 0.2;
+        placeholder.position.y = 0; // Center in physics body
         this.mesh.add(placeholder);
 
         Scooter.loader.load('/models/scooter.glb', (gltf) => {
@@ -96,6 +96,7 @@ export class Scooter {
                 }
             });
 
+            model.position.y = Config.scooterVisualOffsetY; // Push model down to floor
             this.mesh.add(model);
             console.log('Scooter model loaded!');
         });

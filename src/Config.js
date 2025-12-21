@@ -178,6 +178,8 @@ export const Config = {
     vfxImpactSize: 0.372,
     vfxImpactLife: 0.4915,
     vfxWalkInterval: 0.12,
+    vfxGroundOffset: -0.45,   // Shift from center to floor
+    vfxForwardOffset: 0.3,    // Shift away from the butt
 
     // Combat Settings
     maxHealth: 200,
@@ -205,16 +207,18 @@ export const Config = {
 
     // Scooter Settings
     scooterSpeed: 18,              // Movement speed on scooter
-    scooterTurnSpeed: 3,           // How fast turns
+    scooterTurnSpeed: 3,
     scooterMaxTurn: 0.5,           // Max handle rotation (radians)
     scooterWheelSpeed: 15,         // Wheel rotation speed
+    scooterVisualOffsetY: -0.45,    // NEW: Offset to push model down to floor level
+
     scooterAcceleration: 8,        // How fast it speeds up
     scooterDeceleration: 5,        // How fast it slows down
     scooterSpawnRadius: 2,         // Radius of spawn area trigger
     scooterDismountKey: 'KeyE',    // Key to dismount
 
     // Scooter Rider Position (frog on scooter)
-    scooterRiderY: 0.75,           // Y offset of frog above scooter
+    scooterRiderY: 0.35,           // Y offset of frog above scooter (Adjusted for lower model)
     scooterLegOffsetX: 0.0,        // Left/Right offset of legs
     scooterLegOffsetY: 0.0,        // Up/Down offset of legs
     scooterLegOffsetZ: -0.75,      // Forward/Back offset of legs

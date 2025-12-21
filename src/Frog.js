@@ -297,7 +297,17 @@ export class Frog {
                 if (this.particles) {
                     this.walkDustTimer -= dt;
                     if (this.walkDustTimer <= 0) {
-                        this.particles.spawnWalkDust(this.mesh.position, this.color);
+                        // Calculate "Foot" position (floor level + alternate sides)
+                        const footPos = this.mesh.position.clone();
+                        footPos.y += Config.vfxGroundOffset;
+
+                        const lateralOffset = 0.25;
+                        const side = Math.sin(this.moveAnimTimer * 2) > 0 ? 1 : -1;
+                        const offset = new THREE.Vector3(lateralOffset * side, 0, 0.1); // Slightly forward
+                        offset.applyQuaternion(this.mesh.quaternion);
+                        footPos.add(offset);
+
+                        this.particles.spawnWalkDust(footPos, this.color);
                         this.walkDustTimer = Config.vfxWalkInterval;
                     }
                 }
@@ -317,7 +327,11 @@ export class Frog {
 
             // Jump dust VFX
             if (this.particles) {
-                this.particles.spawnJumpDust(this.mesh.position, 0xccaa88);
+                const jumpPos = this.mesh.position.clone();
+                jumpPos.y += Config.vfxGroundOffset;
+                const forward = this.getForwardDirection();
+                jumpPos.add(forward.multiplyScalar(Config.vfxForwardOffset));
+                this.particles.spawnJumpDust(jumpPos, this.color);
             }
         }
 
@@ -326,7 +340,11 @@ export class Frog {
             // Just landed!
             const impactForce = Math.abs(this.lastVelocityY);
             if (this.particles && impactForce > 3) {
-                this.particles.spawnLandingDust(this.mesh.position, impactForce, 0xccaa88);
+                const landPos = this.mesh.position.clone();
+                landPos.y += Config.vfxGroundOffset;
+                const forward = this.getForwardDirection();
+                landPos.add(forward.multiplyScalar(Config.vfxForwardOffset));
+                this.particles.spawnLandingDust(landPos, impactForce, this.color);
 
                 // Screen shake on heavy impact (if local player)
                 if (this.isLocal && impactForce > 8 && this.world) {

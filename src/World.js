@@ -1640,14 +1640,14 @@ export class World {
             this.physics
         );
 
-        // Random position around center (-10 to 10 on X and Z)
-        const randomX = (Math.random() - 0.5) * 20; // -10 to 10
-        const randomZ = (Math.random() - 0.5) * 20; // -10 to 10
-        const spawnY = 1.5; // Above ground
+        // Use zone position (X and Z) with a small Y lift to let it fall flush
+        const spawnX = zone.position.x + (Math.random() - 0.5) * 4;
+        const spawnZ = zone.position.z + (Math.random() - 0.5) * 4;
+        const spawnY = zone.position.y + 1.0;
 
-        scooter.mesh.position.set(randomX, spawnY, randomZ);
+        scooter.mesh.position.set(spawnX, spawnY, spawnZ);
         if (scooter.body) {
-            scooter.body.position.set(randomX, spawnY, randomZ);
+            scooter.body.position.set(spawnX, spawnY, spawnZ);
         }
 
         // Give scooter access to particles
