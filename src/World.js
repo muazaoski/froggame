@@ -137,10 +137,11 @@ export class World {
         this.saoPass = new SAOPass(this.scene, this.camera);
         this.saoPass.params.output = SAOPass.OUTPUT.Default;
         this.saoPass.params.saoBias = 0.5;
-        this.saoPass.params.saoIntensity = 0.008;
-        this.saoPass.params.saoScale = 10;
-        this.saoPass.params.saoKernelRadius = 30;
+        this.saoPass.params.saoIntensity = 0.015; // Increased for deeper "Cycles" feel
+        this.saoPass.params.saoScale = 12;
+        this.saoPass.params.saoKernelRadius = 40;
         this.saoPass.params.saoMinResolution = 0;
+        this.saoPass.enabled = Config.saonEnabled;
         this.composer.addPass(this.saoPass);
 
         // Comprehensive Post-Processing Shader
@@ -1496,6 +1497,14 @@ export class World {
             u.uBloomIntensity.value = Config.bloomIntensity;
             u.uBloomThreshold.value = Config.bloomThreshold;
             u.uBloomRadius.value = Config.bloomRadius;
+
+            // Toon / Outline
+            u.uToonEnabled.value = Config.toonEnabled ? 1.0 : 0.0;
+            u.uOutlineEnabled.value = Config.outlineEnabled ? 1.0 : 0.0;
+            u.uOutlineIntensity.value = Config.outlineIntensity;
+
+            // SAO Toggle
+            if (this.saoPass) this.saoPass.enabled = Config.saonEnabled;
 
             this.composer.render();
         } else {

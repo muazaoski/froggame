@@ -198,10 +198,13 @@ const cyclesFolder = shaderFolder.addFolder('Cycles Mode (SAO) 💎');
 cyclesFolder.add(Config, 'saonEnabled').name('Enable SAO').onChange(v => {
     if (world.saoPass) world.saoPass.enabled = v;
 });
-cyclesFolder.add(world.saoPass.params, 'saoIntensity', 0, 0.1).name('AO Strength');
-cyclesFolder.add(world.saoPass.params, 'saoBias', -1, 1).name('AO Bias');
-cyclesFolder.add(world.saoPass.params, 'saoRadius', 1, 100).name('AO Radius');
-cyclesFolder.add(world.saoPass.params, 'saoScale', 1, 50).name('AO Scale');
+
+if (world.saoPass && world.saoPass.params) {
+    cyclesFolder.add(world.saoPass.params, 'saoIntensity', 0, 0.1).name('AO Strength');
+    cyclesFolder.add(world.saoPass.params, 'saoBias', -1, 1).name('AO Bias');
+    cyclesFolder.add(world.saoPass.params, 'saoKernelRadius', 1, 100).name('AO Radius');
+    cyclesFolder.add(world.saoPass.params, 'saoScale', 1, 50).name('AO Scale');
+}
 cyclesFolder.close();
 
 // Toon/Cel-Shade Toggles
