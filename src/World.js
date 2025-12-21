@@ -688,26 +688,47 @@ export class World {
                 // Show indicator at hit point
                 this.tongueCursorIndicator.position.copy(hitPoint);
 
-                // Orient the ring to face the surface normal
-                const normal = new THREE.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
-                this.tongueCursorIndicator.quaternion.setFromUnitVectors(
-                    new THREE.Vector3(0, 0, 1),
-                    normal
-                );
-
-                // Offset slightly from surface to prevent z-fighting
-                this.tongueCursorIndicator.position.add(normal.multiplyScalar(0.05));
+                // --- Modern Snap Logic ---
+                // If a target is close to this wall hit, snap the reticle to the target!
+                if (hasTargets) {
+                    const bestTarget = potentialTargets[0];
+                    const assistRadius = Config.tongueAssistRadius || 2.0;
+                    if (bestTarget.point.distanceTo(hitPoint) < assistRadius) {
+                        this.tongueCursorIndicator.position.copy(bestTarget.point);
+                        this.tongueCursorIndicator.quaternion.set(0, 0, 0, 1); // Face camera for floating targets
+                    } else {
+                        // Orient to wall
+                        const normal = new THREE.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
+                        this.tongueCursorIndicator.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+                        this.tongueCursorIndicator.position.add(normal.multiplyScalar(0.05));
+                    }
+                } else {
+                    // Normal wall orientation
+                    const normal = new THREE.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
+                    this.tongueCursorIndicator.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+                    this.tongueCursorIndicator.position.add(normal.multiplyScalar(0.05));
+                }
 
                 this.tongueCursorIndicator.visible = true;
 
                 // === PHASE 6: TARGET FEEDBACK ===
                 // Change color/size when targets are available in cone
                 if (hasTargets) {
-                    // Target available - green tint, larger
-                    this.tongueCursorIndicator.material.color.setHex(0x00ff88);
-                    const time = performance.now() / 1000;
-                    const scale = 1.3 + Math.sin(time * 8) * 0.15;
-                    this.tongueCursorIndicator.scale.set(scale, scale, 1);
+                    const bestTarget = potentialTargets[0];
+                    const distToCenter = bestTarget.point.distanceTo(hitPoint);
+                    const isLocked = distToCenter < (Config.tongueAssistRadius || 2.0);
+
+                    if (isLocked) {
+                        // Target available - green tint, larger
+                        this.tongueCursorIndicator.material.color.setHex(0x00ffcc);
+                        const time = performance.now() / 1000;
+                        const scale = 1.4 + Math.sin(time * 10) * 0.1;
+                        this.tongueCursorIndicator.scale.set(scale, scale, 1);
+                    } else {
+                        // Target nearby but not locked
+                        this.tongueCursorIndicator.material.color.set(Config.tongueColor);
+                        this.tongueCursorIndicator.scale.set(1.1, 1.1, 1);
+                    }
                 } else {
                     // No targets - normal pink, standard pulse
                     this.tongueCursorIndicator.material.color.set(Config.tongueColor);

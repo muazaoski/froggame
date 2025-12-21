@@ -1315,21 +1315,31 @@ export class Frog {
         }
 
         // === SCORING & SELECTION ===
-        if (candidates.length === 0) {
-            // No interactive targets - try to find a wall to grapple
-            return this.getWallTarget(world, mouthPos, forward);
+        // We always check for a wall target simultaneously to allow for 'Assist' logic
+        const wallTarget = this.getWallTarget(world, mouthPos, forward);
+
+        // If we have a wall hit, check if any interactive targets are close to that hit point (Snap Assist)
+        if (wallTarget && candidates.length > 0) {
+            const assistRadius = Config.tongueAssistRadius || 2.0;
+            const bestAssist = candidates.find(c => c.point.distanceTo(wallTarget.point) < assistRadius);
+            if (bestAssist) {
+                console.log('Tongue Assist: Snapping to target near wall hit');
+                return bestAssist;
+            }
         }
 
-        // Score candidates: lower = better (angle matters more than distance)
+        if (candidates.length === 0) {
+            return wallTarget;
+        }
+
+        // Score candidates: lower = better
         const scoredCandidates = candidates.map(c => ({
             ...c,
             score: (Config.tongueAngleWeight * (c.angle / coneAngleRad)) +
                 (Config.tongueDistanceWeight * (c.distance / maxRange))
         }));
 
-        // Sort by score (lowest first = best target)
         scoredCandidates.sort((a, b) => a.score - b.score);
-
         return scoredCandidates[0];
     }
 
@@ -1340,42 +1350,67 @@ export class Frog {
     getWallTarget(world, mouthPos, forward) {
         if (!world || !world.physics) return null;
 
-        // Raycast forward from mouth
-        const from = new CANNON.Vec3(mouthPos.x, mouthPos.y, mouthPos.z);
-        const to = new CANNON.Vec3(
-            mouthPos.x + forward.x * Config.tongueRange,
-            mouthPos.y + forward.y * Config.tongueRange,
-            mouthPos.z + forward.z * Config.tongueRange
-        );
+        // Modern Bundle Casting: Fire 5 rays in a tight cross pattern
+        // This makes hitting edges, poles, and thin surfaces much easier.
+        const rayRange = Config.tongueRange;
+        const bundleOffsets = [
+            new THREE.Vector3(0, 0, 0),        // Center
+            new THREE.Vector3(0.1, 0, 0),     // Right
+            new THREE.Vector3(-0.1, 0, 0),    // Left
+            new THREE.Vector3(0, 0.1, 0),     // Top
+            new THREE.Vector3(0, -0.1, 0)     // Bottom
+        ];
 
-        const result = new CANNON.RaycastResult();
-        const ray = new CANNON.Ray(from, to);
-        ray.intersectWorld(world.physics.world, { result });
+        // Create a basis for the offsets (perpendicular to forward)
+        const up = new THREE.Vector3(0, 1, 0);
+        const rightAxis = new THREE.Vector3().crossVectors(forward, up).normalize();
+        const upAxis = new THREE.Vector3().crossVectors(rightAxis, forward).normalize();
 
-        if (result.hasHit) {
-            const hitPoint = new THREE.Vector3(
-                result.hitPointWorld.x,
-                result.hitPointWorld.y,
-                result.hitPointWorld.z
+        let bestHit = null;
+
+        for (const offset of bundleOffsets) {
+            const startPoint = mouthPos.clone()
+                .add(rightAxis.clone().multiplyScalar(offset.x))
+                .add(upAxis.clone().multiplyScalar(offset.y));
+
+            const from = new CANNON.Vec3(startPoint.x, startPoint.y, startPoint.z);
+            const to = new CANNON.Vec3(
+                startPoint.x + forward.x * rayRange,
+                startPoint.y + forward.y * rayRange,
+                startPoint.z + forward.z * rayRange
             );
 
-            // Check if ground (skip - can't grapple to ground)
-            const hitNormal = result.hitNormalWorld;
-            const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+            const result = new CANNON.RaycastResult();
+            const ray = new CANNON.Ray(from, to);
+            ray.intersectWorld(world.physics.world, { result });
 
-            if (!isGround) {
-                return {
-                    type: 'wall',
-                    id: null,
-                    object: null,
-                    point: hitPoint,
-                    distance: mouthPos.distanceTo(hitPoint),
-                    angle: 0
-                };
+            if (result.hasHit) {
+                const hitPoint = new THREE.Vector3(
+                    result.hitPointWorld.x,
+                    result.hitPointWorld.y,
+                    result.hitPointWorld.z
+                );
+
+                const hitNormal = result.hitNormalWorld;
+                const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+
+                if (!isGround) {
+                    const dist = mouthPos.distanceTo(hitPoint);
+                    if (!bestHit || dist < bestHit.distance) {
+                        bestHit = {
+                            type: 'wall',
+                            id: null,
+                            object: null,
+                            point: hitPoint,
+                            distance: dist,
+                            angle: 0
+                        };
+                    }
+                }
             }
         }
 
-        return null; // No valid target
+        return bestHit;
     }
 
     /**

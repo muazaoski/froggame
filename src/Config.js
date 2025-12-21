@@ -142,13 +142,14 @@ export const Config = {
     jiggleWalkSpeed: 10,
 
     // Tongue Mechanics (Reworked - ref1.md spec)
-    tongueRange: 12.0,              // Max tongue reach
-    tongueExtendDuration: 0.15,     // 150ms extension animation
-    tongueRetractDuration: 0.10,    // 100ms retraction animation
-    tongueConeAngle: 18,            // Degrees from forward (forgiving cone)
-    tongueMagnetRadius: 0.5,        // Snap radius for aim forgiveness
-    tongueAngleWeight: 0.7,         // Scoring weight for angle (lower = better)
-    tongueDistanceWeight: 0.3,      // Scoring weight for distance
+    tongueRange: 16.0,              // Increased for more "Spider-Frog" feel
+    tongueExtendDuration: 0.12,     // Snappier extension
+    tongueRetractDuration: 0.08,    // Faster retraction
+    tongueConeAngle: 12,            // Tighter cone = more intent required
+    tongueAssistRadius: 2.0,        // NEW: Radius to look for targets around the cursor impact point
+    tongueMagnetRadius: 0.8,        // Sticky snap for interactive objects
+    tongueAngleWeight: 0.85,        // Heavily prioritize what's in the center of the crosshair
+    tongueDistanceWeight: 0.15,     // Distance matters much less than precision aim
     tongueGrappleForce: 25,         // Pull force when attached to wall/hook
     tongueSwingForce: 12,           // Sideways force from WASD during grapple
     tongueGrabForce: 15,            // Pull force applied to grabbed frogs
