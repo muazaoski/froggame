@@ -231,30 +231,34 @@ export class Scooter {
         this.rider.mesh.position.copy(this.mesh.position);
         this.rider.mesh.position.y += Config.scooterRiderY;
 
-        // Match scooter rotation
+        // Match scooter rotation AND banking
         this.rider.mesh.rotation.y = this.facingAngle;
-
-        // Steering rotation for legs (to look like holding the handle)
-        const steerRotation = this.steerAmount * 0.3; // Adjust multiplier for intensity
+        this.rider.mesh.rotation.z = this.mesh.rotation.z;
 
         // Apply leg position offsets while riding
         if (this.rider.leftLeg) {
             this.rider.leftLeg.position.x = this.rider._originalLeftLegX + Config.scooterLegOffsetX;
             this.rider.leftLeg.position.y = this.rider._originalLeftLegY + Config.scooterLegOffsetY;
             this.rider.leftLeg.position.z = this.rider._originalLeftLegZ + Config.scooterLegOffsetZ;
-            // Apply leg rotation + steering rotation
+
+            // Dynamic leg adjustment during turns
+            const leftSteerFactor = this.steerAmount > 0 ? 0.2 : 0.05;
+
             this.rider.leftLeg.rotation.x = Config.scooterLegRotationX;
-            this.rider.leftLeg.rotation.y = Config.scooterLegRotationY + steerRotation;
-            this.rider.leftLeg.rotation.z = Config.scooterLegRotationZ;
+            this.rider.leftLeg.rotation.y = Config.scooterLegRotationY + (this.steerAmount * 0.4);
+            this.rider.leftLeg.rotation.z = Config.scooterLegRotationZ + (this.steerAmount * leftSteerFactor);
         }
         if (this.rider.rightLeg) {
             this.rider.rightLeg.position.x = this.rider._originalRightLegX - Config.scooterLegOffsetX;
             this.rider.rightLeg.position.y = this.rider._originalRightLegY + Config.scooterLegOffsetY;
             this.rider.rightLeg.position.z = this.rider._originalRightLegZ + Config.scooterLegOffsetZ;
-            // Apply leg rotation + steering rotation (same direction for both legs)
+
+            // Dynamic leg adjustment during turns
+            const rightSteerFactor = this.steerAmount < 0 ? -0.2 : -0.05;
+
             this.rider.rightLeg.rotation.x = Config.scooterLegRotationX;
-            this.rider.rightLeg.rotation.y = -Config.scooterLegRotationY + steerRotation;
-            this.rider.rightLeg.rotation.z = -Config.scooterLegRotationZ;
+            this.rider.rightLeg.rotation.y = -Config.scooterLegRotationY + (this.steerAmount * 0.4);
+            this.rider.rightLeg.rotation.z = -Config.scooterLegRotationZ + (this.steerAmount * rightSteerFactor);
         }
 
         // Also sync frog's physics body position (so camera follows correctly)
@@ -332,7 +336,13 @@ export class Scooter {
 
         // Sync mesh to physics
         this.mesh.position.copy(this.body.position);
+
+        // Face movement direction
         this.mesh.rotation.y = this.facingAngle;
+
+        // Banking (Lean into turns)
+        const targetBanking = -this.steerAmount * Config.scooterBanking * (Math.abs(this.velocity) / Config.scooterSpeed);
+        this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, targetBanking, dt * 8);
 
         // Rotate handle with steering
         if (this.handle) {

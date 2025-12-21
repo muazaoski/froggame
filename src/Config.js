@@ -218,11 +218,12 @@ export const Config = {
     scooterDismountKey: 'KeyE',    // Key to dismount
 
     // Scooter Rider Position (frog on scooter)
-    scooterRiderY: 0.35,           // Y offset of frog above scooter (Adjusted for lower model)
-    scooterLegOffsetX: 0.0,        // Left/Right offset of legs
-    scooterLegOffsetY: 0.0,        // Up/Down offset of legs
-    scooterLegOffsetZ: -0.75,      // Forward/Back offset of legs
-    scooterLegRotationX: 1.15840734641021,   // Leg rotation on X axis (radians)
-    scooterLegRotationY: 0.0584073464102071, // Leg rotation on Y axis (radians)
-    scooterLegRotationZ: 0.0584073464102071, // Leg rotation on Z axis (radians)
+    scooterRiderY: 0.55,           // User requested 0.55
+    scooterLegOffsetX: 0.1,        // Slightly wider
+    scooterLegOffsetY: -0.35,      // Much lower to touch deck
+    scooterLegOffsetZ: -0.9,       // Adjust forward/back
+    scooterLegRotationX: 0.6,      // Pivot legs more naturally
+    scooterLegRotationY: 0.2,      // Angle legs outwards
+    scooterLegRotationZ: 0.05,     // Slight tilt
+    scooterBanking: 0.15,          // Intensity of leaning when turning
 };
