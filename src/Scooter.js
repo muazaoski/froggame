@@ -185,21 +185,20 @@ export class Scooter {
         if (frog.rightLeg) frog.rightLeg.visible = true;
 
         // Reset leg positions and rotations to original
-        if (frog.leftLeg && frog._originalLeftLegX !== undefined) {
-            frog.leftLeg.position.x = frog._originalLeftLegX;
-            frog.leftLeg.position.y = frog._originalLeftLegY;
-            frog.leftLeg.position.z = frog._originalLeftLegZ;
-            frog.leftLeg.rotation.x = 0;
-            frog.leftLeg.rotation.y = 0;
-            frog.leftLeg.rotation.z = 0;
+        if (frog.leftLeg && frog.leftLegBasePos) {
+            frog.leftLeg.position.copy(frog.leftLegBasePos);
+            frog.leftLeg.rotation.set(0, 0, 0);
         }
-        if (frog.rightLeg && frog._originalRightLegX !== undefined) {
-            frog.rightLeg.position.x = frog._originalRightLegX;
-            frog.rightLeg.position.y = frog._originalRightLegY;
-            frog.rightLeg.position.z = frog._originalRightLegZ;
-            frog.rightLeg.rotation.x = 0;
-            frog.rightLeg.rotation.y = 0;
-            frog.rightLeg.rotation.z = 0;
+        if (frog.rightLeg && frog.rightLegBasePos) {
+            frog.rightLeg.position.copy(frog.rightLegBasePos);
+            frog.rightLeg.rotation.set(0, 0, 0);
+        }
+        // Reset ass meshes
+        if (frog.assLeft && frog.assLeftBasePos) {
+            frog.assLeft.position.copy(frog.assLeftBasePos);
+        }
+        if (frog.assRight && frog.assRightBasePos) {
+            frog.assRight.position.copy(frog.assRightBasePos);
         }
 
         // Position frog beside scooter
@@ -236,29 +235,33 @@ export class Scooter {
         this.rider.mesh.rotation.z = this.mesh.rotation.z;
 
         // Apply leg position offsets while riding
-        if (this.rider.leftLeg) {
-            this.rider.leftLeg.position.x = this.rider._originalLeftLegX + Config.scooterLegOffsetX;
-            this.rider.leftLeg.position.y = this.rider._originalLeftLegY + Config.scooterLegOffsetY;
-            this.rider.leftLeg.position.z = this.rider._originalLeftLegZ + Config.scooterLegOffsetZ;
-
-            // Dynamic leg adjustment during turns
-            const leftSteerFactor = this.steerAmount > 0 ? 0.2 : 0.05;
+        if (this.rider.leftLeg && this.rider.leftLegBasePos) {
+            this.rider.leftLeg.position.x = this.rider.leftLegBasePos.x + Config.scooterLegOffsetX;
+            this.rider.leftLeg.position.y = this.rider.leftLegBasePos.y + Config.scooterLegOffsetY;
+            this.rider.leftLeg.position.z = this.rider.leftLegBasePos.z + Config.scooterLegOffsetZ;
 
             this.rider.leftLeg.rotation.x = Config.scooterLegRotationX;
             this.rider.leftLeg.rotation.y = Config.scooterLegRotationY + (this.steerAmount * 0.4);
-            this.rider.leftLeg.rotation.z = Config.scooterLegRotationZ + (this.steerAmount * leftSteerFactor);
+            this.rider.leftLeg.rotation.z = Config.scooterLegRotationZ + (this.steerAmount * 0.1);
         }
-        if (this.rider.rightLeg) {
-            this.rider.rightLeg.position.x = this.rider._originalRightLegX - Config.scooterLegOffsetX;
-            this.rider.rightLeg.position.y = this.rider._originalRightLegY + Config.scooterLegOffsetY;
-            this.rider.rightLeg.position.z = this.rider._originalRightLegZ + Config.scooterLegOffsetZ;
-
-            // Dynamic leg adjustment during turns
-            const rightSteerFactor = this.steerAmount < 0 ? -0.2 : -0.05;
+        if (this.rider.rightLeg && this.rider.rightLegBasePos) {
+            this.rider.rightLeg.position.x = this.rider.rightLegBasePos.x - Config.scooterLegOffsetX;
+            this.rider.rightLeg.position.y = this.rider.rightLegBasePos.y + Config.scooterLegOffsetY;
+            this.rider.rightLeg.position.z = this.rider.rightLegBasePos.z + Config.scooterLegOffsetZ;
 
             this.rider.rightLeg.rotation.x = Config.scooterLegRotationX;
             this.rider.rightLeg.rotation.y = -Config.scooterLegRotationY + (this.steerAmount * 0.4);
-            this.rider.rightLeg.rotation.z = -Config.scooterLegRotationZ + (this.steerAmount * rightSteerFactor);
+            this.rider.rightLeg.rotation.z = -Config.scooterLegRotationZ - (this.steerAmount * 0.1);
+        }
+
+        // Apply ass/butt offsets (pull them in/down to look like sitting)
+        if (this.rider.assLeft && this.rider.assLeftBasePos) {
+            this.rider.assLeft.position.y = this.rider.assLeftBasePos.y + Config.scooterAssOffsetY;
+            this.rider.assLeft.position.z = this.rider.assLeftBasePos.z + Config.scooterAssOffsetZ;
+        }
+        if (this.rider.assRight && this.rider.assRightBasePos) {
+            this.rider.assRight.position.y = this.rider.assRightBasePos.y + Config.scooterAssOffsetY;
+            this.rider.assRight.position.z = this.rider.assRightBasePos.z + Config.scooterAssOffsetZ;
         }
 
         // Also sync frog's physics body position (so camera follows correctly)

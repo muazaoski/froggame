@@ -218,12 +218,14 @@ export const Config = {
     scooterDismountKey: 'KeyE',    // Key to dismount
 
     // Scooter Rider Position (frog on scooter)
-    scooterRiderY: 0.55,           // User requested 0.55
-    scooterLegOffsetX: 0.1,        // Slightly wider
-    scooterLegOffsetY: -0.35,      // Much lower to touch deck
-    scooterLegOffsetZ: -0.9,       // Adjust forward/back
-    scooterLegRotationX: 0.6,      // Pivot legs more naturally
-    scooterLegRotationY: 0.2,      // Angle legs outwards
-    scooterLegRotationZ: 0.05,     // Slight tilt
-    scooterBanking: 0.15,          // Intensity of leaning when turning
+    scooterRiderY: -0.15,          // Lowered to sit on the board
+    scooterLegOffsetX: 0.2,        // Wider legs
+    scooterLegOffsetY: 0.15,       // Pull legs up (sitting)
+    scooterLegOffsetZ: -0.6,       // Tuck legs back a bit
+    scooterLegRotationX: 1.8,      // Sit rotation
+    scooterLegRotationY: 0.4,      // Spread legs
+    scooterLegRotationZ: 0.2,      // Tilt
+    scooterAssOffsetY: 0.1,        // Offset for butt meshes
+    scooterAssOffsetZ: -0.2,       // Pull butt back
+    scooterBanking: 0.25,          // More lean!
 };
