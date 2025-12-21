@@ -28,6 +28,7 @@ window.addEventListener('toggle-tongue-debug', () => {
 
 // GUI Setup
 const gui = new GUI({ title: '🐸 Dev Config' });
+// Config starts hidden, toggle with Alt+V
 gui.hide();
 
 // Helper function to add tooltip and double-click reset to controllers
@@ -466,19 +467,19 @@ const exportObj = {
 gui.add(exportObj, 'exportSettings').name('💾 Log Changed Settings');
 gui.add(exportObj, 'exportAll').name('📋 Log All Settings');
 
-// Dev Config Toggle - Alt + V (DISABLED FOR PRODUCTION)
-// let guiVisible = false;
-// window.addEventListener('keydown', (e) => {
-//     if (e.altKey && (e.key === 'v' || e.key === 'V')) {
-//         e.preventDefault();
-//         guiVisible = !guiVisible;
-//         if (guiVisible) {
-//             gui.show();
-//         } else {
-//             gui.hide();
-//         }
-//     }
-// });
+// Dev Config Toggle - Alt + V
+let guiVisible = false;
+window.addEventListener('keydown', (e) => {
+    if (e.altKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        guiVisible = !guiVisible;
+        if (guiVisible) {
+            gui.show();
+        } else {
+            gui.hide();
+        }
+    }
+});
 
 // Game Loop
 let lastTime = 0;
