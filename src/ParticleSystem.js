@@ -45,8 +45,8 @@ export class ParticleSystem {
             this.dustPool.push(mesh);
         }
 
-        // Create impact particle pool (Sparks)
-        for (let i = 0; i < 30; i++) {
+        // Create impact particle pool (Sparks / Splats) - Increased for walking effects
+        for (let i = 0; i < 150; i++) {
             const mesh = new THREE.Mesh(this.impactGeometry, this.impactMaterial.clone());
             mesh.visible = false;
             this.scene.add(mesh);
@@ -67,120 +67,106 @@ export class ParticleSystem {
         return min + Math.random() * (max - min);
     }
 
-    // Spawn walking dust (kick up dirt behind)
+    // Spawn walking dust (Now using the high-quality "splat" style)
     spawnWalkDust(position, color) {
         if (!Config.vfxEnabled) return;
 
-        const count = Math.ceil(Config.vfxDustCount * 0.5);
+        const count = 3;
+        const baseColor = new THREE.Color(color || 0xccaa88);
+
         for (let i = 0; i < count; i++) {
-            const particle = this.getDustParticle();
+            const particle = this.getImpactParticle();
             if (!particle) return;
 
-            // Randomize position slightly around feet
-            const offset = 0.3;
+            // Offset slightly behind feet
+            const offset = 0.2;
             particle.position.set(
                 position.x + this.randRange(-offset, offset),
-                position.y + this.randRange(0, 0.2),
+                position.y + 0.1,
                 position.z + this.randRange(-offset, offset)
             );
 
-            // Random rotation
-            particle.rotation.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI
-            );
+            particle.scale.setScalar(0.01);
+            const size = 0.15 * this.randRange(0.5, 1.2);
 
-            // Scale variation
-            const size = Config.vfxDustSize * this.randRange(0.8, 1.5);
-            particle.scale.setScalar(0.01); // Start tiny for pop-in
+            // Use frog color but slightly brighter/glowier
+            const pColor = baseColor.clone();
+            if (Math.random() > 0.5) pColor.offsetHSL(0, 0, 0.2);
 
-            // Color variation (vary brightness)
-            const baseColor = new THREE.Color(color || 0xccaa88);
-            baseColor.offsetHSL(0, 0, this.randRange(-0.1, 0.1));
-            particle.material.color.copy(baseColor);
-            particle.material.opacity = 0.5; // Walk dust 50% opacity
+            particle.material.color.copy(pColor);
             particle.visible = true;
 
             this.particles.push({
                 mesh: particle,
                 velocity: new THREE.Vector3(
-                    this.randRange(-0.5, 0.5),
-                    this.randRange(0.5, 1.5), // Upward pop
-                    this.randRange(-0.5, 0.5)
+                    this.randRange(-1, 1),
+                    this.randRange(1, 3), // Popping up
+                    this.randRange(-1, 1)
                 ),
-                angularVelocity: new THREE.Vector3(
-                    this.randRange(-5, 5),
-                    this.randRange(-5, 5),
-                    this.randRange(-5, 5)
-                ),
+                angularVelocity: new THREE.Vector3(this.randRange(-10, 10), this.randRange(-10, 10), 0),
                 targetScale: size,
-                life: Config.vfxDustLife,
-                maxLife: Config.vfxDustLife,
-                type: 'dust'
+                life: 0.4,
+                maxLife: 0.4,
+                type: 'impact'
             });
         }
     }
 
-    // Spawn jump burst (Circle of dust)
+    // Spawn jump burst (Circle of splats)
     spawnJumpDust(position, color) {
         if (!Config.vfxEnabled) return;
 
-        const count = Config.vfxDustCount * 1.5;
+        const count = 15;
+        const baseColor = new THREE.Color(color || 0xccaa88);
+
         for (let i = 0; i < count; i++) {
-            const particle = this.getDustParticle();
+            const particle = this.getImpactParticle();
             if (!particle) return;
 
             const angle = (i / count) * Math.PI * 2 + this.randRange(-0.2, 0.2);
-            const speed = this.randRange(2.0, 4.0);
-            const r = 0.5; // Start radius
+            const speed = this.randRange(4.0, 7.0);
 
             particle.position.set(
-                position.x + Math.cos(angle) * r,
+                position.x + Math.cos(angle) * 0.5,
                 position.y + 0.1,
-                position.z + Math.sin(angle) * r
+                position.z + Math.sin(angle) * 0.5
             );
 
-            particle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-
-            const size = Config.vfxDustSize * this.randRange(1.0, 2.0);
+            const size = 0.25 * this.randRange(1.0, 2.0);
             particle.scale.setScalar(0.01);
-
-            particle.material.color.setHex(color || 0xccaa88);
+            particle.material.color.copy(baseColor);
             particle.visible = true;
 
             this.particles.push({
                 mesh: particle,
                 velocity: new THREE.Vector3(
                     Math.cos(angle) * speed,
-                    this.randRange(1.0, 3.0),
+                    this.randRange(2.0, 5.0),
                     Math.sin(angle) * speed
                 ),
-                angularVelocity: new THREE.Vector3(
-                    this.randRange(-2, 2),
-                    this.randRange(-5, 5),
-                    this.randRange(-2, 2)
-                ),
+                angularVelocity: new THREE.Vector3(this.randRange(-10, 10), this.randRange(-10, 10), 0),
                 targetScale: size,
-                life: Config.vfxDustLife,
-                maxLife: Config.vfxDustLife,
-                type: 'dust'
+                life: 0.5,
+                maxLife: 0.5,
+                type: 'impact'
             });
         }
     }
 
-    // Spawn landing impact (Flattened dust splash)
+    // Spawn landing impact (Flattened splash)
     spawnLandingDust(position, impactForce, color) {
         if (!Config.vfxEnabled) return;
 
-        const count = Math.min(Config.vfxDustCount * 2.5, 20);
+        const count = 18;
+        const baseColor = new THREE.Color(color || 0xccaa88);
+
         for (let i = 0; i < count; i++) {
-            const particle = this.getDustParticle();
+            const particle = this.getImpactParticle();
             if (!particle) return;
 
             const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * 0.5;
-            const speed = impactForce * 0.8 + Math.random() * 2;
+            const dist = Math.random() * 0.8;
+            const speed = impactForce + this.randRange(2, 6);
 
             particle.position.set(
                 position.x + Math.cos(angle) * dist,
@@ -188,28 +174,23 @@ export class ParticleSystem {
                 position.z + Math.sin(angle) * dist
             );
 
+            const size = 0.3 * this.randRange(0.8, 1.5);
             particle.scale.setScalar(0.01);
-            const size = Config.vfxDustSize * (1 + impactForce * 0.1) * this.randRange(0.8, 1.2);
-
-            particle.material.color.setHex(color || 0xccaa88);
+            particle.material.color.copy(baseColor);
             particle.visible = true;
 
             this.particles.push({
                 mesh: particle,
                 velocity: new THREE.Vector3(
                     Math.cos(angle) * speed,
-                    this.randRange(1.0, impactForce * 0.5),
+                    this.randRange(2, impactForce * 1.5),
                     Math.sin(angle) * speed
                 ),
-                angularVelocity: new THREE.Vector3(
-                    this.randRange(-10, 10),
-                    this.randRange(-10, 10),
-                    this.randRange(-10, 10)
-                ),
+                angularVelocity: new THREE.Vector3(this.randRange(-15, 15), this.randRange(-15, 15), 0),
                 targetScale: size,
-                life: Config.vfxDustLife * 1.5,
-                maxLife: Config.vfxDustLife * 1.5,
-                type: 'dust'
+                life: 0.6,
+                maxLife: 0.6,
+                type: 'impact'
             });
         }
     }

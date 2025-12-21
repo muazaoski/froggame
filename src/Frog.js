@@ -297,7 +297,7 @@ export class Frog {
                 if (this.particles) {
                     this.walkDustTimer -= dt;
                     if (this.walkDustTimer <= 0) {
-                        this.particles.spawnWalkDust(this.mesh.position, 0xccaa88);
+                        this.particles.spawnWalkDust(this.mesh.position, this.color);
                         this.walkDustTimer = Config.vfxWalkInterval;
                     }
                 }
