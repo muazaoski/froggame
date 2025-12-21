@@ -146,10 +146,10 @@ module.exports = {
             // Get session stats
             const stats = sessionStats.get(socketId) || { kills: 0, deaths: 0 };
 
-            // Save to database
-            db.updateStats(userId, playtime, stats.kills, stats.deaths);
+            // Save playtime to database (kills/deaths are already saved live)
+            db.updateStats(userId, playtime, 0, 0);
 
-            console.log(`📊 Session ended for user ${userId}: ${Math.floor(playtime / 1000)}s played, ${stats.kills}K/${stats.deaths}D`);
+            console.log(`📊 Session ended for user ${userId}: ${Math.floor(playtime / 1000)}s played`);
         }
 
         // Clean up
@@ -197,7 +197,15 @@ module.exports = {
      */
     recordKill(socketId) {
         const stats = sessionStats.get(socketId);
-        if (stats) stats.kills++;
+        if (stats) {
+            stats.kills++;
+
+            // Save to DB immediately for live tracking
+            const userId = this.getUserId(socketId);
+            if (userId) {
+                db.updateStats(userId, 0, 1, 0);
+            }
+        }
     },
 
     /**
@@ -206,7 +214,15 @@ module.exports = {
      */
     recordDeath(socketId) {
         const stats = sessionStats.get(socketId);
-        if (stats) stats.deaths++;
+        if (stats) {
+            stats.deaths++;
+
+            // Save to DB immediately for live tracking
+            const userId = this.getUserId(socketId);
+            if (userId) {
+                db.updateStats(userId, 0, 0, 1);
+            }
+        }
     },
 
     /**

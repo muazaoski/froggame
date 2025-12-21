@@ -192,7 +192,8 @@ export class World {
                 "uToonEnabled": { value: Config.toonEnabled ? 1.0 : 0.0 },
                 "uOutlineEnabled": { value: Config.outlineEnabled ? 1.0 : 0.0 },
                 "uOutlineIntensity": { value: Config.outlineIntensity },
-                "uSkyColor": { value: new THREE.Vector3(1.0, 0.53, 0.0) }
+                "uSkyColor": { value: new THREE.Vector3(1.0, 0.53, 0.0) },
+                "uLowHealth": { value: 0.0 }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -250,6 +251,7 @@ export class World {
                 uniform float uOutlineEnabled;
                 uniform float uOutlineIntensity;
                 uniform vec3 uSkyColor;
+                uniform float uLowHealth;
                 
                 varying vec2 vUv;
                 
@@ -388,8 +390,25 @@ export class World {
                     if (uVignetteEnabled > 0.5) {
                         vec2 vignetteUv = vUv - 0.5;
                         float dist = length(vignetteUv);
-                        float vig = smoothstep(uVignetteRadius, uVignetteRadius - uVignetteSoftness, dist);
-                        color.rgb = mix(color.rgb * (1.0 - uVignetteIntensity), color.rgb, vig);
+                        
+                        // Heartbeat pulse calculation
+                        float pulseSpeed = 4.0 + (uLowHealth * 8.0);
+                        float pulse = (0.5 + 0.5 * sin(uTime * pulseSpeed)) * uLowHealth;
+                        
+                        // Modulate vignette parameters based on health/pulse
+                        float currentRadius = uVignetteRadius * (1.1 - uLowHealth * 0.4);
+                        float currentIntensity = uVignetteIntensity + (pulse * 0.5);
+                        
+                        float vig = smoothstep(currentRadius, currentRadius - uVignetteSoftness, dist);
+                        
+                        // Mix in red tint for low health
+                        vec3 vignetteColor = mix(vec3(0.0), vec3(0.8, 0.0, 0.0), uLowHealth * 0.7);
+                        
+                        // Apply darkening and red tint
+                        vec3 processedColor = color.rgb * (1.0 - currentIntensity);
+                        processedColor += (vignetteColor * (dist * 2.0) * currentIntensity);
+                        
+                        color.rgb = mix(processedColor, color.rgb, vig);
                     }
                     
                     // Clamp final output
@@ -1461,6 +1480,14 @@ export class World {
             // Time
             u.uTime.value = performance.now() / 1000;
 
+            // Low Health amount calculation (start at 50% HP)
+            let lowHealthAmount = 0;
+            if (this.localFrog) {
+                const hpPercent = this.localFrog.health / Config.maxHealth;
+                lowHealthAmount = Math.max(0, Math.min(1.0, (0.5 - hpPercent) / 0.5));
+            }
+            u.uLowHealth.value = lowHealthAmount;
+
             // Color Grading
             u.uSaturation.value = Config.shaderSaturation;
             u.uBrightness.value = Config.shaderBrightness;
@@ -1733,6 +1760,8 @@ export class World {
         const muteBtn = document.getElementById('p-btn-mute');
         const closeBtn = document.getElementById('p-close-btn');
         const avatarContainer = document.getElementById('p-avatar-canvas-container');
+        const killsEl = document.getElementById('p-kills');
+        const deathsEl = document.getElementById('p-deaths');
 
         // Null checks
         if (!modal || !nameEl || !levelEl || !actionBtn || !muteBtn) {
@@ -1746,7 +1775,8 @@ export class World {
         levelEl.textContent = `LEVEL ${data.level || 1}`;
         bioEl.textContent = data.bio || 'No bio set.';
 
-        bioEl.textContent = data.bio || 'No bio set.';
+        if (killsEl) killsEl.textContent = data.kills || 0;
+        if (deathsEl) deathsEl.textContent = data.deaths || 0;
 
         // --- BADGE RENDERING (No background, just emojis) ---
         if (badgesEl) {

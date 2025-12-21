@@ -666,7 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isLoginMode = loginMode;
         tabLogin.classList.toggle('active', loginMode);
         tabRegister.classList.toggle('active', !loginMode);
-        btnAuth.textContent = loginMode ? 'LOGIN' : 'REGISTER';
+        btnAuth.textContent = 'PLAY';
         hideMessage();
     }
 
@@ -682,6 +682,20 @@ document.addEventListener('DOMContentLoaded', () => {
             passwordInput.type = 'password';
             passwordToggle.textContent = '👁️';
         }
+    });
+
+    // Color Circle Selection
+    const colorCircles = document.querySelectorAll('.color-circle');
+    colorCircles.forEach(circle => {
+        circle.addEventListener('click', () => {
+            // Update selection UI
+            colorCircles.forEach(c => c.classList.remove('selected'));
+            circle.classList.add('selected');
+
+            // Update hidden input
+            const color = circle.dataset.color;
+            if (colorInput) colorInput.value = color;
+        });
     });
 
     // Show message (error or success)
@@ -705,6 +719,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update color picker with saved color
         if (user.color) {
             colorInput.value = user.color;
+            // Update circles selection
+            const targetCircle = Array.from(colorCircles).find(c => c.dataset.color === user.color);
+            if (targetCircle) {
+                colorCircles.forEach(c => c.classList.remove('selected'));
+                targetCircle.classList.add('selected');
+            }
         }
     }
 
@@ -731,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Use Socket.IO callback
         network.socket.emit(eventName, data, (result) => {
             btnAuth.disabled = false;
-            btnAuth.textContent = isLoginMode ? 'LOGIN' : 'REGISTER';
+            btnAuth.textContent = 'PLAY';
 
             if (result.success) {
                 isAuthenticated = true;
@@ -1203,7 +1223,6 @@ const profileEditorBtn = document.getElementById('profile-editor-btn');
 const profileEditorOverlay = document.getElementById('profile-editor-overlay');
 const profileEditorClose = document.getElementById('profile-editor-close');
 const profileColorPicker = document.getElementById('profile-color-picker');
-const colorHexDisplay = document.getElementById('color-hex-display');
 const profileBioInput = document.getElementById('profile-bio-input');
 const btnSaveProfile = document.getElementById('btn-save-profile');
 
@@ -1243,8 +1262,13 @@ if (profileEditorBtn && profileEditorOverlay) {
 
                     // Populate UI
                     const color = data.color || world.localFrog.color || '#4CAF50';
-                    profileColorPicker.value = color;
-                    colorHexDisplay.textContent = color;
+                    if (profileColorPicker) profileColorPicker.value = color;
+
+                    // Update profile circles UI
+                    const circles = document.querySelectorAll('#profile-color-circles .color-circle');
+                    circles.forEach(c => {
+                        c.classList.toggle('selected', c.dataset.color.toLowerCase() === color.toLowerCase());
+                    });
 
                     if (profileBioInput) {
                         profileBioInput.value = data.bio || '';
@@ -1277,8 +1301,13 @@ if (profileEditorBtn && profileEditorOverlay) {
             // Load current color from local frog
             if (world.localFrog) {
                 const color = world.localFrog.color || '#4CAF50';
-                profileColorPicker.value = color;
-                colorHexDisplay.textContent = color;
+                if (profileColorPicker) profileColorPicker.value = color;
+
+                // Update profile circles UI
+                const circles = document.querySelectorAll('#profile-color-circles .color-circle');
+                circles.forEach(c => {
+                    c.classList.toggle('selected', c.dataset.color.toLowerCase() === color.toLowerCase());
+                });
 
                 // Load saved bio
                 if (profileBioInput) {
@@ -1317,21 +1346,10 @@ if (profileEditorClose && profileEditorOverlay) {
     });
 }
 
-// Color picker updates
-if (profileColorPicker && colorHexDisplay) {
-    profileColorPicker.addEventListener('input', (e) => {
-        colorHexDisplay.textContent = e.target.value;
-        // Live preview on local frog using proper setColor method
-        if (world.localFrog && world.localFrog.setColor) {
-            world.localFrog.setColor(e.target.value);
-        }
-    });
-}
-
 // Save Profile
 if (btnSaveProfile) {
     btnSaveProfile.addEventListener('click', () => {
-        const newColor = profileColorPicker.value;
+        const newColor = profileColorPicker?.value || '#4CAF50';
         const newBio = profileBioInput.value.trim();
 
         // Update local frog color and bio
@@ -1406,12 +1424,19 @@ document.querySelectorAll('.badge-item:not(.locked)').forEach(badge => {
     });
 });
 
-// Color Presets
-document.querySelectorAll('.color-preset').forEach(preset => {
-    preset.addEventListener('click', () => {
-        const color = preset.dataset.color;
+// Profile Color Selection (In-game)
+const profileColorCircles = document.querySelectorAll('#profile-color-circles .color-circle');
+profileColorCircles.forEach(circle => {
+    circle.addEventListener('click', () => {
+        const color = circle.dataset.color;
+
+        // Update selection UI
+        profileColorCircles.forEach(c => c.classList.remove('selected'));
+        circle.classList.add('selected');
+
+        // Update hidden picker for save logic
+        const profileColorPicker = document.getElementById('profile-color-picker');
         if (profileColorPicker) profileColorPicker.value = color;
-        if (colorHexDisplay) colorHexDisplay.textContent = color;
 
         // Live preview
         if (world.localFrog && world.localFrog.setColor) {
@@ -1684,8 +1709,10 @@ if (network && network.socket) {
         if (statKills) {
             const kills = parseInt(statKills.textContent || '0') + 1;
             statKills.textContent = kills;
+
             // Update K/D ratio
-            const deaths = parseInt(document.getElementById('stat-deaths')?.textContent || '0');
+            const deathEl = document.getElementById('stat-deaths');
+            const deaths = parseInt(deathEl?.textContent || '0');
             if (statKd) {
                 statKd.textContent = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
             }
@@ -1693,6 +1720,28 @@ if (network && network.socket) {
 
         // Refresh player list to show updated level badge
         updatePlayerList();
+    });
+
+    // Handle local player death to update stats tab immediately
+    network.socket.on('playerDied', (data) => {
+        const id = typeof data === 'object' ? data.id : data;
+
+        // If it was US who died, update the deaths stat
+        if (id === network.socket.id) {
+            const statDeaths = document.getElementById('stat-deaths');
+            const statKills = document.getElementById('stat-kills');
+            const statKd = document.getElementById('stat-kd');
+
+            if (statDeaths) {
+                const deaths = parseInt(statDeaths.textContent || '0') + 1;
+                statDeaths.textContent = deaths;
+
+                if (statKills && statKd) {
+                    const kills = parseInt(statKills.textContent || '0');
+                    statKd.textContent = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+                }
+            }
+        }
     });
 
     function updateLevelDisplay(level, xp, xpToNext) {

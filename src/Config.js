@@ -6,7 +6,7 @@ export const Config = {
 
     // Movement
     moveSpeed: 1143.7,
-    jumpVelocity: 15.08,
+    jumpVelocity: 19.5,
     rotationSpeed: 9.323,
     airControl: 0.5,
 
@@ -25,18 +25,18 @@ export const Config = {
     walkLegHeight: 0.754,
 
     // Environment
-    sunIntensity: 4.3,
+    sunIntensity: 2.97,
     ambientIntensity: 2.0,
 
     // Shadows
     shadowEnabled: true,
-    shadowMapSize: 1024,
-    shadowType: 'PCFSoft', // Cycles style soft shadows
+    shadowMapSize: 4096,
+    shadowType: 'Basic',
     shadowRadius: 4.0,
     shadowBlurSamples: 32,
-    shadowBias: -0.0045,
-    shadowNormalBias: 0.0213,
-    shadowIntensity: 0.173,
+    shadowBias: 0.0000800000000000002,
+    shadowNormalBias: 0.0428,
+    shadowIntensity: 0.478,
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
     shadowCameraSize: 55.03,
@@ -48,22 +48,22 @@ export const Config = {
     shadowCascades: 1,
 
     // Cycles Mode Rendering (PBR)
-    toonEnabled: false, // Default to realistic
-    outlineEnabled: false,
-    outlineIntensity: 0.1,
+    toonEnabled: true, // Returning to Toon look as requested
+    outlineEnabled: true,
+    outlineIntensity: 0.471,
     saonEnabled: true,
 
     // Hemisphere Light
-    hemiSkyColor: 0xffeeff,
-    hemiGroundColor: 0x664422,
-    hemiIntensity: 0.72,
+    hemiSkyColor: 1427122,
+    hemiGroundColor: 12125188,
+    hemiIntensity: 3,
 
     // Rim Light
-    rimColor: 0xfbfb0f,
-    rimIntensity: 3.09,
-    rimPosX: -12,
-    rimPosY: 31.3,
-    rimPosZ: -9.4,
+    rimColor: 15468809,
+    rimIntensity: 2.54,
+    rimPosX: 18.8,
+    rimPosY: 18.9,
+    rimPosZ: 4.2,
 
     // Local Frog Aura
     auraIntensity: 0.0, // Disabled as requested
@@ -84,9 +84,9 @@ export const Config = {
     shaderTemperature: 0.0,
 
     // Vignette Effect
-    vignetteEnabled: false,
-    vignetteIntensity: 0.25,
-    vignetteRadius: 1.0,
+    vignetteEnabled: true,
+    vignetteIntensity: 0.267,
+    vignetteRadius: 0.661,
     vignetteSoftness: 0.35,
 
     // Chromatic Aberration
@@ -101,12 +101,12 @@ export const Config = {
     grainSize: 3.5,
 
     // Sharpen Filter
-    sharpenEnabled: false,
-    sharpenIntensity: 0.8, // Crisper lines
+    sharpenEnabled: true,
+    sharpenIntensity: 1, // Full sharpen
 
     // Bloom (glow effect)
-    bloomEnabled: true,
-    bloomIntensity: 0.806,
+    bloomEnabled: false,
+    bloomIntensity: 1.566,
     bloomThreshold: 0.2,
     bloomRadius: 0.05,
 
