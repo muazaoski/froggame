@@ -7,11 +7,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>Multiplayer Frog Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Outfit', sans-serif;
         }
 
         #canvas-container {
@@ -317,6 +320,7 @@
         }
 
         /* Login Modal */
+        /* ================ REVAMPED LOGIN MODAL ================ */
         #login-modal {
             position: fixed;
             top: 0;
@@ -329,8 +333,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
-            flex-direction: column;
+            z-index: 5000;
         }
 
         /* Blur the canvas during spectator/login mode */
@@ -346,160 +349,293 @@
         body.spectator-mode #chat-panel,
         body.spectator-mode #chat-input,
         body.spectator-mode .name-tag,
+        body.spectator-mode #level-display,
+        body.spectator-mode .bottom-left-buttons,
         body.spectator-mode .health-bar-container {
             display: none !important;
         }
 
-        .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 2rem;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
-        }
-
-        .login-title {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            color: #333;
-        }
-
-        .login-input {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-            box-sizing: border-box;
-        }
-
-        .color-picker-label {
-            display: block;
-            margin: 10px 0 5px;
-            color: #666;
-            font-weight: bold;
-        }
-
-        .btn-start {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1.2rem;
-            border-radius: 30px;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 20px;
-            transition: transform 0.1s, background 0.2s;
-            font-weight: bold;
-        }
-
-        .btn-start:hover {
-            background: #45a049;
-            transform: scale(1.05);
-        }
-
-        .btn-start:disabled {
-            background: #888;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Auth Tabs */
-        .auth-tabs {
+        .login-container {
             display: flex;
-            margin-bottom: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 2px solid #ddd;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 440px;
+        }
+
+        .login-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: -10px;
+        }
+
+        .logo-placeholder {
+            width: 120px;
+            height: 80px;
+            background: #ff4444;
+            border: 4px solid #000;
+            border-radius: 15px;
+            position: relative;
+            box-shadow: 0 4px 0 #800000;
+        }
+
+        .logo-placeholder::after {
+            content: '';
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 30px;
+            background: #ff6666;
+            border-radius: 50%;
+            border: 3px solid #000;
+        }
+
+        .logo-text {
+            font-family: 'Arial Black', Gadget, sans-serif;
+            font-size: 3.5rem;
+            color: #4CAF50;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            text-shadow:
+                -3px -3px 0 #fff,
+                3px -3px 0 #fff,
+                -3px 3px 0 #fff,
+                3px 3px 0 #fff,
+                0 6px 0 rgba(0, 0, 0, 0.2);
+            margin-top: -15px;
+            z-index: 2;
+        }
+
+        .logo-text span {
+            color: #ff4444;
+        }
+
+        .login-card {
+            background: #fdfae7;
+            padding: 35px;
+            border-radius: 40px;
+            box-shadow: 0 20px 0 rgba(0, 0, 0, 0.1);
+            text-align: left;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .auth-tabs {
+            background: #e6e2d1;
+            border-radius: 50px;
+            display: flex;
+            padding: 4px;
+            margin-bottom: 25px;
+            border: none;
         }
 
         .auth-tab {
             flex: 1;
             padding: 12px;
-            background: #f5f5f5;
+            background: transparent;
             border: none;
             cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            transition: all 0.2s;
-            color: #666;
+            font-size: 1.1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #b0ad9d;
+            border-radius: 50px;
         }
 
-        .auth-tab:hover {
-            background: #e8e8e8;
+        .auth-tab:hover:not(.active) {
+            color: #888578;
         }
 
         .auth-tab.active {
             background: #4CAF50;
             color: white;
+            box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
         }
 
-        /* Password field container */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .login-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 800;
+            font-size: 0.9rem;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+            box-sizing: border-box;
+            outline: none;
+            transition: box-shadow 0.2s;
+        }
+
+        .login-input:focus {
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+        }
+
+        .login-input::placeholder {
+            color: #ccc;
+        }
+
         .password-container {
             position: relative;
         }
 
         .password-toggle {
             position: absolute;
-            right: 10px;
+            right: 15px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
             border: none;
             cursor: pointer;
-            font-size: 18px;
-            opacity: 0.6;
+            font-size: 20px;
+            opacity: 0.4;
+            transition: opacity 0.2s;
         }
 
         .password-toggle:hover {
-            opacity: 1;
+            opacity: 0.8;
         }
 
-        /* Error/Success messages */
-        .auth-message {
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            font-size: 0.9rem;
-            display: none;
+        .color-picker-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
         }
 
-        .auth-message.error {
-            background: #ffe0e0;
-            color: #d32f2f;
-            border: 1px solid #ffcdd2;
-            display: block;
+        .color-picker-label {
+            color: #333;
+            font-weight: 800;
+            font-size: 0.85rem;
         }
 
-        .auth-message.success {
-            background: #e0ffe0;
-            color: #2e7d32;
-            border: 1px solid #c8e6c9;
-            display: block;
+        .color-circles {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
         }
 
-        /* Guest button */
-        .btn-guest {
-            background: transparent;
-            color: #666;
-            border: 2px solid #ddd;
-            padding: 10px 20px;
-            font-size: 1rem;
-            border-radius: 25px;
+        .color-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .color-circle:hover {
+            transform: scale(1.15);
+        }
+
+        .color-circle.selected {
+            border-color: rgba(76, 175, 80, 0.6);
+            transform: scale(1.2);
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 16px;
+            font-size: 1.4rem;
+            border-radius: 50px;
             cursor: pointer;
             width: 100%;
             margin-top: 10px;
             transition: all 0.2s;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 0 #3d8b40;
+        }
+
+        .btn-start:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #3d8b40;
+        }
+
+        .btn-start:active {
+            transform: translateY(2px);
+            box-shadow: 0 0 0 #3d8b40;
+        }
+
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+
+        .auth-divider::before,
+        .auth-divider::after {
+            content: '';
+            flex: 1;
+            height: 2px;
+            background: #e6e2d1;
+        }
+
+        .auth-divider span {
+            padding: 0 15px;
+            color: #b0ad9d;
+            font-size: 0.9rem;
+            font-weight: 800;
+        }
+
+        .btn-guest {
+            background: white;
+            color: #555;
+            border: none;
+            padding: 12px;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+            font-weight: 800;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.05);
         }
 
         .btn-guest:hover {
-            border-color: #4CAF50;
-            color: #4CAF50;
+            background: #f5f5f5;
+            transform: translateY(-1px);
+        }
+
+        .auth-message {
+            position: absolute;
+            top: -50px;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            text-align: center;
+            display: none;
+            z-index: 10;
+        }
+
+        .auth-message.error {
+            background: #ff4444;
+            color: white;
+            display: block;
         }
 
         /* Account stats display */
@@ -1151,6 +1287,41 @@
             flex-direction: column;
             gap: 0;
             min-height: 120px;
+        }
+
+        .profile-stats-mini-row {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mini-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .mini-stat-label {
+            font-size: 8px;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .mini-stat-value {
+            font-size: 15px;
+            font-weight: 800;
+            color: #4CAF50;
+            line-height: 1;
+        }
+
+        .mini-stat-value.death {
+            color: #ff6b6b;
         }
 
         .profile-section-label {
@@ -2130,64 +2301,70 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-DQyuEN4E.js"></script>
+  <script type="module" crossorigin src="/assets/index-BgUpfR-g.js"></script>
 </head>
 
 <body class="spectator-mode">
     <!-- Login Screen -->
     <div id="login-modal">
-        <div class="login-card">
-            <div class="login-title">🐸 Frog Battle</div>
-
-            <!-- Auth Tabs -->
-            <div class="auth-tabs">
-                <button class="auth-tab active" id="tab-login">Login</button>
-                <button class="auth-tab" id="tab-register">Register</button>
+        <div class="login-container">
+            <!-- Logo Section -->
+            <div class="login-logo">
+                <div class="logo-placeholder"></div>
+                <div class="logo-text">FROG <span>BUTT</span></div>
             </div>
 
-            <!-- Error/Success Message -->
-            <div id="auth-message" class="auth-message"></div>
-
-            <!-- Account Stats (shown after login) -->
-            <div id="account-stats" class="account-stats" style="display: none;">
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-flies">0</div>
-                    <div class="stat-label">Flies</div>
+            <div class="login-card">
+                <!-- Auth Tabs -->
+                <div class="auth-tabs">
+                    <button class="auth-tab active" id="tab-login">Login</button>
+                    <button class="auth-tab" id="tab-register">Register</button>
                 </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-kills">0</div>
-                    <div class="stat-label">Kills</div>
+
+                <!-- Error/Success Message -->
+                <div id="auth-message" class="auth-message"></div>
+
+                <!-- Form Fields -->
+                <div class="form-group">
+                    <label class="login-label">Username</label>
+                    <input type="text" id="player-name" class="login-input" placeholder="muaz" maxlength="20" autofocus>
                 </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-deaths">0</div>
-                    <div class="stat-label">Deaths</div>
+
+                <div class="form-group">
+                    <label class="login-label">Password</label>
+                    <div class="password-container">
+                        <input type="password" id="player-password" class="login-input" placeholder="••••••••"
+                            maxlength="50">
+                        <button class="password-toggle" id="password-toggle" type="button">👁️</button>
+                    </div>
                 </div>
+
+                <!-- Color picker -->
+                <div class="color-picker-container">
+                    <label class="color-picker-label">Pick your color:</label>
+                    <div class="color-circles" id="color-circles">
+                        <div class="color-circle selected" style="background: #4CAF50;" data-color="#4CAF50"></div>
+                        <div class="color-circle" style="background: #673ab7;" data-color="#673ab7"></div>
+                        <div class="color-circle" style="background: #f44336;" data-color="#f44336"></div>
+                        <div class="color-circle" style="background: #ff9800;" data-color="#ff9800"></div>
+                        <div class="color-circle" style="background: #2196f3;" data-color="#2196f3"></div>
+                        <div class="color-circle" style="background: #ffeb3b;" data-color="#ffeb3b"></div>
+                    </div>
+                    <!-- Hidden real color input to store state -->
+                    <input type="hidden" id="player-color" value="#4CAF50">
+                </div>
+
+                <!-- Action Button -->
+                <button id="btn-auth" class="btn-start">PLAY</button>
+
+                <!-- Divider -->
+                <div class="auth-divider">
+                    <span>or</span>
+                </div>
+
+                <!-- Guest Button -->
+                <button id="btn-guest" class="btn-guest">Play as Guest</button>
             </div>
-
-            <!-- Username input -->
-            <input type="text" id="player-name" class="login-input" placeholder="Username" maxlength="20" autofocus>
-
-            <!-- Password input -->
-            <div class="password-container">
-                <input type="password" id="player-password" class="login-input" placeholder="Password" maxlength="50">
-                <button class="password-toggle" id="password-toggle" type="button">👁️</button>
-            </div>
-
-            <!-- Color picker -->
-            <label class="color-picker-label">Pick your color:</label>
-            <input type="color" id="player-color" class="login-input" value="#4CAF50"
-                style="height: 50px; cursor: pointer;">
-
-            <!-- Login/Register Button -->
-            <button id="btn-auth" class="btn-start">LOGIN</button>
-
-            <!-- Divider -->
-            <div class="auth-divider">
-                <span>or</span>
-            </div>
-
-            <!-- Guest Mode Button -->
-            <button id="btn-guest" class="btn-guest">Play as Guest</button>
         </div>
     </div>
 
@@ -2324,6 +2501,19 @@
                             No bio set.
                         </div>
                     </div>
+
+                    <!-- Mini Stats Row -->
+                    <div class="profile-stats-mini-row">
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">KILLS</span>
+                            <span class="mini-stat-value" id="p-kills">0</span>
+                        </div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">DEATHS</span>
+                            <span class="mini-stat-value death" id="p-deaths">0</span>
+                        </div>
+                    </div>
+
                     <div class="profile-badges-row-new" id="p-badges-row">
                         <!-- Badges injected by JS -->
                     </div>
@@ -2444,24 +2634,18 @@
 
                     <div class="profile-section">
                         <label class="profile-label">FROG COLOR</label>
-                        <div class="color-picker-row">
-                            <input type="color" id="profile-color-picker" value="#4CAF50" class="color-picker-input">
-                            <span class="color-hex" id="color-hex-display">#4CAF50</span>
+                        <div class="color-circles" id="profile-color-circles">
+                            <div class="color-circle selected" style="background: #4CAF50;" data-color="#4CAF50"></div>
+                            <div class="color-circle" style="background: #2196F3;" data-color="#2196F3"></div>
+                            <div class="color-circle" style="background: #9C27B0;" data-color="#9C27B0"></div>
+                            <div class="color-circle" style="background: #FF9800;" data-color="#FF9800"></div>
+                            <div class="color-circle" style="background: #E91E63;" data-color="#E91E63"></div>
+                            <div class="color-circle" style="background: #00BCD4;" data-color="#00BCD4"></div>
+                            <div class="color-circle" style="background: #FFEB3B;" data-color="#FFEB3B"></div>
+                            <div class="color-circle" style="background: #795548;" data-color="#795548"></div>
                         </div>
-                    </div>
-
-                    <div class="profile-section">
-                        <label class="profile-label">COLOR PRESETS</label>
-                        <div class="color-presets">
-                            <div class="color-preset" style="background: #4CAF50;" data-color="#4CAF50"></div>
-                            <div class="color-preset" style="background: #2196F3;" data-color="#2196F3"></div>
-                            <div class="color-preset" style="background: #9C27B0;" data-color="#9C27B0"></div>
-                            <div class="color-preset" style="background: #FF9800;" data-color="#FF9800"></div>
-                            <div class="color-preset" style="background: #E91E63;" data-color="#E91E63"></div>
-                            <div class="color-preset" style="background: #00BCD4;" data-color="#00BCD4"></div>
-                            <div class="color-preset" style="background: #FFEB3B;" data-color="#FFEB3B"></div>
-                            <div class="color-preset" style="background: #795548;" data-color="#795548"></div>
-                        </div>
+                        <!-- Hidden input to store selected color -->
+                        <input type="hidden" id="profile-color-picker" value="#4CAF50">
                     </div>
 
                     <button class="btn-save-profile" id="btn-save-outfit">Save Changes</button>
