@@ -194,7 +194,7 @@ export const Config = {
     deathFadeDuration: 1.0025,
 
     // Ball Settings
-    ballRadius: 0.8282,
+    ballRadius: 0.5,
     ballMass: 0.6225,
     ballLinearDamping: 0.533,
     ballAngularDamping: 0.975,

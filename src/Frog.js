@@ -963,6 +963,9 @@ export class Frog {
                         // Body, legs, etc
                         child.material.color.set(newColor);
                     }
+
+                    // Update originalColor for hit effects
+                    child.userData.originalColor = child.material.color.clone();
                 }
             });
         }

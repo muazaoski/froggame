@@ -1741,6 +1741,8 @@ export class World {
                     level: freshData?.level || frog.level || 1,
                     bio: freshData?.bio || frog.bio || '',
                     badges: freshData?.badges || frog.badges || [],
+                    kills: freshData?.kills || 0,
+                    deaths: freshData?.deaths || 0,
                     isFriend: undefined // Trigger checkFriendship in openProfile
                 };
 
@@ -1806,6 +1808,14 @@ export class World {
 
         if (killsEl) killsEl.textContent = data.kills || 0;
         if (deathsEl) deathsEl.textContent = data.deaths || 0;
+
+        const kdEl = document.getElementById('p-kd');
+        if (kdEl) {
+            const kills = data.kills || 0;
+            const deaths = data.deaths || 0;
+            const kd = deaths > 0 ? (kills / deaths).toFixed(2) : (kills > 0 ? kills.toFixed(2) : "0.00");
+            kdEl.textContent = kd;
+        }
 
         // --- BADGE RENDERING (No background, just emojis) ---
         if (badgesEl) {

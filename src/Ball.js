@@ -19,6 +19,12 @@ export class Ball {
         // Create fallback sphere immediately (visible while GLB loads)
         this.createFallbackSphere();
 
+        // Randomize initial spawn position
+        if (position.x === 0 && position.z === 0) {
+            position.x = (Math.random() - 0.5) * 20;
+            position.z = (Math.random() - 0.5) * 20;
+        }
+
         // Load GLB model
         const loader = new GLTFLoader();
         loader.load('/models/ball.glb', (gltf) => {
@@ -28,15 +34,27 @@ export class Ball {
             }
 
             const model = gltf.scene;
-            // Scale and center the model
-            model.scale.set(0.65, 0.65, 0.65);
+
+            // --- PERFECT SCALING LOGIC ---
+            // Calculate bounding box to fit the model exactly to the physics radius
+            const box = new THREE.Box3().setFromObject(model);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const targetSize = this.radius * 2;
+            const scale = targetSize / maxDim;
+            model.scale.set(scale, scale, scale);
+
+            // Center the model relative to its geometry
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            model.position.sub(center.multiplyScalar(scale));
 
             // Apply material and shadows
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    // Preserve original materials if possible, but ensure they receive light
                     if (child.material) {
                         child.material.roughness = 0.4;
                         child.material.metalness = 0.1;
@@ -46,9 +64,9 @@ export class Ball {
 
             this.mesh.add(model);
             this.modelLoaded = true;
-            console.log('Ball GLB model loaded successfully!');
+            console.log('Ball GLB model loaded successfully (precisely scaled)!');
         }, undefined, (error) => {
-            console.error('Error loading ball GLB, using fallback sphere:', error);
+            console.error('Error loading ball GLB:', error);
         });
 
         scene.add(this.mesh);
@@ -141,7 +159,9 @@ export class Ball {
     // Reset ball to spawn position
     reset() {
         if (this.body) {
-            this.body.position.set(5, Config.ballSpawnHeight, 0);
+            const rx = (Math.random() - 0.5) * 30;
+            const rz = (Math.random() - 0.5) * 30;
+            this.body.position.set(rx, Config.ballSpawnHeight, rz);
             this.body.velocity.set(0, 0, 0);
             this.body.angularVelocity.set(0, 0, 0);
         }
