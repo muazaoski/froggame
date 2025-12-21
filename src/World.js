@@ -66,9 +66,18 @@ export class World {
         const ambientLight = new THREE.AmbientLight(0xffffff, Config.ambientIntensity);
         this.scene.add(ambientLight);
 
+        // Hemisphere Light for natural sky/ground contrast
+        const hemiLight = new THREE.HemisphereLight(0xffeeff, 0x664422, Config.ambientIntensity * 0.6);
+        this.scene.add(hemiLight);
+
         const dirLight = new THREE.DirectionalLight(0xffffff, Config.sunIntensity);
         dirLight.position.set(20, 30, 10);
         this.dirLight = dirLight; // Store reference for config updates
+
+        // Rim Light (Opposite side) for better definition
+        const rimLight = new THREE.DirectionalLight(0xffddaa, Config.sunIntensity * 0.5);
+        rimLight.position.set(-20, 15, -15);
+        this.scene.add(rimLight);
 
         // Shadow settings from Config
         dirLight.castShadow = Config.shadowEnabled;

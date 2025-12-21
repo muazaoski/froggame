@@ -31,12 +31,12 @@ export const Config = {
     // Shadows
     shadowEnabled: true,
     shadowMapSize: 4096,
-    shadowType: 'Basic',
-    shadowRadius: 2.0, // Sharper shadows
-    shadowBlurSamples: 8,
-    shadowBias: -0.00032,
-    shadowNormalBias: 0,
-    shadowIntensity: 0.35,
+    shadowType: 'PCF',
+    shadowRadius: 12.256,
+    shadowBlurSamples: 22,
+    shadowBias: -0.00082,
+    shadowNormalBias: 0.0213,
+    shadowIntensity: 0.324,
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
     shadowCameraSize: 55.03,
@@ -51,19 +51,17 @@ export const Config = {
     useShader: true,
 
     // Color Grading
-    shaderSaturation: 1.45, // Balanced vibrance
-    shaderBrightness: 0.02,
-    shaderContrast: 1.15,  // Balanced contrast
-    shaderGamma: 1.1,
-
-    // Color Tint / Temperature
-    shaderTintR: 1.0,
+    shaderSaturation: 1.62,
+    shaderBrightness: -0.192,
+    shaderContrast: 0.5,
+    shaderGamma: 0.8795,
+    shaderTintR: 1.076,
     shaderTintG: 1.0,
     shaderTintB: 1.0,
-    shaderTemperature: -0.1, // Slight cool pop
+    shaderTemperature: -0.0579999999999999,
 
     // Vignette Effect
-    vignetteEnabled: true,
+    vignetteEnabled: false,
     vignetteIntensity: 0.25,
     vignetteRadius: 1.0,
     vignetteSoftness: 0.35,
@@ -80,12 +78,12 @@ export const Config = {
     grainSize: 3.5,
 
     // Sharpen Filter
-    sharpenEnabled: true,
+    sharpenEnabled: false,
     sharpenIntensity: 0.8, // Crisper lines
 
     // Bloom (glow effect)
     bloomEnabled: true,
-    bloomIntensity: 0.4,
+    bloomIntensity: 0.806,
     bloomThreshold: 0.2,
     bloomRadius: 0.05,
 
