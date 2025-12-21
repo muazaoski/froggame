@@ -9,6 +9,8 @@ import { Scooter } from './Scooter.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SAOPass } from 'three/addons/postprocessing/SAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Config } from './Config.js';
 import { ParticleSystem } from './ParticleSystem.js';
 
@@ -49,8 +51,13 @@ export class World {
 
         // Shadow map configuration from Config
         this.renderer.shadowMap.enabled = Config.shadowEnabled;
-        this.renderer.shadowMap.type = this.getShadowMapType(Config.shadowType);
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Forced for realism
         this.renderer.shadowMap.autoUpdate = Config.shadowAutoUpdate;
+
+        // Realistic Tone Mapping (Cycles Look)
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+
         this.container.appendChild(this.renderer.domElement);
 
         // LABEL RENDERER (Chat bubbles, damage toasts, health bars)
@@ -126,6 +133,16 @@ export class World {
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
 
+        // SAO - Scalable Ambient Occlusion (The "Cycles" deep corner shadows)
+        this.saoPass = new SAOPass(this.scene, this.camera);
+        this.saoPass.params.output = SAOPass.OUTPUT.Default;
+        this.saoPass.params.saoBias = 0.5;
+        this.saoPass.params.saoIntensity = 0.008;
+        this.saoPass.params.saoScale = 10;
+        this.saoPass.params.saoKernelRadius = 30;
+        this.saoPass.params.saoMinResolution = 0;
+        this.composer.addPass(this.saoPass);
+
         // Comprehensive Post-Processing Shader
         const postFX = {
             uniforms: {
@@ -171,9 +188,9 @@ export class World {
                 "uBloomRadius": { value: Config.bloomRadius },
 
                 // Toon / Outline
-                "uToonEnabled": { value: 1.0 },
-                "uOutlineEnabled": { value: 1.0 },
-                "uOutlineIntensity": { value: 0.1 },
+                "uToonEnabled": { value: Config.toonEnabled ? 1.0 : 0.0 },
+                "uOutlineEnabled": { value: Config.outlineEnabled ? 1.0 : 0.0 },
+                "uOutlineIntensity": { value: Config.outlineIntensity },
                 "uSkyColor": { value: new THREE.Vector3(1.0, 0.53, 0.0) }
             },
             vertexShader: `
@@ -385,6 +402,10 @@ export class World {
         this.customPass = new ShaderPass(postFX);
         this.composer.addPass(this.customPass);
 
+        // Final Output Pass for high-fidelity tone mapping
+        const outputPass = new OutputPass();
+        this.composer.addPass(outputPass);
+
         // Initialize Particle System for VFX
         this.particles = new ParticleSystem(this.scene);
 
@@ -428,17 +449,20 @@ export class World {
                         child.userData.targetOpacity = 1;
 
                         // TOON LOOK: Inject vibrant colors for terrain/water
+                        // CYCLES LOOK: Natural, physically grounded colors
                         if (child.name.toLowerCase().includes('terrain') || child.name.toLowerCase().includes('island')) {
-                            child.material.color.setHex(0x11ff00); // Super Neon Green
-                            child.material.emissive.setHex(0x11ff00);
-                            child.material.emissiveIntensity = 0.15;
-                            child.material.roughness = 1.0;
+                            child.material.color.setHex(0x55aa66); // Natural Forest Green
+                            child.material.emissive.setHex(0x000000);
+                            child.material.emissiveIntensity = 0.0;
+                            child.material.roughness = 0.8;
                         }
                         if (child.name.toLowerCase().includes('water')) {
-                            child.material.color.setHex(0x00f2ff); // Ultra Cyan Water
-                            child.material.opacity = 0.8;
-                            child.material.emissive.setHex(0x00f2ff);
-                            child.material.emissiveIntensity = 0.6;
+                            child.material.color.setHex(0x1166aa); // Deep Ocean Blue
+                            child.material.opacity = 0.9;
+                            child.material.emissive.setHex(0x002244);
+                            child.material.emissiveIntensity = 0.1;
+                            child.material.metalness = 0.6;
+                            child.material.roughness = 0.1;
                         }
                     }
 

@@ -193,6 +193,30 @@ skyFolder.close();
 const shaderFolder = gui.addFolder('Shader FX');
 shaderFolder.add(Config, 'useShader').name('Enable Post-FX');
 
+// Cycles Rendering Quality (SAO)
+const cyclesFolder = shaderFolder.addFolder('Cycles Mode (SAO) 💎');
+cyclesFolder.add(Config, 'saonEnabled').name('Enable SAO').onChange(v => {
+    if (world.saoPass) world.saoPass.enabled = v;
+});
+cyclesFolder.add(world.saoPass.params, 'saoIntensity', 0, 0.1).name('AO Strength');
+cyclesFolder.add(world.saoPass.params, 'saoBias', -1, 1).name('AO Bias');
+cyclesFolder.add(world.saoPass.params, 'saoRadius', 1, 100).name('AO Radius');
+cyclesFolder.add(world.saoPass.params, 'saoScale', 1, 50).name('AO Scale');
+cyclesFolder.close();
+
+// Toon/Cel-Shade Toggles
+const toonFolder = shaderFolder.addFolder('Toon Style 🎨');
+toonFolder.add(Config, 'toonEnabled').name('Enable Cel-Shade').onChange(v => {
+    if (world.customPass) world.customPass.uniforms.uToonEnabled.value = v ? 1.0 : 0.0;
+});
+toonFolder.add(Config, 'outlineEnabled').name('Enable Outlines').onChange(v => {
+    if (world.customPass) world.customPass.uniforms.uOutlineEnabled.value = v ? 1.0 : 0.0;
+});
+toonFolder.add(Config, 'outlineIntensity', 0, 1).name('Outline Darkness').onChange(v => {
+    if (world.customPass) world.customPass.uniforms.uOutlineIntensity.value = v;
+});
+toonFolder.close();
+
 // Color Grading Sub-folder
 const colorFolder = shaderFolder.addFolder('Color Grading');
 colorFolder.add(Config, 'shaderSaturation', 0, 2).name('Saturation');

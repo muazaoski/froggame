@@ -25,14 +25,14 @@ export const Config = {
     walkLegHeight: 0.754,
 
     // Environment
-    sunIntensity: 3.0,
-    ambientIntensity: 1.2,
+    sunIntensity: 4.3,
+    ambientIntensity: 2.0,
 
     // Shadows
     shadowEnabled: true,
     shadowMapSize: 1024,
-    shadowType: 'Basic',
-    shadowRadius: 10.512,
+    shadowType: 'PCFSoft', // Cycles style soft shadows
+    shadowRadius: 4.0,
     shadowBlurSamples: 32,
     shadowBias: -0.0045,
     shadowNormalBias: 0.0213,
@@ -47,20 +47,26 @@ export const Config = {
     shadowAutoUpdate: true,
     shadowCascades: 1,
 
+    // Cycles Mode Rendering (PBR)
+    toonEnabled: false, // Default to realistic
+    outlineEnabled: false,
+    outlineIntensity: 0.1,
+    saonEnabled: true,
+
     // Hemisphere Light
     hemiSkyColor: 0xffeeff,
     hemiGroundColor: 0x664422,
     hemiIntensity: 0.72,
 
     // Rim Light
-    rimColor: 0xffddaa,
-    rimIntensity: 1.5,
-    rimPosX: -20,
-    rimPosY: 15,
-    rimPosZ: -15,
+    rimColor: 0xfbfb0f,
+    rimIntensity: 3.09,
+    rimPosX: -12,
+    rimPosY: 31.3,
+    rimPosZ: -9.4,
 
     // Local Frog Aura
-    auraIntensity: 2.0, // Lowered from 5.0 base to prevent floor burn
+    auraIntensity: 0.0, // Disabled as requested
     auraDistance: 6.0,
     auraColor: 0x00f2ff,
 
@@ -68,14 +74,14 @@ export const Config = {
     useShader: true,
 
     // Color Grading
-    shaderSaturation: 1.62,
-    shaderBrightness: -0.192,
-    shaderContrast: 0.5,
-    shaderGamma: 0.8795,
-    shaderTintR: 1.076,
+    shaderSaturation: 1.15, // Cinematic saturation
+    shaderBrightness: 0.05,
+    shaderContrast: 1.1,  // Natural contrast
+    shaderGamma: 1.0,
+    shaderTintR: 1.0,
     shaderTintG: 1.0,
     shaderTintB: 1.0,
-    shaderTemperature: -0.0579999999999999,
+    shaderTemperature: 0.0,
 
     // Vignette Effect
     vignetteEnabled: false,
