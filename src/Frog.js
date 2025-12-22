@@ -127,6 +127,9 @@ export class Frog {
         this.healthBarVisible = false;
         this.isAFK = false; // AFK status (set by server)
 
+        // Underwater / Diving
+        this.isUnderwater = false;
+
         // Tongue mechanics (Reworked - ref1.md spec)
         // New structured state object for 3-phase tongue system
         this.tongue = {
@@ -320,7 +323,9 @@ export class Frog {
 
 
         // MOVEMENT (Camera-relative)
-        const targetSpeed = Config.moveSpeed;
+        // Apply underwater slowdown (50% speed reduction when diving)
+        const underwaterMultiplier = this.isUnderwater ? 0.5 : 1.0;
+        const targetSpeed = Config.moveSpeed * underwaterMultiplier;
         const inputVec = new THREE.Vector3(0, 0, 0);
 
         // Get raw input direction
@@ -394,11 +399,22 @@ export class Frog {
             this.bodyMesh.position.y = THREE.MathUtils.lerp(this.bodyMesh.position.y, 0, dt * 10);
 
             // Snappy deceleration when no input (prevents "ice skating" feel)
+            // Slower deceleration underwater for floaty feel
             if (this.onGround) {
-                const stopScale = 15.0; // Fast stop on ground
+                const stopScale = this.isUnderwater ? 5.0 : 15.0;
                 this.body.velocity.x = THREE.MathUtils.lerp(this.body.velocity.x, 0, stopScale * dt);
                 this.body.velocity.z = THREE.MathUtils.lerp(this.body.velocity.z, 0, stopScale * dt);
             }
+        }
+
+        // UNDERWATER BUOYANCY - gentle upward force when submerged
+        if (this.isUnderwater && this.body) {
+            // Apply buoyancy (counteracts some gravity)
+            const buoyancyForce = 15.0; // Adjust for more/less floating
+            this.body.velocity.y += buoyancyForce * dt;
+
+            // Dampen vertical velocity for floaty feel
+            this.body.velocity.y *= 0.98;
         }
 
         // JUMP

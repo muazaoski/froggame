@@ -137,6 +137,9 @@ export class World {
         this.scooterSpawnZones = []; // Positions where scooters can spawn
         this.playerHasScooter = {}; // Track which players have spawned scooters
 
+        // WATER / DIVING
+        this.waterLevel = null; // Will be set when water mesh is detected
+
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
 
@@ -628,89 +631,25 @@ export class World {
     }
 
     setupWaterMaterial(mesh) {
-        // Create animated water shader material
-        const waterMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: this.waterUniforms.uTime,
-                uWaveSpeed: this.waterUniforms.uWaveSpeed,
-                uWaveHeight: this.waterUniforms.uWaveHeight,
-                uWaveFrequency: this.waterUniforms.uWaveFrequency,
-                uDeepColor: this.waterUniforms.uDeepColor,
-                uShallowColor: this.waterUniforms.uShallowColor,
-                uFoamColor: this.waterUniforms.uFoamColor,
-                uCameraPos: { value: new THREE.Vector3() }
-            },
-            vertexShader: `
-                uniform float uTime;
-                uniform float uWaveSpeed;
-                uniform float uWaveHeight;
-                uniform float uWaveFrequency;
-                
-                varying vec2 vUv;
-                varying float vWaveHeight;
-                varying vec3 vWorldPos;
-                varying vec3 vNormal;
-                
-                void main() {
-                    vUv = uv;
-                    vec3 pos = position;
-                    
-                    // Multi-layered wave animation
-                    float wave1 = sin(pos.x * uWaveFrequency + uTime * uWaveSpeed) * uWaveHeight;
-                    float wave2 = sin(pos.z * uWaveFrequency * 0.7 + uTime * uWaveSpeed * 1.3) * uWaveHeight * 0.6;
-                    float wave3 = sin((pos.x + pos.z) * uWaveFrequency * 0.5 + uTime * uWaveSpeed * 0.8) * uWaveHeight * 0.3;
-                    
-                    float totalWave = wave1 + wave2 + wave3;
-                    pos.y += totalWave;
-                    
-                    vWaveHeight = totalWave;
-                    vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-                    vNormal = normalMatrix * normal;
-                    
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform float uTime;
-                uniform vec3 uDeepColor;
-                uniform vec3 uShallowColor;
-                uniform vec3 uFoamColor;
-                uniform vec3 uCameraPos;
-                
-                varying vec2 vUv;
-                varying float vWaveHeight;
-                varying vec3 vWorldPos;
-                varying vec3 vNormal;
-                
-                void main() {
-                    // Mix between deep and shallow based on wave height
-                    float depthFactor = smoothstep(-0.1, 0.15, vWaveHeight);
-                    vec3 waterColor = mix(uDeepColor, uShallowColor, depthFactor);
-                    
-                    // Add foam on wave peaks
-                    float foamFactor = smoothstep(0.1, 0.2, vWaveHeight);
-                    waterColor = mix(waterColor, uFoamColor, foamFactor * 0.4);
-                    
-                    // Simple fresnel effect for edge glow
-                    vec3 viewDir = normalize(uCameraPos - vWorldPos);
-                    float fresnel = pow(1.0 - max(dot(viewDir, normalize(vNormal)), 0.0), 2.0);
-                    waterColor += vec3(0.1, 0.2, 0.3) * fresnel;
-                    
-                    // Animated caustics/sparkle effect
-                    float sparkle = sin(vUv.x * 50.0 + uTime * 2.0) * sin(vUv.y * 50.0 + uTime * 1.5);
-                    sparkle = pow(max(sparkle, 0.0), 8.0) * 0.3;
-                    waterColor += vec3(sparkle);
-                    
-                    gl_FragColor = vec4(waterColor, 0.85);
-                }
-            `,
+        // Simple invisible water - just track the level for diving detection
+        // The water plane is invisible, player can dive through
+        mesh.material = new THREE.MeshBasicMaterial({
+            color: 0x1a8ccc,
             transparent: true,
-            side: THREE.DoubleSide
+            opacity: 0.0, // Invisible - diving trigger only
+            side: THREE.DoubleSide,
+            depthWrite: false
         });
 
-        mesh.material = waterMaterial;
         mesh.castShadow = false;
         mesh.receiveShadow = false;
+
+        // Store the water level for diving detection
+        mesh.updateMatrixWorld();
+        const worldPos = new THREE.Vector3();
+        mesh.getWorldPosition(worldPos);
+        this.waterLevel = worldPos.y;
+        console.log(`[WATER] Water surface detected at Y=${this.waterLevel}`);
     }
 
     loadLevel() {
@@ -1765,12 +1704,19 @@ export class World {
             }
         }
 
-        // Update Water Uniforms (animated waves)
-        this.waterUniforms.uTime.value += dt;
-        // Update camera position for fresnel effect
-        for (const waterMesh of this.waterMeshes) {
-            if (waterMesh.material.uniforms && waterMesh.material.uniforms.uCameraPos) {
-                waterMesh.material.uniforms.uCameraPos.value.copy(this.camera.position);
+        // DIVING DETECTION
+        if (this.waterLevel !== null && this.localFrog && this.localFrog.mesh) {
+            const playerY = this.localFrog.mesh.position.y;
+            const isUnderwater = playerY < this.waterLevel;
+
+            // Update frog's underwater state
+            if (this.localFrog.isUnderwater !== isUnderwater) {
+                this.localFrog.isUnderwater = isUnderwater;
+                if (isUnderwater) {
+                    console.log('[DIVING] Player entered water!');
+                } else {
+                    console.log('[DIVING] Player surfaced!');
+                }
             }
         }
 
