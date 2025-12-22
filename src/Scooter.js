@@ -83,7 +83,7 @@ export class Scooter {
         placeholder.position.y = 0; // Center in physics body
         this.mesh.add(placeholder);
 
-        Scooter.loader.load('/models/scooter_optimized.glb', (gltf) => {
+        Scooter.loader.load('/models/scooter.glb', (gltf) => {
             // Remove placeholder
             this.mesh.remove(placeholder);
             placeholder.geometry.dispose();

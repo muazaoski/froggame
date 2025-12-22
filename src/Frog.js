@@ -34,7 +34,7 @@ export class Frog {
             this.applyColor(model);
             this.bodyMesh.add(model);
         } else {
-            Frog.loader.load('/models/frog_optimized.glb', (gltf) => {
+            Frog.loader.load('/models/frog.glb', (gltf) => {
                 const model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
                 model.position.y = -0.6; // Adjust based on model origin

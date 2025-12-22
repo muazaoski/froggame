@@ -622,7 +622,7 @@ export class World {
         const grassInstances = [];
         let grassTemplate = null;
 
-        loader.load('/models/world_optimized.glb', (gltf) => {
+        loader.load('/models/world.glb', (gltf) => {
             const level = gltf.scene;
             this.scene.add(level);
 
