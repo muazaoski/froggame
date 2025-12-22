@@ -45,13 +45,14 @@ export class World {
         this.tongueCursorIndicator = null;
         this.createTongueCursorIndicator();
 
-        // RENDERER
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        // RENDERER (antialiasing disabled for performance)
+        this.renderer = new THREE.WebGLRenderer({ antialias: false });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Cap pixel ratio
 
         // Shadow map configuration from Config
         this.renderer.shadowMap.enabled = Config.shadowEnabled;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Forced for realism
+        this.renderer.shadowMap.type = THREE.PCFShadowMap; // Faster than PCFSoft
         this.renderer.shadowMap.autoUpdate = Config.shadowAutoUpdate;
 
         // Realistic Tone Mapping (Cycles Look)

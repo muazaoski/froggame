@@ -30,7 +30,7 @@ export const Config = {
 
     // Shadows
     shadowEnabled: true,
-    shadowMapSize: 4096,
+    shadowMapSize: 2048,
     shadowType: 'Basic',
     shadowRadius: 4.0,
     shadowBlurSamples: 32,
@@ -51,7 +51,7 @@ export const Config = {
     toonEnabled: false,
     outlineEnabled: false,
     outlineIntensity: 0.471,
-    saonEnabled: true,
+    saonEnabled: false,
 
     // Hemisphere Light
     hemiSkyColor: 1427122,

@@ -61,9 +61,10 @@ export class Physics {
     step(dt) {
         // Apply dynamic gravity change
         this.world.gravity.set(0, Config.gravity, 0);
-        this.updateMaterials();
+        // Note: updateMaterials() removed from per-frame call for performance
+        // Materials are set once in constructor
 
-        // Step with more substeps for high-speed tongue grapples
-        this.world.step(1 / 60, dt, 10);
+        // Reduced substeps for better performance (3 is enough for most cases)
+        this.world.step(1 / 60, dt, 3);
     }
 }

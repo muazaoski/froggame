@@ -15,10 +15,9 @@ export class ParticleSystem {
         // Spikey shape for impacts (low poly sphere)
         this.impactGeometry = new THREE.IcosahedronGeometry(1, 0);
 
-        // --- MATERIALS ---
-        this.dustMaterial = new THREE.MeshStandardMaterial({
+        // --- MATERIALS --- (Using BasicMaterial for performance)
+        this.dustMaterial = new THREE.MeshBasicMaterial({
             color: 0xccaa88,
-            roughness: 1.0,
             transparent: true,
             opacity: 0.8
         });
@@ -27,7 +26,7 @@ export class ParticleSystem {
             color: 0xffff88,
             transparent: true,
             opacity: 1.0,
-            blending: THREE.AdditiveBlending // Glowy effect
+            blending: THREE.AdditiveBlending
         });
 
         // Pre-pool particles
@@ -35,18 +34,18 @@ export class ParticleSystem {
     }
 
     initPool() {
-        // Create dust particle pool (Cubes)
-        for (let i = 0; i < 80; i++) {
+        // Create dust particle pool (Cubes) - Reduced for performance
+        for (let i = 0; i < 40; i++) {
             const mesh = new THREE.Mesh(this.dustGeometry, this.dustMaterial.clone());
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+            mesh.castShadow = false;  // DISABLED for performance
+            mesh.receiveShadow = false;
             mesh.visible = false;
             this.scene.add(mesh);
             this.dustPool.push(mesh);
         }
 
-        // Create impact particle pool (Sparks / Splats) - Increased for walking effects
-        for (let i = 0; i < 150; i++) {
+        // Create impact particle pool - Reduced for performance
+        for (let i = 0; i < 80; i++) {
             const mesh = new THREE.Mesh(this.impactGeometry, this.impactMaterial.clone());
             mesh.visible = false;
             this.scene.add(mesh);
