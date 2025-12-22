@@ -474,7 +474,7 @@ export class Scooter {
         this.raycaster.set(rayOrigin, rayDir);
         this.raycaster.far = hOffset + 2.0;
 
-        const intersects = this.raycaster.intersectObjects(terrainMeshes, false);
+        const intersects = this.raycaster.intersectObjects(terrainMeshes, true);
 
         if (intersects.length > 0) {
             const dist = intersects[0].distance;
