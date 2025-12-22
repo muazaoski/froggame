@@ -714,7 +714,29 @@ export class World {
 
             // Create Instanced Grass for performance
             if (grassTemplate && grassInstances.length > 0) {
+                console.log(`[PERF] Creating instanced grass from ${grassInstances.length} individual pieces`);
                 this.setupInstancedGrass(grassTemplate, grassInstances);
+
+                // COMPLETELY REMOVE original grass meshes from scene to save memory
+                const toRemove = [];
+                level.traverse((child) => {
+                    if (child.isMesh && child.name.toLowerCase().includes('grass')) {
+                        toRemove.push(child);
+                    }
+                });
+
+                for (const mesh of toRemove) {
+                    if (mesh.parent) mesh.parent.remove(mesh);
+                    if (mesh.geometry) mesh.geometry.dispose();
+                    if (mesh.material) {
+                        if (Array.isArray(mesh.material)) {
+                            mesh.material.forEach(m => m.dispose());
+                        } else {
+                            mesh.material.dispose();
+                        }
+                    }
+                }
+                console.log(`[PERF] Removed ${toRemove.length} individual grass meshes, replaced with single InstancedMesh`);
             }
         }, undefined, (err) => {
             console.error('Error loading world:', err);
