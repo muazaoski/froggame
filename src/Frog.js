@@ -545,9 +545,12 @@ export class Frog {
             isGrounded: this.onGround,
             isTalking: this.isTalking,
             isPunching: this.isPunching,
-            // Encode scooter riding in punchProgress (add 100) because server filters new properties
-            // Also encode tongue state (add 10 * tongueStateCode)
-            punchProgress: this.punchProgress + (this.isRidingScooter ? 100 : 0) + (tongueStateCode * 10),
+            // Encode state in punchProgress bitmask (server filters unknown fields)
+            // +200: swimming/underwater, +100: riding, +10/20/30: tongue state
+            punchProgress: this.punchProgress +
+                (this.isRidingScooter ? 100 : 0) +
+                (tongueStateCode * 10) +
+                (this.isUnderwater ? 200 : 0),
             // Tongue target (for remote visualization)
             tongueTargetX: this.tongue.lockedPoint?.x || 0,
             tongueTargetY: this.tongue.lockedPoint?.y || 0,
@@ -599,13 +602,19 @@ export class Frog {
 
         this.isRemotePunching = state.isPunching;
 
-        // Decode scooter state from punchProgress (>= 100 means riding)
-        // Also decode tongue state (10, 20, 30 added for extending, retracting, grappling)
+        // Decode state from punchProgress bitmask
         let rawPunchProgress = state.punchProgress || 0;
         let isRiding = false;
         let tongueStateCode = 0;
+        let isUnderwaterRemote = false;
 
-        // First extract riding flag
+        // Extract underwater flag (200)
+        if (rawPunchProgress >= 200) {
+            isUnderwaterRemote = true;
+            rawPunchProgress -= 200;
+        }
+
+        // Extract riding flag (100)
         if (rawPunchProgress >= 100) {
             isRiding = true;
             rawPunchProgress -= 100;
@@ -625,6 +634,7 @@ export class Frog {
 
         this.remotePunchProgress = rawPunchProgress;
         this.remoteTongueStateCode = tongueStateCode;
+        this.isRemoteUnderwater = isUnderwaterRemote;
 
         // Tongue target for remote visualization
         if (state.tongueTargetX !== undefined) {
@@ -796,8 +806,10 @@ export class Frog {
         // 2. MOVEMENT & ANIMATION
         // Use received velocity to determine movement state
         const vel = this.remoteVelocity || new THREE.Vector3();
-        const speed = vel.length();
-        const isMoving = speed > 0.1;
+        // Only check horizontal speed for walking animation to avoid buoyancy/gravity jitter
+        const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+        const isMoving = horizontalSpeed > 0.1;
+        const isSwimming = this.isRemoteUnderwater;
 
         // Use received ground state (fallback to Y check if missing)
         const isGrounded = (this.isRemoteGrounded !== undefined)
@@ -824,7 +836,7 @@ export class Frog {
         this.lastRemoteVelY = vel.y;
 
         // Update Leg Animations
-        this.updateAnimations(dt, isMoving, isGrounded);
+        this.updateAnimations(dt, isMoving, isGrounded, isSwimming);
 
         // Update Punch Animation (Input null, just processes existing global punch state)
         this.updatePunch(dt, null);
@@ -1099,8 +1111,20 @@ export class Frog {
         }
     }
 
-    updateAnimations(dt, isMoving, isGrounded) {
+    /**
+     * Update leg animations based on movement state
+     */
+    updateAnimations(dt, isMoving, isGrounded, isSwimming = false) {
         if (!this.leftLeg || !this.rightLeg) return;
+
+        // SWIMMING / UNDERWATER (Disable walking, maybe add treading later)
+        if (isSwimming) {
+            this.jumpKickAmount = 0;
+            // Smoothly return to base or play subtle swim animation
+            this.leftLeg.position.lerp(this.leftLegBasePos, dt * 5);
+            this.rightLeg.position.lerp(this.rightLegBasePos, dt * 5);
+            return;
+        }
 
         // JUMP ANIMATION (Legs kick down)
         if (!isGrounded) {

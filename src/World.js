@@ -631,16 +631,44 @@ export class World {
     }
 
     setupWaterMaterial(mesh) {
-        // Simple translucent blue water
-        mesh.material = new THREE.MeshBasicMaterial({
-            color: 0x1a8ccc,
+        // Enhanced translucent blue water with subtle shimmer
+        const waterMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: this.waterUniforms.uTime,
+                uColor: { value: new THREE.Color(0x1a8ccc) },
+                uOpacity: { value: 0.6 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                
+                void main() {
+                    // Two layers of scrolling diagonal lines for a "shimmer" effect
+                    float ripple1 = sin((vUv.x + vUv.y) * 30.0 + uTime * 1.5);
+                    float ripple2 = sin((vUv.x - vUv.y) * 25.0 - uTime * 1.2);
+                    
+                    float shimmer = (ripple1 * 0.5 + ripple2 * 0.5);
+                    shimmer = smoothstep(0.7, 1.0, shimmer);
+                    
+                    vec3 finalColor = mix(uColor, vec3(1.0), shimmer * 0.15);
+                    gl_FragColor = vec4(finalColor, uOpacity);
+                }
+            `,
             transparent: true,
-            opacity: 0.6, // Translucent blue
             side: THREE.DoubleSide,
-            depthWrite: true // Write to depth buffer so it masks things behind it
+            depthWrite: true
         });
 
-        // Set render order so it handles sorting better (optional but helpful)
+        mesh.material = waterMaterial;
         mesh.renderOrder = 1;
 
         mesh.castShadow = false;
