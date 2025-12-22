@@ -1664,7 +1664,7 @@ export class World {
         for (const id in this.frogs) {
             const frog = this.frogs[id];
             if (frog.isLocal) {
-                frog.update(dt, input, lookTarget);
+                frog.update(dt, input, lookTarget, this.cameraOrbitAngle);
             } else {
                 frog.update(dt, null, frog.targetLook);
             }

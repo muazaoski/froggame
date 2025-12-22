@@ -5,7 +5,7 @@ export const Config = {
     restitution: 0.336,
 
     // Movement
-    moveSpeed: 1143.7,
+    moveSpeed: 8.5,
     jumpVelocity: 19.5,
     rotationSpeed: 9.323,
     airControl: 0.5,

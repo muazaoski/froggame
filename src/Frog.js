@@ -315,7 +315,7 @@ export class Frog {
 
 
         // MOVEMENT (Camera-relative)
-        const targetSpeed = 15; // Balanced top speed for the frog
+        const targetSpeed = Config.moveSpeed;
         const inputVec = new THREE.Vector3(0, 0, 0);
 
         // Get raw input direction
