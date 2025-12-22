@@ -631,15 +631,17 @@ export class World {
     }
 
     setupWaterMaterial(mesh) {
-        // Simple invisible water - just track the level for diving detection
-        // The water plane is invisible, player can dive through
+        // Simple translucent blue water
         mesh.material = new THREE.MeshBasicMaterial({
             color: 0x1a8ccc,
             transparent: true,
-            opacity: 0.0, // Invisible - diving trigger only
+            opacity: 0.6, // Translucent blue
             side: THREE.DoubleSide,
-            depthWrite: false
+            depthWrite: true // Write to depth buffer so it masks things behind it
         });
+
+        // Set render order so it handles sorting better (optional but helpful)
+        mesh.renderOrder = 1;
 
         mesh.castShadow = false;
         mesh.receiveShadow = false;
@@ -649,7 +651,7 @@ export class World {
         const worldPos = new THREE.Vector3();
         mesh.getWorldPosition(worldPos);
         this.waterLevel = worldPos.y;
-        console.log(`[WATER] Water surface detected at Y=${this.waterLevel}`);
+        console.log(`[WATER] Water surface detected at Y=${this.waterLevel} (Collision DISABLED)`);
     }
 
     loadLevel() {
@@ -741,8 +743,9 @@ export class World {
                     }
 
                     // Physics Generation
-                    if (child.name.startsWith('Ghost_') || child.name.toLowerCase().includes('grass')) {
-                        // Pass (No physics for ghosts or grass)
+                    const isWaterPhysics = nameLower.includes('water');
+                    if (child.name.startsWith('Ghost_') || child.name.toLowerCase().includes('grass') || isWaterPhysics) {
+                        // Pass (No physics for ghosts, grass, or water planes)
                     } else if (!child.name.toLowerCase().includes('scooterspawn')) {
                         this.createPhysicsForMesh(child);
                     }
