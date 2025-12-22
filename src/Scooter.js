@@ -30,6 +30,7 @@ export class Scooter {
         this.terrainNormal = new THREE.Vector3(0, 1, 0);
         this.targetQuaternion = new THREE.Quaternion();
         this.raycaster = new THREE.Raycaster();
+        this.isGrounded = true; // Track if we are on the ground
         this.raycaster.far = 3.0;
 
         // Highlight state
@@ -393,27 +394,43 @@ export class Scooter {
         this.raycaster.set(rayOrigin, rayDir);
 
         const intersects = this.raycaster.intersectObjects(terrainMeshes, false);
+
+        // Grounded check (distance to terrain)
         if (intersects.length > 0) {
+            const dist = intersects[0].distance;
+            this.isGrounded = dist < 2.0; // Check if we are close to ground (1.0 offset + radius)
+            this._lastGroundY = intersects[0].point.y; // Store for dust
+        } else {
+            this.isGrounded = false;
+        }
+
+        if (this.isGrounded) {
             const normal = intersects[0].face.normal.clone();
             // Transform normal to world space if the terrain mesh is rotated/scaled
             normal.applyQuaternion(intersects[0].object.quaternion);
 
             this.terrainNormal.lerp(normal, dt * 10);
+
+            // Calculate rotation that faces 'facingAngle' but aligns 'up' with 'terrainNormal'
+            const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+            const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
+            const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
+
+            const matrix = new THREE.Matrix4();
+            matrix.makeBasis(right, this.terrainNormal, adjustedForward);
+            this.targetQuaternion.setFromRotationMatrix(matrix);
         } else {
-            // Fallback to up
-            this.terrainNormal.lerp(new THREE.Vector3(0, 1, 0), dt * 5);
+            // In the air - slowly level the up vector but maintain forward facing
+            this.terrainNormal.lerp(new THREE.Vector3(0, 1, 0), dt * 2);
+
+            const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+            const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
+            const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
+
+            const matrix = new THREE.Matrix4();
+            matrix.makeBasis(right, this.terrainNormal, adjustedForward);
+            this.targetQuaternion.setFromRotationMatrix(matrix);
         }
-
-        // Calculate rotation that faces 'facingAngle' but aligns 'up' with 'terrainNormal'
-        const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
-        // Standard Right-Handed Basis: Right = Up x Forward, AdjustedForward = Right x Up
-        const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
-        const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
-
-        const matrix = new THREE.Matrix4();
-        // Column 3 is the Forward axis. Since model is rotated PI to face +Z, we use adjustedForward.
-        matrix.makeBasis(right, this.terrainNormal, adjustedForward);
-        this.targetQuaternion.setFromRotationMatrix(matrix);
 
         // Apply extra roll (banking)
         if (extraRoll !== 0) {
@@ -437,10 +454,10 @@ export class Scooter {
         if (Math.abs(this.velocity) < 2) return;
 
         this._dustTimer = (this._dustTimer || 0) + dt;
-        if (this._dustTimer > 0.1) {
+        if (this._dustTimer > 0.1 && this.isGrounded) {
             this._dustTimer = 0;
             const pos = this.mesh.position.clone();
-            pos.y = 0.1;
+            pos.y = (this._lastGroundY !== undefined) ? this._lastGroundY + 0.1 : this.mesh.position.y - 0.4;
             this.particles.spawnWalkDust(pos, this.color || '#ffffff');
         }
     }

@@ -138,6 +138,11 @@ export class World {
         this.raycaster = new THREE.Raycaster();
         this.mousePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Ground plane
 
+        // FPS Tracking
+        this.fpsCounter = document.getElementById('fps-counter');
+        this.frameCount = 0;
+        this.lastFpsUpdate = performance.now();
+
         // GRASS INTERACTION
         this.grassMeshes = [];
         this.grassUniforms = {
@@ -1686,6 +1691,19 @@ export class World {
 
         // Update Local Frog Aura (Blue Glow)
         this.updateLocalFrogAura();
+
+        // Update FPS Counter
+        this.frameCount++;
+        const now = performance.now();
+        if (now - this.lastFpsUpdate > 1000) {
+            const fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
+            if (this.fpsCounter) {
+                this.fpsCounter.textContent = `FPS: ${fps}`;
+                this.fpsCounter.style.display = Config.showFPS ? 'block' : 'none';
+            }
+            this.frameCount = 0;
+            this.lastFpsUpdate = now;
+        }
 
         // Render
         if (this.localFrog) {

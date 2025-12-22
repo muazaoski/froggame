@@ -235,5 +235,6 @@ export const Config = {
     grassBendingRadius: 2.5,        // Detection radius
     grassWindSpeed: 1.5,            // Wind speed
     grassWindStrength: 0.15,        // Wind sway intensity
+    showFPS: true,                  // Show FPS counter
 };
 
