@@ -1659,6 +1659,17 @@ export class World {
             scooter.update(dt, input, this.terrainMeshes);
         }
 
+        // Update Frogs (Visuals & Network interpolation)
+        const lookTarget = this.localFrog ? this.getMouseIntersection(input) : null;
+        for (const id in this.frogs) {
+            const frog = this.frogs[id];
+            if (frog.isLocal) {
+                frog.update(dt, input, lookTarget);
+            } else {
+                frog.update(dt, null, frog.targetLook);
+            }
+        }
+
         // Check scooter spawn zones for highlighting
         this.checkScooterSpawnZones();
 

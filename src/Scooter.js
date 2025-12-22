@@ -123,6 +123,50 @@ export class Scooter {
         this.mesh.add(model);
     }
 
+    setColor(color) {
+        if (!color || color === this.color) return;
+        this.color = color;
+        if (this.board && this.board.material) {
+            this.board.material.color.set(this.color);
+        }
+    }
+
+    dispose() {
+        // Disconnect rider if any
+        if (this.rider) {
+            this.dismount();
+        }
+
+        // Remove prompt label
+        if (this.label && this.label.element && this.label.element.parentNode) {
+            this.label.element.parentNode.removeChild(this.label.element);
+        }
+
+        // Remote physics body
+        if (this.body && this.physicsWorld) {
+            this.physicsWorld.world.removeBody(this.body);
+        }
+
+        // Remove mesh from scene
+        if (this.mesh && this.mesh.parent) {
+            this.mesh.parent.remove(this.mesh);
+        }
+
+        // Dispose geometries and materials for memory management
+        this.mesh.traverse((child) => {
+            if (child.isMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            }
+        });
+    }
+
     createPhysics() {
         if (!this.physicsWorld) return;
 
@@ -250,9 +294,17 @@ export class Scooter {
         // Match scooter orientation exactly
         this.rider.mesh.quaternion.copy(this.mesh.quaternion);
 
-        // Calculate world-up offset based on current tilt
-        const localUp = new THREE.Vector3(0, Config.scooterRiderY, 0).applyQuaternion(this.mesh.quaternion);
-        this.rider.mesh.position.copy(this.mesh.position).add(localUp);
+        // ONLY move the rider if it's the local player. 
+        // For remote players, they are moved by network interpolation, 
+        // and the scooter follows THEM.
+        if (this.rider.isLocal) {
+            // Calculate world-up offset based on current tilt
+            const localUp = new THREE.Vector3(0, Config.scooterRiderY, 0).applyQuaternion(this.mesh.quaternion);
+            this.rider.mesh.position.copy(this.mesh.position).add(localUp);
+        } else {
+            // Squash for remote visual
+            this.rider.mesh.scale.y = 0.75;
+        }
 
         // Apply leg position offsets while riding
         if (this.rider.leftLeg && this.rider.leftLegBasePos) {
@@ -426,8 +478,8 @@ export class Scooter {
 
         if (this.isGrounded) {
             const normal = intersects[0].face.normal.clone();
-            // Transform normal to world space if the terrain mesh is rotated/scaled
-            normal.applyQuaternion(intersects[0].object.quaternion);
+            // Transform normal to world space using matrixWorld
+            normal.transformDirection(intersects[0].object.matrixWorld);
 
             this.terrainNormal.lerp(normal, dt * 10);
 

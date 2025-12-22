@@ -260,7 +260,7 @@ export class Frog {
             }
 
             // Remote Walking Dust
-            if (this.particles && remoteIsMoving && this.isRemoteGrounded) {
+            if (!this.remoteScooter && this.particles && remoteIsMoving && this.isRemoteGrounded) {
                 this.walkDustTimer -= dt;
                 if (this.walkDustTimer <= 0) {
                     const footPos = this.mesh.position.clone();
@@ -268,6 +268,11 @@ export class Frog {
                     this.particles.spawnWalkDust(footPos, this.color);
                     this.walkDustTimer = Config.vfxWalkInterval;
                 }
+            }
+
+            // Update Remote Scooter
+            if (this.remoteScooter) {
+                this.remoteScooter.update(dt, null, this.world.terrainMeshes);
             }
 
             return;
@@ -513,7 +518,7 @@ export class Frog {
         };
     }
 
-    applySyncState(state) {
+    applySyncState(state, dt = 1 / 60) {
         // Target Position & Rotation
         this.targetPos = new THREE.Vector3(state.x, state.y, state.z);
         this.targetRot = new THREE.Quaternion(state.qx, state.qy, state.qz, state.qw);
@@ -622,6 +627,12 @@ export class Frog {
                 );
                 this.remoteScooter.particles = this.particles; // Helper for dust
                 this.remoteScooter.rider = this; // Set rider for following
+
+                // Immediate update to prevent "stuck at origin" frame
+                this.remoteScooter.update(dt, null, this.world.terrainMeshes);
+            } else if (this.remoteScooter && this.remoteScooterColor) {
+                // Update color dynamically if it changed
+                this.remoteScooter.setColor(this.remoteScooterColor);
             } else if (!this.isRemoteRidingScooter && this.remoteScooter) {
                 // Remove scooter and reset leg positions
                 this.remoteScooter.dispose();
