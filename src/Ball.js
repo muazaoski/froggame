@@ -129,12 +129,30 @@ export class Ball {
         physicsWorld.world.addBody(this.body);
     }
 
-    update(dt) {
+    update(dt, waterLevel = null) {
         if (!this.body) return;
 
         // Sync mesh position and rotation with physics body
         this.mesh.position.copy(this.body.position);
         this.mesh.quaternion.copy(this.body.quaternion);
+
+        // Buoyancy Logic
+        if (waterLevel !== null && this.body.position.y < waterLevel) {
+            // Apply upward force relative to how much the ball is submerged
+            // Mass is ~0.38, gravity is -9.82. We need force > ~3.7 to float.
+            const immersionDepth = (waterLevel - this.body.position.y);
+            const floatMultiplier = Math.min(immersionDepth / this.radius, 1.5);
+
+            // Apply upward buoyancy force
+            const floatForce = 15.0 * this.mass;
+            this.body.velocity.y += floatForce * floatMultiplier * dt;
+
+            // Water Drag (resist movement in water)
+            this.body.velocity.x *= 0.97;
+            this.body.velocity.y *= 0.93;
+            this.body.velocity.z *= 0.97;
+            this.body.angularVelocity.scale(0.95, this.body.angularVelocity);
+        }
 
         // Reset ball if it falls too far
         if (this.body.position.y < Config.ballResetHeight) {

@@ -1753,7 +1753,7 @@ export class World {
 
         // Update Ball
         if (this.ball) {
-            this.ball.update(dt);
+            this.ball.update(dt, this.waterLevel);
 
             // If we're the ball authority, send updates to other players
             if (this.isBallAuthority && this.network && this.ball.body) {

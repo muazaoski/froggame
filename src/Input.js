@@ -463,6 +463,8 @@ export class Input {
             case 'ArrowRight':
             case 'KeyD': this.keys.right = true; break;
             case 'Space': this.keys.jump = true; break;
+            case 'ControlLeft':
+            case 'ControlRight': this.keys.dive = true; break;
             case 'KeyE': this.dismountPressed = true; break;
         }
     }
@@ -492,6 +494,8 @@ export class Input {
             case 'ArrowRight':
             case 'KeyD': this.keys.right = false; break;
             case 'Space': this.keys.jump = false; break;
+            case 'ControlLeft':
+            case 'ControlRight': this.keys.dive = false; break;
         }
     }
 

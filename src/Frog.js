@@ -407,14 +407,26 @@ export class Frog {
             }
         }
 
-        // UNDERWATER BUOYANCY - gentle upward force when submerged
+        // UNDERWATER PHYSICS - diving and floating
         if (this.isUnderwater && this.body) {
-            // Apply buoyancy (counteracts some gravity)
-            const buoyancyForce = 15.0; // Adjust for more/less floating
-            this.body.velocity.y += buoyancyForce * dt;
+            let buoyancyAmt = 12.0; // Base buoyancy (slightly higher than gravity)
 
-            // Dampen vertical velocity for floaty feel
-            this.body.velocity.y *= 0.98;
+            if (input.keys.dive) {
+                buoyancyAmt = -15.0; // Dive down with Left Control
+            } else if (input.keys.jump) {
+                buoyancyAmt = 25.0; // Float up with Jump/Space
+            }
+
+            this.body.velocity.y += buoyancyAmt * dt;
+
+            // Drag (Water resistance)
+            this.body.velocity.x *= 0.98;
+            this.body.velocity.z *= 0.98;
+            this.body.velocity.y *= 0.95;
+
+            // Limit vertical speed in water
+            const maxSwimVertical = 5.0;
+            this.body.velocity.y = Math.max(-maxSwimVertical, Math.min(maxSwimVertical, this.body.velocity.y));
         }
 
         // JUMP
