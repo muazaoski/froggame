@@ -485,7 +485,10 @@ export class World {
                     setTimeout(() => {
                         loadingScreen.style.display = 'none';
                         const loginModal = document.getElementById('login-modal');
-                        if (loginModal) loginModal.style.display = 'flex';
+                        // ONLY show login modal if user hasn't started the game yet
+                        if (loginModal && document.body.classList.contains('spectator-mode')) {
+                            loginModal.style.display = 'flex';
+                        }
                     }, 800);
                 }
             }, 500);

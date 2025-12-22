@@ -6,6 +6,7 @@ import { Config } from './Config.js';
 
 export class Scooter {
     static loader = new GLTFLoader();
+    static modelCache = null;
 
     static setLoaderManager(manager) {
         Scooter.loader = new GLTFLoader(manager);
@@ -63,6 +64,11 @@ export class Scooter {
     }
 
     loadModel() {
+        if (Scooter.modelCache) {
+            this.setupModel(Scooter.modelCache.clone());
+            return;
+        }
+
         // Add placeholder while loading
         const placeholderGeo = new THREE.BoxGeometry(0.5, 0.1, 1.0);
         const placeholderMat = new THREE.MeshStandardMaterial({ color: this.color });
@@ -77,39 +83,43 @@ export class Scooter {
             placeholder.material.dispose();
 
             const model = gltf.scene;
-            model.scale.set(0.5, 0.5, 0.5);
-            model.rotation.y = Math.PI; // Handle at front
-
-            // Find and store mesh references
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    this.allMeshes.push(child);
-
-                    // Apply custom color to board
-                    const name = child.name.toLowerCase();
-                    if (name.includes('board') || name.includes('deck')) {
-                        child.material = child.material.clone();
-                        child.material.color.set(this.color);
-                        this.board = child;
-                    }
-                    if (name.includes('handle')) {
-                        this.handle = child;
-                    }
-                    if (name.includes('wheel')) {
-                        if (name.includes('back') && name.includes('left')) this.wheels.backLeft = child;
-                        if (name.includes('back') && name.includes('right')) this.wheels.backRight = child;
-                        if (name.includes('front') && name.includes('left')) this.wheels.frontLeft = child;
-                        if (name.includes('front') && name.includes('right')) this.wheels.frontRight = child;
-                    }
-                }
-            });
-
-            model.position.y = Config.scooterVisualOffsetY; // Push model down to floor
-            this.mesh.add(model);
-
+            Scooter.modelCache = model.clone();
+            this.setupModel(model);
         });
+    }
+
+    setupModel(model) {
+        model.scale.set(0.5, 0.5, 0.5);
+        model.rotation.y = Math.PI; // Handle at front
+
+        // Find and store mesh references
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                this.allMeshes.push(child);
+
+                // Apply custom color to board
+                const name = child.name.toLowerCase();
+                if (name.includes('board') || name.includes('deck')) {
+                    child.material = child.material.clone();
+                    child.material.color.set(this.color);
+                    this.board = child;
+                }
+                if (name.includes('handle')) {
+                    this.handle = child;
+                }
+                if (name.includes('wheel')) {
+                    if (name.includes('back') && name.includes('left')) this.wheels.backLeft = child;
+                    if (name.includes('back') && name.includes('right')) this.wheels.backRight = child;
+                    if (name.includes('front') && name.includes('left')) this.wheels.frontLeft = child;
+                    if (name.includes('front') && name.includes('right')) this.wheels.frontRight = child;
+                }
+            }
+        });
+
+        model.position.y = Config.scooterVisualOffsetY; // Push model down to floor
+        this.mesh.add(model);
     }
 
     createPhysics() {
