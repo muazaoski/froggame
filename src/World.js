@@ -130,9 +130,11 @@ export class World {
         this.scooters = [];
         this.scooterSpawnZones = []; // Positions where scooters can spawn
         this.playerHasScooter = {}; // Track which players have spawned scooters
-
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
+
+        this.terrainMeshes = [];
+        this.wallMeshes = [];
 
         // RAYCASTER (For eye looking)
         this.raycaster = new THREE.Raycaster();
@@ -455,8 +457,8 @@ export class World {
         this.particles = new ParticleSystem(this.scene);
 
         // Initialize Soccer Ball - spawn from sky in a random area
-        const spawnX = (Math.random() - 0.5) * Config.ballSpawnRange * 2;
-        const spawnZ = (Math.random() - 0.5) * Config.ballSpawnRange * 2;
+        const spawnX = (Math.random() - 0.5) * Config.ballSpawnRangeX * 2;
+        const spawnZ = (Math.random() - 0.5) * Config.ballSpawnRangeZ * 2;
         this.ball = new Ball(this.physics, this.scene, { x: spawnX, y: Config.ballSpawnHeight, z: spawnZ });
     }
 
@@ -659,9 +661,14 @@ export class World {
                         }
                     }
 
-                    // Track as wall for camera occlusion (exclude ground)
-                    if (!child.name.toLowerCase().includes('ground') &&
-                        !child.name.toLowerCase().includes('floor')) {
+                    // Track terrain for physics/dust
+                    const nameLower = child.name.toLowerCase();
+                    if (nameLower.includes('ground') || nameLower.includes('floor') || nameLower.includes('terrain') || nameLower.includes('island')) {
+                        this.terrainMeshes.push(child);
+                    }
+
+                    // Track as wall for camera occlusion
+                    if (!nameLower.includes('ground') && !nameLower.includes('floor')) {
                         this.wallMeshes.push(child);
                     }
 
@@ -1647,7 +1654,7 @@ export class World {
 
         // Update Scooters
         for (const scooter of this.scooters) {
-            scooter.update(dt, input, this.wallMeshes);
+            scooter.update(dt, input, this.terrainMeshes);
         }
 
         // Check scooter spawn zones for highlighting

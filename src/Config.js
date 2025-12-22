@@ -203,7 +203,8 @@ export const Config = {
     ballKickForce: 21.4,
     ballKickUpward: 6.885,
     ballSpawnHeight: 30,
-    ballSpawnRange: 15, // Random range for X and Z
+    ballSpawnRangeX: 25, // Specified range -25 to 25
+    ballSpawnRangeZ: 25,
     ballResetHeight: -20,
 
     // Scooter Settings

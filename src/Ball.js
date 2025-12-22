@@ -159,8 +159,8 @@ export class Ball {
     // Reset ball to spawn position
     reset() {
         if (this.body) {
-            const rx = (Math.random() - 0.5) * 30;
-            const rz = (Math.random() - 0.5) * 30;
+            const rx = (Math.random() - 0.5) * Config.ballSpawnRangeX * 2;
+            const rz = (Math.random() - 0.5) * Config.ballSpawnRangeZ * 2;
             this.body.position.set(rx, Config.ballSpawnHeight, rz);
             this.body.velocity.set(0, 0, 0);
             this.body.angularVelocity.set(0, 0, 0);

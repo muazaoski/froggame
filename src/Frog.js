@@ -219,7 +219,59 @@ export class Frog {
             // ...
         }
 
-        if (!input) return;
+        // REMOTE INTERPOLATION (If not local, follow targetPos)
+        if (!this.isLocal && this.targetPos) {
+            // Move body toward target (to keep physics in sync)
+            if (this.body) {
+                this.body.position.lerp(new CANNON.Vec3(this.targetPos.x, this.targetPos.y, this.targetPos.z), 0.3);
+            }
+            // Slerp rotation
+            if (this.targetRot) {
+                this.mesh.quaternion.slerp(this.targetRot, 0.3);
+            }
+
+            // Sync Mesh Position to Body (even for remote)
+            this.mesh.position.copy(this.body.position);
+        }
+
+        // Proceed to visual updates (animations, jiggle, tongue) regardless of input
+        // But skip physical calculation and input handling if no input
+        if (!input) {
+            // REMOTE VISUAL UPDATES
+            const remoteIsMoving = this.remoteVelocity && this.remoteVelocity.length() > 0.1;
+
+            // Update Animations (Legs)
+            this.updateAnimations(dt, remoteIsMoving, this.isRemoteGrounded);
+
+            // Update Jiggle
+            this.updateJiggle(dt, remoteIsMoving);
+
+            // Update Eyes
+            if (this.targetLook) this.updateEyes(this.targetLook);
+
+            // Update Tongue
+            this.updateTongue(dt, null);
+
+            // Animate Mouth
+            if (this.isRemoteTalking && this.mouthMesh && this.mouthBaseScale) {
+                const talkSpeed = Config.talkSpeed;
+                const openAmount = 0.5 + Math.sin(Date.now() / 100 * talkSpeed) * 0.5;
+                this.mouthMesh.scale.y = this.mouthBaseScale.y * (1 + openAmount * 0.5);
+            }
+
+            // Remote Walking Dust
+            if (this.particles && remoteIsMoving && this.isRemoteGrounded) {
+                this.walkDustTimer -= dt;
+                if (this.walkDustTimer <= 0) {
+                    const footPos = this.mesh.position.clone();
+                    footPos.y += Config.vfxGroundOffset;
+                    this.particles.spawnWalkDust(footPos, this.color);
+                    this.walkDustTimer = Config.vfxWalkInterval;
+                }
+            }
+
+            return;
+        }
 
         // CHECK GROUND (Collision Check)
         this.onGround = false;
@@ -535,6 +587,21 @@ export class Frog {
                 state.tongueTargetZ
             );
             this.remoteTongueProgress = state.tongueProgress || 0;
+
+            // Apply to internal tongue state for visualization
+            if (this.remoteTongueStateCode > 0) {
+                const states = ['idle', 'extending', 'retracting', 'attached'];
+                this.tongue.state = states[this.remoteTongueStateCode];
+                this.tongue.progress = this.remoteTongueProgress;
+                this.tongue.lockedPoint.copy(this.remoteTongueTarget);
+
+                // Ensure visual exists
+                this.createTongueVisual();
+                if (this.tongueLine) this.tongueLine.visible = true;
+                if (this.tongueTip) this.tongueTip.visible = true;
+            } else if (this.tongue.state !== 'idle') {
+                this.finishTongue();
+            }
         }
 
         // Scooter Status

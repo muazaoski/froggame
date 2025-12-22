@@ -304,6 +304,8 @@ export class Scooter {
             // Even when not ridden, align to ground
             if (terrainMeshes) this.alignWithTerrain(terrainMeshes, dt);
             this.animateWheels(dt);
+            // Allow dust particles for remote players
+            this.spawnDustParticles(dt);
             return;
         }
 
