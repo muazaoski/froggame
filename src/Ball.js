@@ -136,22 +136,32 @@ export class Ball {
         this.mesh.position.copy(this.body.position);
         this.mesh.quaternion.copy(this.body.quaternion);
 
-        // Buoyancy Logic
+        // Buoyancy Logic - Ball floats on water
         if (waterLevel !== null && this.body.position.y < waterLevel) {
-            // Apply upward force relative to how much the ball is submerged
-            // Mass is ~0.38, gravity is -9.82. We need force > ~3.7 to float.
             const immersionDepth = (waterLevel - this.body.position.y);
-            const floatMultiplier = Math.min(immersionDepth / this.radius, 1.5);
 
-            // Apply upward buoyancy force
-            const floatForce = 15.0 * this.mass;
-            this.body.velocity.y += floatForce * floatMultiplier * dt;
+            // Strong upward force when submerged
+            // Gravity pulls down at ~9.82 m/s². We need to counteract this + add extra to float up.
+            const buoyancyAccel = 25.0; // Much stronger than gravity
+            const floatMultiplier = Math.min(immersionDepth / this.radius, 2.0);
 
-            // Water Drag (resist movement in water)
-            this.body.velocity.x *= 0.97;
-            this.body.velocity.y *= 0.93;
-            this.body.velocity.z *= 0.97;
-            this.body.angularVelocity.scale(0.95, this.body.angularVelocity);
+            // Apply upward impulse
+            this.body.velocity.y += buoyancyAccel * floatMultiplier * dt;
+
+            // Cap downward velocity in water (prevent sinking too fast)
+            if (this.body.velocity.y < -2) {
+                this.body.velocity.y = -2;
+            }
+
+            // Water surface tension - slow down when near surface
+            if (immersionDepth < this.radius * 0.5) {
+                this.body.velocity.y *= 0.90;
+            }
+
+            // Horizontal drag in water
+            this.body.velocity.x *= 0.98;
+            this.body.velocity.z *= 0.98;
+            this.body.angularVelocity.scale(0.96, this.body.angularVelocity);
         }
 
         // Reset ball if it falls too far
