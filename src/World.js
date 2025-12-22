@@ -601,8 +601,9 @@ export class World {
 
         const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length);
         instancedMesh.name = 'InstancedGrass';
-        instancedMesh.castShadow = false; // Massive perf gain
-        instancedMesh.receiveShadow = true;
+        instancedMesh.castShadow = false;
+        instancedMesh.receiveShadow = false; // DISABLED for performance
+        instancedMesh.frustumCulled = true; // Enable frustum culling
 
         for (let i = 0; i < instances.length; i++) {
             instancedMesh.setMatrixAt(i, instances[i]);
@@ -776,21 +777,17 @@ export class World {
 
         hookPositions.forEach(pos => {
             // Create hook visual
-            const hookGeometry = new THREE.SphereGeometry(0.3, 16, 16);
-            const hookMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffd700, // Gold color
-                metalness: 0.8,
-                roughness: 0.2,
-                emissive: 0xffd700,
-                emissiveIntensity: 0.3
+            const hookGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+            const hookMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffd700
             });
             const hook = new THREE.Mesh(hookGeometry, hookMaterial);
             hook.position.set(pos.x, pos.y, pos.z);
-            hook.castShadow = true;
+            hook.castShadow = false;
 
             // Add a hanging rope visual
             const ropeGeometry = new THREE.CylinderGeometry(0.03, 0.03, 2, 8);
-            const ropeMaterial = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+            const ropeMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
             const rope = new THREE.Mesh(ropeGeometry, ropeMaterial);
             rope.position.y = 1;
             hook.add(rope);
@@ -1600,6 +1597,10 @@ export class World {
 
     updateWallOcclusion(playerPos) {
         if (!this.wallMeshes || this.wallMeshes.length === 0) return;
+
+        // Throttle occlusion checks to every 3 frames for performance
+        this._occlusionFrame = (this._occlusionFrame || 0) + 1;
+        if (this._occlusionFrame % 3 !== 0) return;
 
         // Raycast from camera to player
         const direction = new THREE.Vector3().subVectors(playerPos, this.camera.position).normalize();
