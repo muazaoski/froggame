@@ -521,6 +521,13 @@ scooterRiderFolder.add(Config, 'scooterLegRotationY', -Math.PI, Math.PI, 0.05).n
 scooterRiderFolder.add(Config, 'scooterLegRotationZ', -Math.PI, Math.PI, 0.05).name('Leg Rotation Z');
 scooterRiderFolder.close();
 
+const grassFolder = gui.addFolder('🌿 Grass Interaction');
+grassFolder.add(Config, 'grassBendingStrength', 0, 10).name('Bending Strength');
+grassFolder.add(Config, 'grassBendingRadius', 1, 10).name('Bending Radius');
+grassFolder.add(Config, 'grassWindSpeed', 0, 5).name('Wind Speed');
+grassFolder.add(Config, 'grassWindStrength', 0, 1).name('Wind Strength');
+grassFolder.close();
+
 
 
 const exportObj = {

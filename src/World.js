@@ -129,6 +129,17 @@ export class World {
         this.raycaster = new THREE.Raycaster();
         this.mousePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Ground plane
 
+        // GRASS INTERACTION
+        this.grassMeshes = [];
+        this.grassUniforms = {
+            uTime: { value: 0 },
+            uPlayerPos: { value: new THREE.Vector3() },
+            uBendingStrength: { value: Config.grassBendingStrength },
+            uBendingRadius: { value: Config.grassBendingRadius },
+            uWindSpeed: { value: Config.grassWindSpeed },
+            uWindStrength: { value: Config.grassWindStrength }
+        };
+
         // POST PROCESSING
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -448,6 +459,62 @@ export class World {
         }
     }
 
+    setupGrassMaterial(mesh) {
+        if (!mesh.material) return;
+
+        // Ensure material is unique
+        mesh.material = mesh.material.clone();
+
+        mesh.material.onBeforeCompile = (shader) => {
+            // Add uniforms
+            shader.uniforms.uTime = this.grassUniforms.uTime;
+            shader.uniforms.uPlayerPos = this.grassUniforms.uPlayerPos;
+            shader.uniforms.uBendingStrength = this.grassUniforms.uBendingStrength;
+            shader.uniforms.uBendingRadius = this.grassUniforms.uBendingRadius;
+            shader.uniforms.uWindSpeed = this.grassUniforms.uWindSpeed;
+            shader.uniforms.uWindStrength = this.grassUniforms.uWindStrength;
+
+            // Inject vertex shader logic
+            shader.vertexShader = `
+                uniform float uTime;
+                uniform vec3 uPlayerPos;
+                uniform float uBendingStrength;
+                uniform float uBendingRadius;
+                uniform float uWindSpeed;
+                uniform float uWindStrength;
+            ` + shader.vertexShader;
+
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `
+                #include <begin_vertex>
+                
+                // Get world position of vertex
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                
+                // 1. Wind Sway (Simple sin wave based on height)
+                // We use object-space Y for height factor
+                float heightFactor = clamp(position.y * 2.0, 0.0, 1.0); 
+                float windTime = uTime * uWindSpeed;
+                float windSway = sin(windTime + worldPos.x * 0.5 + worldPos.z * 0.5) * uWindStrength * heightFactor;
+                transformed.x += windSway;
+                transformed.z += windSway * 0.5;
+
+                // 2. Player Pushing
+                float dist = distance(worldPos.xyz, uPlayerPos);
+                if (dist < uBendingRadius) {
+                    float pushFactor = (1.0 - (dist / uBendingRadius)) * uBendingStrength * heightFactor;
+                    vec3 pushDir = normalize(worldPos.xyz - uPlayerPos);
+                    pushDir.y = -0.3; // Push down slightly
+                    
+                    // Transform push direction back to local space
+                    transformed += (inverse(modelMatrix) * vec4(pushDir * pushFactor, 0.0)).xyz;
+                }
+                `
+            );
+        };
+    }
+
     loadLevel() {
         const loader = new GLTFLoader();
         this.wallMeshes = []; // Track walls for camera occlusion
@@ -458,7 +525,7 @@ export class World {
 
             level.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;
+                    child.castShadow = !child.name.toLowerCase().includes('grass');
                     child.receiveShadow = true;
 
                     // Make material support transparency for camera occlusion
@@ -483,6 +550,12 @@ export class World {
                             child.material.emissiveIntensity = 0.1;
                             child.material.metalness = 0.6;
                             child.material.roughness = 0.1;
+                        }
+
+                        // SETUP GRASS INTERACTION
+                        if (child.name.toLowerCase().includes('grass')) {
+                            this.setupGrassMaterial(child);
+                            this.grassMeshes.push(child);
                         }
                     }
 
@@ -516,8 +589,8 @@ export class World {
                     }
 
                     // Physics Generation
-                    if (child.name.startsWith('Ghost_')) {
-                        // Pass (No physics)
+                    if (child.name.startsWith('Ghost_') || child.name.toLowerCase().includes('grass')) {
+                        // Pass (No physics for ghosts or grass)
                     } else if (!child.name.toLowerCase().includes('scooterspawn')) {
                         this.createPhysicsForMesh(child);
                     }
@@ -1434,6 +1507,12 @@ export class World {
         // Update Particles (VFX)
         if (this.particles) {
             this.particles.update(dt);
+        }
+
+        // Update Grass Uniforms
+        this.grassUniforms.uTime.value += dt;
+        if (this.localFrog && this.localFrog.mesh) {
+            this.grassUniforms.uPlayerPos.value.copy(this.localFrog.mesh.position);
         }
 
         // Update Ball

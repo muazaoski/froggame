@@ -228,4 +228,11 @@ export const Config = {
     scooterAssOffsetY: 0.0,
     scooterAssOffsetZ: 0.0,
     scooterBanking: 0.18,
+
+    // Grass Interaction Settings
+    grassBendingStrength: 2.0,      // How much it pushes away
+    grassBendingRadius: 2.5,        // Detection radius
+    grassWindSpeed: 1.5,            // Wind speed
+    grassWindStrength: 0.15,        // Wind sway intensity
 };
+
