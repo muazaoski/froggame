@@ -461,16 +461,17 @@ export class Scooter {
 
     alignWithTerrain(terrainMeshes, dt, extraRoll = 0) {
         // Raycast down from slightly above the scooter
-        const rayOrigin = this.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+        const hOffset = (!this.rider || !this.rider.isLocal) ? 3.0 : 1.5;
+        const rayOrigin = this.mesh.position.clone().add(new THREE.Vector3(0, hOffset, 0));
         const rayDir = new THREE.Vector3(0, -1, 0);
         this.raycaster.set(rayOrigin, rayDir);
-        this.raycaster.far = 4.0;
+        this.raycaster.far = hOffset + 2.0;
 
         const intersects = this.raycaster.intersectObjects(terrainMeshes, false);
 
         if (intersects.length > 0) {
             const dist = intersects[0].distance;
-            this.isGrounded = dist < 2.5;
+            this.isGrounded = dist < (hOffset + 1.0);
             this._lastGroundY = intersects[0].point.y;
 
             if (intersects[0].face) {
@@ -519,7 +520,9 @@ export class Scooter {
         if (this._dustTimer > 0.1 && this.isGrounded) {
             this._dustTimer = 0;
             const pos = this.mesh.position.clone();
-            pos.y = (this._lastGroundY !== undefined) ? this._lastGroundY + 0.1 : this.mesh.position.y - 0.4;
+            // Use the last detected ground height. 
+            // ParticleSystem.spawnWalkDust adds 0.1 already.
+            pos.y = (this._lastGroundY !== undefined) ? this._lastGroundY : this.mesh.position.y - 0.5;
             this.particles.spawnWalkDust(pos, this.color || '#ffffff');
         }
     }
