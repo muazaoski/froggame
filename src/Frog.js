@@ -223,7 +223,10 @@ export class Frog {
         if (!this.isLocal && this.targetPos) {
             // Move body toward target (to keep physics in sync)
             if (this.body) {
-                this.body.position.lerp(new CANNON.Vec3(this.targetPos.x, this.targetPos.y, this.targetPos.z), 0.3);
+                this.body.position.x = THREE.MathUtils.lerp(this.body.position.x, this.targetPos.x, 0.3);
+                this.body.position.y = THREE.MathUtils.lerp(this.body.position.y, this.targetPos.y, 0.3);
+                this.body.position.z = THREE.MathUtils.lerp(this.body.position.z, this.targetPos.z, 0.3);
+                this.body.velocity.set(0, 0, 0); // Don't let physics move remote bodies
             }
             // Slerp rotation
             if (this.targetRot) {

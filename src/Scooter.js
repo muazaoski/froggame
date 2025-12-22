@@ -476,7 +476,7 @@ export class Scooter {
             this.isGrounded = false;
         }
 
-        if (this.isGrounded) {
+        if (this.isGrounded && intersects[0].face) {
             const normal = intersects[0].face.normal.clone();
             // Transform normal to world space using matrixWorld
             normal.transformDirection(intersects[0].object.matrixWorld);
