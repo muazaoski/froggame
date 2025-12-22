@@ -7,12 +7,12 @@ export const Config = {
     // Movement
     moveSpeed: 8.5,
     jumpVelocity: 19.5,
-    rotationSpeed: 9.323,
+    rotationSpeed: 15.993,
     airControl: 0.5,
 
     // Animation
     hopHeight: 0.545,
-    hopSpeed: 11.817,
+    hopSpeed: 7.119,
     talkSpeed: 4.335,
 
     // Physics Details
@@ -195,7 +195,7 @@ export const Config = {
 
     // Ball Settings
     ballRadius: 0.5,
-    ballMass: 5,
+    ballMass: 0.3812,
     ballLinearDamping: 0.533,
     ballAngularDamping: 0.975,
     ballBounciness: 0.7,
