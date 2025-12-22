@@ -554,6 +554,7 @@ export class World {
 
                         // SETUP GRASS INTERACTION
                         if (child.name.toLowerCase().includes('grass')) {
+                            child.material.color.setHex(0x3ea331); // Vibrant Grass Green
                             this.setupGrassMaterial(child);
                             this.grassMeshes.push(child);
                         }

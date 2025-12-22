@@ -14,17 +14,8 @@ export class Physics {
 
         this.updateMaterials();
 
-        // Ground Plane - Using Plane instead of Box to avoid CANNON.js convex hull collision bugs
-        const groundShape = new CANNON.Plane();
-        this.groundBody = new CANNON.Body({
-            mass: 0,
-            material: this.groundMaterial
-        });
-        this.groundBody.addShape(groundShape);
-        // Rotate plane to face up (planes face +Z by default)
-        this.groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-        this.groundBody.position.set(0, 0, 0);
-        this.world.addBody(this.groundBody);
+        // No hardcoded ground plane here anymore. 
+        // We rely on createPhysicsForMesh in World.js to generate terrain physics from the GLB.
     }
 
     updateMaterials() {
