@@ -298,13 +298,31 @@ export class Scooter {
     update(dt, input, terrainMeshes) {
         // Sync mesh to physics body when not riding
         if (!this.rider || !this.rider.isLocal) {
-            if (this.body) {
+            // REMOTE FOLLOW LOGIC
+            if (this.rider && this.rider.mesh) {
+                // Follow rider position (with offset for sitting)
+                this.mesh.position.copy(this.rider.mesh.position);
+                this.mesh.position.y -= Config.scooterRiderY || 0.6;
+                this.facingAngle = this.rider.facingAngle;
+
+                // Sync velocity for wheels and dust
+                if (this.rider.remoteVelocity) {
+                    this.velocity = this.rider.remoteVelocity.length();
+                } else {
+                    this.velocity = 0;
+                }
+
+                // Decode steer amount from rider if available
+                this.steerAmount = this.rider.remoteSteerAmount || 0;
+            } else if (this.body) {
                 this.mesh.position.copy(this.body.position);
             }
-            // Even when not ridden, align to ground
-            if (terrainMeshes) this.alignWithTerrain(terrainMeshes, dt);
+
+            // Align to ground (including remote)
+            const banking = -this.steerAmount * Config.scooterBanking * (Math.abs(this.velocity) / Config.scooterSpeed);
+            if (terrainMeshes) this.alignWithTerrain(terrainMeshes, dt, banking);
+
             this.animateWheels(dt);
-            // Allow dust particles for remote players
             this.spawnDustParticles(dt);
             return;
         }

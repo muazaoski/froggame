@@ -177,7 +177,9 @@ setInterval(() => {
 
 // Ball state - managed by server
 let ballState = {
-    x: 0, y: 30, z: 0,
+    x: (Math.random() - 0.5) * 50, // -25 to 25
+    y: 30,
+    z: (Math.random() - 0.5) * 50, // -25 to 25
     qx: 0, qy: 0, qz: 0, qw: 1,
     vx: 0, vy: 0, vz: 0
 };
@@ -839,6 +841,18 @@ io.on('connection', (socket) => {
         if (socket.id === ballAuthority) {
             ballState = state;
             socket.broadcast.emit('ballSync', state);
+
+            // AUTO-RESET: if ball falls too low
+            if (state.y < -20) {
+                ballState = {
+                    x: (Math.random() - 0.5) * 50,
+                    y: 30,
+                    z: (Math.random() - 0.5) * 50,
+                    qx: 0, qy: 0, qz: 0, qw: 1,
+                    vx: 0, vy: 0, vz: 0
+                };
+                io.emit('ballSync', ballState);
+            }
         }
     });
 

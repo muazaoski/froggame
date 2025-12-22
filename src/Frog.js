@@ -518,6 +518,10 @@ export class Frog {
         this.targetPos = new THREE.Vector3(state.x, state.y, state.z);
         this.targetRot = new THREE.Quaternion(state.qx, state.qy, state.qz, state.qw);
 
+        // Extract facingAngle from rotation for remote visuals (scooter/eyes)
+        const euler = new THREE.Euler().setFromQuaternion(this.targetRot, 'YXZ');
+        this.facingAngle = euler.y;
+
         // Velocity (Important for Jiggle & Animation prediction)
         this.remoteVelocity = new THREE.Vector3(state.vx, state.vy, state.vz);
 
@@ -610,16 +614,14 @@ export class Frog {
 
             if (this.isRemoteRidingScooter && !this.remoteScooter) {
                 // Create visual scooter for remote player
-                // We pass 'this.mesh' as the scene so it attaches to the frog
                 this.remoteScooter = new Scooter(
                     `scooter_remote_${this.id}`,
-                    this.remoteScooterColor || this.color, // Use synced color or fallback to frog color
-                    this.mesh, // Attach to frog mesh
+                    this.remoteScooterColor || this.color,
+                    this.mesh.parent || this.world.scene, // Parent to scene, not frog mesh
                     null // No physics
                 );
                 this.remoteScooter.particles = this.particles; // Helper for dust
-                this.remoteScooter.mesh.position.set(0, -0.6, 0);
-                this.remoteScooter.rider = this; // Set rider for leg animations
+                this.remoteScooter.rider = this; // Set rider for following
             } else if (!this.isRemoteRidingScooter && this.remoteScooter) {
                 // Remove scooter and reset leg positions
                 this.remoteScooter.dispose();

@@ -118,6 +118,10 @@ export class World {
         Frog.setLoaderManager(this.loadingManager);
         Scooter.setLoaderManager(this.loadingManager);
 
+        // COLLISION GROUPS
+        this.terrainMeshes = []; // For scooter alignment & dust
+        this.wallMeshes = [];    // For camera occlusion
+
         // LOAD LEVEL
         this.loadLevel();
 
@@ -130,11 +134,9 @@ export class World {
         this.scooters = [];
         this.scooterSpawnZones = []; // Positions where scooters can spawn
         this.playerHasScooter = {}; // Track which players have spawned scooters
+
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
-
-        this.terrainMeshes = [];
-        this.wallMeshes = [];
 
         // RAYCASTER (For eye looking)
         this.raycaster = new THREE.Raycaster();
