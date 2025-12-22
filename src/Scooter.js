@@ -461,56 +461,46 @@ export class Scooter {
 
     alignWithTerrain(terrainMeshes, dt, extraRoll = 0) {
         // Raycast down from slightly above the scooter
-        const rayOrigin = this.mesh.position.clone().add(new THREE.Vector3(0, 1, 0));
+        const rayOrigin = this.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0));
         const rayDir = new THREE.Vector3(0, -1, 0);
         this.raycaster.set(rayOrigin, rayDir);
+        this.raycaster.far = 4.0;
 
         const intersects = this.raycaster.intersectObjects(terrainMeshes, false);
 
-        // Grounded check (distance to terrain)
         if (intersects.length > 0) {
             const dist = intersects[0].distance;
-            this.isGrounded = dist < 2.0; // Check if we are close to ground (1.0 offset + radius)
-            this._lastGroundY = intersects[0].point.y; // Store for dust
+            this.isGrounded = dist < 2.5;
+            this._lastGroundY = intersects[0].point.y;
+
+            if (intersects[0].face) {
+                const normal = intersects[0].face.normal.clone();
+                normal.transformDirection(intersects[0].object.matrixWorld);
+                this.terrainNormal.lerp(normal, dt * 15);
+            }
         } else {
             this.isGrounded = false;
         }
 
-        if (this.isGrounded && intersects[0].face) {
-            const normal = intersects[0].face.normal.clone();
-            // Transform normal to world space using matrixWorld
-            normal.transformDirection(intersects[0].object.matrixWorld);
-
-            this.terrainNormal.lerp(normal, dt * 10);
-
-            // Calculate rotation that faces 'facingAngle' but aligns 'up' with 'terrainNormal'
-            const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
-            const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
-            const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
-
-            const matrix = new THREE.Matrix4();
-            matrix.makeBasis(right, this.terrainNormal, adjustedForward);
-            this.targetQuaternion.setFromRotationMatrix(matrix);
-        } else {
-            // In the air - slowly level the up vector but maintain forward facing
+        if (!this.isGrounded) {
             this.terrainNormal.lerp(new THREE.Vector3(0, 1, 0), dt * 2);
-
-            const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
-            const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
-            const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
-
-            const matrix = new THREE.Matrix4();
-            matrix.makeBasis(right, this.terrainNormal, adjustedForward);
-            this.targetQuaternion.setFromRotationMatrix(matrix);
         }
 
-        // Apply extra roll (banking)
+        // Calculate basis vectors
+        const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+        const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
+        const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
+
+        const matrix = new THREE.Matrix4();
+        matrix.makeBasis(right, this.terrainNormal, adjustedForward);
+        this.targetQuaternion.setFromRotationMatrix(matrix);
+
         if (extraRoll !== 0) {
             const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), extraRoll);
             this.targetQuaternion.multiply(rollQuat);
         }
 
-        this.mesh.quaternion.slerp(this.targetQuaternion, dt * 10);
+        this.mesh.quaternion.slerp(this.targetQuaternion, dt * 15);
     }
 
     animateWheels(dt) {

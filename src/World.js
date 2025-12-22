@@ -663,9 +663,14 @@ export class World {
                         }
                     }
 
-                    // Track terrain for physics/dust
+                    // Track terrain for physics/alignment
+                    // Be inclusive: if it's a mesh and not specially handled (grass/water/spawn), it's terrain.
                     const nameLower = child.name.toLowerCase();
-                    if (nameLower.includes('ground') || nameLower.includes('floor') || nameLower.includes('terrain') || nameLower.includes('island')) {
+                    const isWater = nameLower.includes('water');
+                    const isGrass = nameLower.includes('grass');
+                    const isSpawn = nameLower.includes('scooterspawn');
+
+                    if (!isWater && !isGrass && !isSpawn) {
                         this.terrainMeshes.push(child);
                     }
 
