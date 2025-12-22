@@ -315,7 +315,7 @@ export class Frog {
 
 
         // MOVEMENT (Camera-relative)
-        const speed = Config.moveSpeed; // Don't multiply by dt here, applyForce and step(dt) handle it
+        const targetSpeed = 15; // Balanced top speed for the frog
         const inputVec = new THREE.Vector3(0, 0, 0);
 
         // Get raw input direction
@@ -339,18 +339,24 @@ export class Frog {
             // Calculate target angle from the rotated movement vector
             const targetAngle = Math.atan2(moveVec.x, moveVec.z);
 
-            // Smooth rotation
+            // Smooth rotation towards movement direction
             let angleDiff = targetAngle - this.facingAngle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
             this.facingAngle += angleDiff * Config.rotationSpeed * dt;
 
-            // Apply force
-            // Air control check? (Optional, but user asked for "more physics stuff")
+            // Apply movement acceleration toward target velocity
+            // This is MUCH snappier than raw force and prevents "speedster" teleportation
             const isGrappling = this.tongue.state === 'attached';
-            const moveSpeedMult = isGrappling ? 0.3 : 1.0; // Reduce base move force while grappling (swing handles it)
-            const force = new CANNON.Vec3(moveVec.x * speed * moveSpeedMult, 0, moveVec.z * speed * moveSpeedMult);
-            this.body.applyForce(force, this.body.position);
+            const accelScale = this.onGround ? 12.0 : (Config.airControl * 5.0);
+            const grappleMult = isGrappling ? 0.3 : 1.0;
+
+            const targetVelX = moveVec.x * targetSpeed * grappleMult;
+            const targetVelZ = moveVec.z * targetSpeed * grappleMult;
+
+            // Soft-clamped acceleration (snappy startup, but not instant)
+            this.body.velocity.x = THREE.MathUtils.lerp(this.body.velocity.x, targetVelX, accelScale * dt);
+            this.body.velocity.z = THREE.MathUtils.lerp(this.body.velocity.z, targetVelZ, accelScale * dt);
 
             // ANIMATION (Simple Hop)
             if (this.onGround) {
@@ -381,6 +387,13 @@ export class Frog {
             // Reset animation when stopped
             this.moveAnimTimer = 0;
             this.bodyMesh.position.y = THREE.MathUtils.lerp(this.bodyMesh.position.y, 0, dt * 10);
+
+            // Snappy deceleration when no input (prevents "ice skating" feel)
+            if (this.onGround) {
+                const stopScale = 15.0; // Fast stop on ground
+                this.body.velocity.x = THREE.MathUtils.lerp(this.body.velocity.x, 0, stopScale * dt);
+                this.body.velocity.z = THREE.MathUtils.lerp(this.body.velocity.z, 0, stopScale * dt);
+            }
         }
 
         // JUMP
