@@ -315,7 +315,7 @@ export class Frog {
 
 
         // MOVEMENT (Camera-relative)
-        const speed = Config.moveSpeed * dt;
+        const speed = Config.moveSpeed; // Don't multiply by dt here, applyForce and step(dt) handle it
         const inputVec = new THREE.Vector3(0, 0, 0);
 
         // Get raw input direction
