@@ -109,6 +109,14 @@ export class World {
         // PHYSICS
         this.physics = new Physics();
 
+        // LOADING MANAGER
+        this.loadingManager = new THREE.LoadingManager();
+        this.setupLoadingManager();
+
+        // Pass manager to entity loaders
+        Frog.setLoaderManager(this.loadingManager);
+        Scooter.setLoaderManager(this.loadingManager);
+
         // LOAD LEVEL
         this.loadLevel();
 
@@ -444,6 +452,51 @@ export class World {
         this.ball = new Ball(this.physics, this.scene, { x: 5, y: 30, z: 0 });
     }
 
+    setupLoadingManager() {
+        const loadingBar = document.getElementById('loading-bar');
+        const loadingStatus = document.getElementById('loading-status');
+        const loadingScreen = document.getElementById('loading-screen');
+
+        this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+            const progress = (itemsLoaded / itemsTotal) * 100;
+            if (loadingBar) loadingBar.style.width = progress + '%';
+
+            // Helpful status messages based on what's loading
+            if (url.includes('world.glb')) {
+                if (loadingStatus) loadingStatus.textContent = 'Analyzing Terrain & Lilypads...';
+            } else if (url.includes('scooter.glb')) {
+                if (loadingStatus) loadingStatus.textContent = 'Polishing Scooters...';
+            } else if (url.includes('frog_ready')) {
+                if (loadingStatus) loadingStatus.textContent = 'Waking up Frogs...';
+            } else {
+                if (loadingStatus) loadingStatus.textContent = `Gathering assets... (${itemsLoaded}/${itemsTotal})`;
+            }
+        };
+
+        this.loadingManager.onLoad = () => {
+            console.log('Loading complete!');
+            if (loadingStatus) loadingStatus.textContent = 'Optimizing Grass & Shadows...';
+
+            // Give a tiny moment for instancing to happen if needed
+            setTimeout(() => {
+                if (loadingScreen) {
+                    loadingScreen.classList.add('fade-out');
+                    // Completely remove after transition
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                        const loginModal = document.getElementById('login-modal');
+                        if (loginModal) loginModal.style.display = 'flex';
+                    }, 800);
+                }
+            }, 500);
+        };
+
+        this.loadingManager.onError = (url) => {
+            console.error('Error loading: ' + url);
+            if (loadingStatus) loadingStatus.textContent = 'Error loading assets. Please refresh.';
+        };
+    }
+
     getShadowMapType(type) {
         switch (type) {
             case 'Basic':
@@ -489,8 +542,12 @@ export class World {
                 `
                 #include <begin_vertex>
                 
-                // Get world position of vertex
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                // Get world position of vertex (Handle instancing)
+                #ifdef USE_INSTANCING
+                    vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+                #else
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                #endif
                 
                 // 1. Wind Sway (Simple sin wave based on height)
                 // We use object-space Y for height factor
@@ -508,16 +565,46 @@ export class World {
                     pushDir.y = -0.3; // Push down slightly
                     
                     // Transform push direction back to local space
-                    transformed += (inverse(modelMatrix) * vec4(pushDir * pushFactor, 0.0)).xyz;
+                    #ifdef USE_INSTANCING
+                        transformed += (inverse(instanceMatrix) * inverse(modelMatrix) * vec4(pushDir * pushFactor, 0.0)).xyz;
+                    #else
+                        transformed += (inverse(modelMatrix) * vec4(pushDir * pushFactor, 0.0)).xyz;
+                    #endif
                 }
                 `
             );
         };
     }
 
+    setupInstancedGrass(templateMesh, instances) {
+        const geometry = templateMesh.geometry;
+        const material = templateMesh.material.clone();
+
+        // Ensure green color
+        material.color.setHex(0x3ea331);
+
+        // Apply the bending shader to the instanced material
+        this.setupGrassMaterial({ material });
+
+        const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length);
+        instancedMesh.name = 'InstancedGrass';
+        instancedMesh.castShadow = false; // Massive perf gain
+        instancedMesh.receiveShadow = true;
+
+        for (let i = 0; i < instances.length; i++) {
+            instancedMesh.setMatrixAt(i, instances[i]);
+        }
+
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        this.scene.add(instancedMesh);
+        this.grassMeshes.push(instancedMesh);
+    }
+
     loadLevel() {
-        const loader = new GLTFLoader();
+        const loader = new GLTFLoader(this.loadingManager);
         this.wallMeshes = []; // Track walls for camera occlusion
+        const grassInstances = [];
+        let grassTemplate = null;
 
         loader.load('/models/world.glb', (gltf) => {
             const level = gltf.scene;
@@ -552,11 +639,15 @@ export class World {
                             child.material.roughness = 0.1;
                         }
 
-                        // SETUP GRASS INTERACTION
+                        // SETUP GRASS INTERACTION (Collect for instancing)
                         if (child.name.toLowerCase().includes('grass')) {
-                            child.material.color.setHex(0x3ea331); // Vibrant Grass Green
-                            this.setupGrassMaterial(child);
-                            this.grassMeshes.push(child);
+                            // Store transform and hide individual mesh
+                            child.updateMatrixWorld();
+                            const worldMatrix = child.matrixWorld.clone();
+                            grassInstances.push(worldMatrix);
+
+                            if (!grassTemplate) grassTemplate = child;
+                            child.visible = false;
                         }
                     }
 
@@ -597,6 +688,11 @@ export class World {
                     }
                 }
             });
+
+            // Create Instanced Grass for performance
+            if (grassTemplate && grassInstances.length > 0) {
+                this.setupInstancedGrass(grassTemplate, grassInstances);
+            }
         }, undefined, (err) => {
             console.error('Error loading world:', err);
             // Fallback ground if load fails

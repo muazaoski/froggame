@@ -7,6 +7,10 @@ import { Config } from './Config.js';
 export class Scooter {
     static loader = new GLTFLoader();
 
+    static setLoaderManager(manager) {
+        Scooter.loader = new GLTFLoader(manager);
+    }
+
     constructor(id, color, scene, physicsWorld) {
         this.id = id;
         this.color = color;

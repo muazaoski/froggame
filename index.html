@@ -330,7 +330,8 @@
             background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
-            display: flex;
+            display: none;
+            /* Hidden by default, shown after loading */
             align-items: center;
             justify-content: center;
             z-index: 5000;
@@ -997,6 +998,80 @@
         #settings-overlay.visible #settings-panel {
             transform: translateY(0) scale(1);
             opacity: 1;
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #3ea331 0%, #1e5e1b 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        #loading-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-content {
+            text-align: center;
+            width: 400px;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .loading-logo {
+            font-family: 'Arial Black', Gadget, sans-serif;
+            font-size: 2.5rem;
+            color: white;
+            text-shadow:
+                -2px -2px 0 #000,
+                2px -2px 0 #000,
+                -2px 2px 0 #000,
+                2px 2px 0 #000,
+                0 4px 6px rgba(0, 0, 0, 0.3);
+            margin-bottom: 40px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .loading-bar-container {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .loading-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(to right, #FFEB3B, #FBC02D);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 15px rgba(255, 235, 59, 0.6);
+            border-radius: 10px;
+        }
+
+        .loading-status {
+            color: white;
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .settings-header {
@@ -2729,6 +2804,17 @@
         <div class="offline-status">
             <div class="offline-spinner"></div>
             <span>Attempting to reconnect...</span>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">FROG MULTIPLAYER</div>
+            <div class="loading-bar-container">
+                <div id="loading-bar" class="loading-bar"></div>
+            </div>
+            <div id="loading-status" class="loading-status">Optimizing Lilypads...</div>
         </div>
     </div>
 

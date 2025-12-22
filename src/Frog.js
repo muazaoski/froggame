@@ -9,6 +9,10 @@ export class Frog {
     static modelGeometry = null;
     static loader = new GLTFLoader();
 
+    static setLoaderManager(manager) {
+        Frog.loader = new GLTFLoader(manager);
+    }
+
     constructor(id, color, physicsWorld, isLocal = false) {
         this.id = id;
         this.isLocal = isLocal;
