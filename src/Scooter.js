@@ -31,6 +31,7 @@ export class Scooter {
         this.targetQuaternion = new THREE.Quaternion();
         this.raycaster = new THREE.Raycaster();
         this.isGrounded = true; // Track if we are on the ground
+        this._lastGroundY = null; // Will be set by alignWithTerrain raycast
         this.raycaster.far = 3.0;
 
         // Highlight state
@@ -530,12 +531,13 @@ export class Scooter {
 
             // Determine dust Y position
             // Priority: detected ground > rider mesh Y > scooter mesh Y - offset
-            if (this._lastGroundY !== undefined) {
+            if (this._lastGroundY !== null && this._lastGroundY !== undefined) {
                 pos.y = this._lastGroundY;
             } else if (this.rider && this.rider.mesh) {
                 // Use rider's Y minus approximate standing height
-                pos.y = this.rider.mesh.position.y - 0.5;
+                pos.y = this.rider.mesh.position.y - (Config.scooterRiderY || 0.5);
             } else {
+                // Last resort: use scooter mesh position with offset
                 pos.y = this.mesh.position.y - 0.5;
             }
 

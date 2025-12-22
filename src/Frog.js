@@ -648,11 +648,8 @@ export class Frog {
                 // Immediate update to prevent "stuck at origin" frame
                 const terrain = this.world ? this.world.terrainMeshes : null;
                 this.remoteScooter.update(dt, null, terrain);
-            } else if (this.remoteScooter && this.remoteScooterColor) {
-                // Update color dynamically if it changed
-                this.remoteScooter.setColor(this.remoteScooterColor);
             } else if (!this.isRemoteRidingScooter && this.remoteScooter) {
-                // Remove scooter and reset leg positions
+                // DISMOUNT - Remove scooter and reset leg positions
                 this.remoteScooter.dispose();
                 this.remoteScooter = null;
 
@@ -674,6 +671,11 @@ export class Frog {
                     this.rightLeg.rotation.z = 0;
                 }
             }
+        }
+
+        // Update scooter color if riding and color changed (separate from state change logic)
+        if (this.isRemoteRidingScooter && this.remoteScooter && this.remoteScooterColor) {
+            this.remoteScooter.setColor(this.remoteScooterColor);
         }
 
         // Sync Physics Body (Immediate snap)
