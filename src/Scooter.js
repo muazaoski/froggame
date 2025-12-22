@@ -90,7 +90,7 @@ export class Scooter {
 
     setupModel(model) {
         model.scale.set(0.5, 0.5, 0.5);
-        model.rotation.y = Math.PI; // Handle at front
+        model.rotation.y = Math.PI; // Correct model facing to +Z
 
         // Find and store mesh references
         model.traverse((child) => {
@@ -246,13 +246,12 @@ export class Scooter {
     updateRiderPosition() {
         if (!this.rider) return;
 
-        // Position frog on top of scooter (using config Y offset)
-        this.rider.mesh.position.copy(this.mesh.position);
-        this.rider.mesh.position.y += Config.scooterRiderY;
+        // Match scooter orientation exactly
+        this.rider.mesh.quaternion.copy(this.mesh.quaternion);
 
-        // Match scooter rotation AND banking
-        this.rider.mesh.rotation.y = this.facingAngle;
-        this.rider.mesh.rotation.z = this.mesh.rotation.z;
+        // Calculate world-up offset based on current tilt
+        const localUp = new THREE.Vector3(0, Config.scooterRiderY, 0).applyQuaternion(this.mesh.quaternion);
+        this.rider.mesh.position.copy(this.mesh.position).add(localUp);
 
         // Apply leg position offsets while riding
         if (this.rider.leftLeg && this.rider.leftLegBasePos) {
@@ -380,6 +379,11 @@ export class Scooter {
         if (this.handle) {
             this.handle.rotation.y = this.steerAmount * Config.scooterMaxTurn;
         }
+
+        // Update visual children
+        this.updateRiderPosition();
+        this.animateWheels(dt);
+        this.spawnDustParticles(dt);
     }
 
     alignWithTerrain(terrainMeshes, dt, extraRoll = 0) {
@@ -402,11 +406,13 @@ export class Scooter {
 
         // Calculate rotation that faces 'facingAngle' but aligns 'up' with 'terrainNormal'
         const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
-        const right = new THREE.Vector3().crossVectors(forward, this.terrainNormal).normalize();
-        const adjustedForward = new THREE.Vector3().crossVectors(this.terrainNormal, right);
+        // Standard Right-Handed Basis: Right = Up x Forward, AdjustedForward = Right x Up
+        const right = new THREE.Vector3().crossVectors(this.terrainNormal, forward).normalize();
+        const adjustedForward = new THREE.Vector3().crossVectors(right, this.terrainNormal);
 
         const matrix = new THREE.Matrix4();
-        matrix.makeBasis(right, this.terrainNormal, adjustedForward.negate());
+        // Column 3 is the Forward axis. Since model is rotated PI to face +Z, we use adjustedForward.
+        matrix.makeBasis(right, this.terrainNormal, adjustedForward);
         this.targetQuaternion.setFromRotationMatrix(matrix);
 
         // Apply extra roll (banking)
@@ -416,15 +422,6 @@ export class Scooter {
         }
 
         this.mesh.quaternion.slerp(this.targetQuaternion, dt * 10);
-
-        // Update rider position
-        this.updateRiderPosition();
-
-        // Animate wheels
-        this.animateWheels(dt);
-
-        // Dust particles
-        this.spawnDustParticles(dt);
     }
 
     animateWheels(dt) {
