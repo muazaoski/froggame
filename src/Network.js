@@ -9,7 +9,7 @@ export class Network {
 
         // Connection
         this.socket.on('connect', () => {
-            console.log('Connected to server:', this.socket.id);
+
             // Hide offline overlay if visible
             const overlay = document.getElementById('offline-overlay');
             if (overlay && overlay.classList.contains('visible')) {
@@ -24,12 +24,12 @@ export class Network {
 
         // Disconnection handling
         this.socket.on('disconnect', (reason) => {
-            console.log('Disconnected from server:', reason);
+
             this.showOfflineOverlay();
         });
 
         this.socket.on('connect_error', (error) => {
-            console.log('Connection error:', error);
+
             this.showOfflineOverlay();
         });
 
@@ -274,7 +274,7 @@ export class Network {
         // Ball authority assignment
         this.socket.on('ballAuthority', (isAuthority) => {
             this.world.isBallAuthority = isAuthority;
-            console.log('Ball authority:', isAuthority);
+
         });
 
         // Ping measurement
@@ -343,17 +343,6 @@ export class Network {
         // Use the new sync state gatherer
         const syncData = frog.getSyncState();
         if (syncData) {
-            // Debug: Log once per second when riding
-            if (frog.isRidingScooter) {
-                if (!this._lastNetDebug || Date.now() - this._lastNetDebug > 1000) {
-                    this._lastNetDebug = Date.now();
-                    console.log('NETWORK SYNC (riding):', {
-                        x: syncData.x?.toFixed(2),
-                        y: syncData.y?.toFixed(2),
-                        z: syncData.z?.toFixed(2)
-                    });
-                }
-            }
             this.socket.emit('playerMove', syncData);
         }
     }
@@ -361,6 +350,7 @@ export class Network {
     sendPunch() {
         this.socket.emit('playerPunch');
     }
+
 
     // Send player inputs to server (for activity tracking only)
     // Movement is handled via sendUpdate (client-authoritative)
@@ -409,11 +399,11 @@ export class Network {
     toggleMute(id) {
         if (this.mutedPlayers.has(id)) {
             this.mutedPlayers.delete(id);
-            console.log(`Unmuted player: ${id}`);
+
             return false;
         } else {
             this.mutedPlayers.add(id);
-            console.log(`Muted player: ${id}`);
+
             return true;
         }
     }

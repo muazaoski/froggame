@@ -98,7 +98,7 @@ export class Scooter {
 
             model.position.y = Config.scooterVisualOffsetY; // Push model down to floor
             this.mesh.add(model);
-            console.log('Scooter model loaded!');
+
         });
     }
 
@@ -170,7 +170,7 @@ export class Scooter {
         // Position frog on scooter immediately
         this.updateRiderPosition();
 
-        console.log(`Frog ${frog.id} mounted scooter`);
+
         return true;
     }
 
@@ -220,7 +220,7 @@ export class Scooter {
         frog.currentScooter = null;
         this.rider = null;
 
-        console.log(`Frog ${frog.id} dismounted scooter`);
+
     }
 
     updateRiderPosition() {

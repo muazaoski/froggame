@@ -512,7 +512,7 @@ export class World {
                             this.spawnScooterAtZone(zone);
                         }, 100);
 
-                        console.log('Found scooter spawn zone at:', worldPos);
+
                     }
 
                     // Physics Generation
@@ -584,7 +584,7 @@ export class World {
             this.grappleHooks.push(hook);
         });
 
-        console.log(`Spawned ${this.grappleHooks.length} grapple hooks`);
+
     }
 
     createTongueCursorIndicator() {
@@ -1129,7 +1129,7 @@ export class World {
     addRemoteFrog(id, data) {
         // Guard: Don't create duplicate if frog already exists
         if (this.frogs[id]) {
-            console.log(`Frog ${id} already exists, updating properties`);
+
             // Update existing frog's data
             const existing = this.frogs[id];
             if (data.name) existing.setName(data.name);
@@ -1200,12 +1200,12 @@ export class World {
                     this.particles.spawnPunchImpact(targetFrog.mesh.position, direction);
                 }
 
-                console.log(`Frog ${attackerId} hit frog ${id} for ${damage} damage!${isCritical ? ' CRITICAL!' : ''}`);
+
                 hit = true;
             } else {
                 // Debug: log near misses
                 if (distance < radius * 2) {
-                    console.log(`Near miss on frog ${id}. Distance: ${distance.toFixed(2)}, Need: ${radius}`);
+
                 }
             }
         }
@@ -1224,7 +1224,7 @@ export class World {
                     this.particles.spawnPunchImpact(this.ball.mesh.position, direction);
                 }
 
-                console.log(`Frog ${attackerId} kicked the ball!`);
+
                 hit = true;
 
                 // Send ball state to network for sync
@@ -1634,7 +1634,7 @@ export class World {
         const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 
         const scooter = new Scooter(
-            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
+            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             randomColor,
             this.scene,
             this.physics
@@ -1656,7 +1656,7 @@ export class World {
         // Add to tracking
         this.scooters.push(scooter);
 
-        console.log(`Scooter spawned at: (${randomX.toFixed(1)}, ${spawnY}, ${randomZ.toFixed(1)})`);
+
     }
 
     showToast(message) {
@@ -1731,7 +1731,7 @@ export class World {
             const fetchRoute = (frog.userId && String(frog.userId).length < 15) ? 'getProfile' : 'getProfileBySocket';
             const fetchId = (fetchRoute === 'getProfile') ? frog.userId : frog.id;
 
-            console.log(`📡 Pre-fetching profile for ${frog.name} via ${fetchRoute}(${fetchId})`);
+
             this.network.socket.emit(fetchRoute, fetchId, (freshData) => {
                 const profileData = {
                     id: frog.id,
@@ -1754,7 +1754,7 @@ export class World {
                     frog.level = profileData.level;
                 }
 
-                console.log(`✅ Opening profile directly:`, profileData);
+
                 this.openProfile(profileData);
             });
         } else {

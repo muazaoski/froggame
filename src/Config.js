@@ -218,14 +218,14 @@ export const Config = {
     scooterDismountKey: 'KeyE',    // Key to dismount
 
     // Scooter Rider Position (frog on scooter)
-    scooterRiderY: 0.25,           // Raised back up to stand on board
-    scooterLegOffsetX: 0.1,        // Symmetrical standing stance
-    scooterLegOffsetY: -0.4,       // Lower legs to touch board
-    scooterLegOffsetZ: -0.85,      // Center on board
-    scooterLegRotationX: 0.4,      // Slight standing forward lean
-    scooterLegRotationY: 0.2,      // Natural angle
-    scooterLegRotationZ: 0.05,     // Slight tilt
-    scooterAssOffsetY: 0.0,        // Reset ass height
-    scooterAssOffsetZ: 0.0,        // Reset ass depth
-    scooterBanking: 0.18,          // Natural lean
+    scooterRiderY: 0.1,
+    scooterLegOffsetX: 0,
+    scooterLegOffsetY: -0.1,
+    scooterLegOffsetZ: -0.85,      // Keep reasonable depth
+    scooterLegRotationX: 1.15840734641021,
+    scooterLegRotationY: 0.2,      // Keep slight angle
+    scooterLegRotationZ: 0.208407346410207,
+    scooterAssOffsetY: 0.0,
+    scooterAssOffsetZ: 0.0,
+    scooterBanking: 0.18,
 };

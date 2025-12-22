@@ -882,7 +882,7 @@ export class Frog {
         this.leftLeg = null;
         this.rightLeg = null;
 
-        console.log("Analyzing Model Meshes:");
+
 
         model.traverse((child) => {
             if (child.isMesh) {
@@ -935,8 +935,7 @@ export class Frog {
                 }
             }
         });
-        console.log(`Legs found: Left=${!!this.leftLeg}, Right=${!!this.rightLeg}`);
-        console.log(`Ass found: Left=${!!this.assLeft}, Right=${!!this.assRight}`);
+
     }
 
     // Change frog color at runtime
@@ -1344,7 +1343,7 @@ export class Frog {
             const assistRadius = Config.tongueAssistRadius || 2.0;
             const bestAssist = candidates.find(c => c.point.distanceTo(wallTarget.point) < assistRadius);
             if (bestAssist) {
-                console.log('Tongue Assist: Snapping to target near wall hit');
+
                 return bestAssist;
             }
         }
@@ -1636,7 +1635,7 @@ export class Frog {
 
         if (movedDistance > magnetThreshold) {
             // Target escaped - MISS!
-            console.log('Tongue miss - target moved too far');
+
             this.tongue.state = 'retracting';
             this.tongue.startTime = performance.now();
             this.playMissEffect();
@@ -1696,7 +1695,7 @@ export class Frog {
         otherFrog.body.velocity.y += pullDir.y * Config.tongueGrabForce * 0.5; // Less vertical
         otherFrog.body.velocity.z += pullDir.z * Config.tongueGrabForce;
 
-        console.log('Grabbed frog!');
+
 
         // Send to network if multiplayer
         if (this.world?.network) {
@@ -1723,7 +1722,7 @@ export class Frog {
         ball.body.velocity.y += pullDir.y * Config.tongueGrabForce * 0.3;
         ball.body.velocity.z += pullDir.z * Config.tongueGrabForce;
 
-        console.log('Grabbed ball!');
+
     }
 
     /**
@@ -1739,7 +1738,7 @@ export class Frog {
         scooter.body.velocity.x += pullDir.x * Config.tongueGrabForce * 0.5;
         scooter.body.velocity.z += pullDir.z * Config.tongueGrabForce * 0.5;
 
-        console.log('Pulled scooter!');
+
     }
 
     /**
@@ -1985,7 +1984,7 @@ export class Frog {
         // Track last attacker for kill credit
         if (attackerId) {
             this.lastAttackerId = attackerId;
-            console.log(`⚔️ lastAttackerId set to: ${attackerId}`);
+
         }
 
         // Show health bar when hit
@@ -2136,7 +2135,7 @@ export class Frog {
 
         // If this is OUR death (local frog) and NOT triggered by network event, send it
         if (this.isLocal && !isNetworked && this.world && this.world.network) {
-            console.log(`💀 Sending death event: lastAttackerId=${this.lastAttackerId}`);
+
             this.world.network.sendDeath(this.lastAttackerId || null);
         }
     }
@@ -2220,7 +2219,7 @@ export class Frog {
             toastDiv.remove();
         }, 1000);
 
-        console.log(`Frog ${this.id} took ${amount} damage! Health: ${this.health}/${Config.maxHealth}`);
+
     }
 
     // Cleanup method to properly dispose of CSS2D objects

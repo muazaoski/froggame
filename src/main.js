@@ -23,7 +23,7 @@ world.network = network; // Link network to world for combat sync
 // Tongue debug toggle (F3 key)
 window.addEventListener('toggle-tongue-debug', () => {
     Config.tongueDebugEnabled = !Config.tongueDebugEnabled;
-    console.log(`🐸 Tongue debug: ${Config.tongueDebugEnabled ? 'ON' : 'OFF'}`);
+
 });
 
 // GUI Setup
@@ -63,7 +63,7 @@ function addTooltip(controller, tooltip) {
                 if (controller._onChange) {
                     controller._onChange(Config[key]);
                 }
-                console.log(`Reset ${key} to default: ${DefaultConfig[key]}`);
+
             }
         });
     }
@@ -78,7 +78,7 @@ function addTooltip(controller, tooltip) {
                 if (controller._onChange) {
                     controller._onChange(Config[key]);
                 }
-                console.log(`Reset ${key} to default: ${DefaultConfig[key]}`);
+
             }
         });
     }
@@ -534,17 +534,15 @@ const exportObj = {
         }
 
         if (Object.keys(changed).length === 0) {
-            console.log("--- NO CHANGES ---");
+
             alert("No settings have been changed from defaults.");
         } else {
-            console.log("--- CHANGED SETTINGS ---");
-            console.log(JSON.stringify(changed, null, 4));
+
             alert(`${Object.keys(changed).length} settings changed! Check Console (F12)`);
         }
     },
     exportAll: () => {
-        console.log("--- FULL CONFIG ---");
-        console.log(JSON.stringify(Config, null, 4));
+
         alert("Full config exported to Console! (Press F12)");
     }
 };
@@ -1256,7 +1254,7 @@ if (profileEditorBtn && profileEditorOverlay) {
         if (network && network.socket && world.localFrog.userId) {
             network.socket.emit('getProfile', world.localFrog.userId, (data) => {
                 if (data) {
-                    console.log('📝 Loaded fresh profile data for editor:', data);
+
 
                     // Update Cache
                     if (world.localFrog) {

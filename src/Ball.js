@@ -64,7 +64,7 @@ export class Ball {
 
             this.mesh.add(model);
             this.modelLoaded = true;
-            console.log('Ball GLB model loaded successfully (precisely scaled)!');
+
         }, undefined, (error) => {
             console.error('Error loading ball GLB:', error);
         });
