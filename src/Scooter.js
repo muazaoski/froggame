@@ -21,6 +21,12 @@ export class Scooter {
         this.jumpCooldown = 0; // Prevent jump spam
         this.steerAmount = 0;  // Current steering direction (-1 to 1)
 
+        // Terrain Alignment
+        this.terrainNormal = new THREE.Vector3(0, 1, 0);
+        this.targetQuaternion = new THREE.Quaternion();
+        this.raycaster = new THREE.Raycaster();
+        this.raycaster.far = 3.0;
+
         // Highlight state
         this.isHighlighted = false;
 
@@ -275,12 +281,14 @@ export class Scooter {
     }
 
     // === SIMPLIFIED UPDATE ===
-    update(dt, input) {
+    update(dt, input, terrainMeshes) {
         // Sync mesh to physics body when not riding
         if (!this.rider || !this.rider.isLocal) {
             if (this.body) {
                 this.mesh.position.copy(this.body.position);
             }
+            // Even when not ridden, align to ground
+            if (terrainMeshes) this.alignWithTerrain(terrainMeshes, dt);
             this.animateWheels(dt);
             return;
         }
@@ -340,17 +348,60 @@ export class Scooter {
         // Sync mesh to physics
         this.mesh.position.copy(this.body.position);
 
-        // Face movement direction
-        this.mesh.rotation.y = this.facingAngle;
+        // Face movement direction - handled by terrain alignment quaternion
+        // this.mesh.rotation.y = this.facingAngle;
 
-        // Banking (Lean into turns)
-        const targetBanking = -this.steerAmount * Config.scooterBanking * (Math.abs(this.velocity) / Config.scooterSpeed);
-        this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, targetBanking, dt * 8);
+        // Banking (Lean into turns) - Applied as a local Z rotation later or merged
+        const banking = -this.steerAmount * Config.scooterBanking * (Math.abs(this.velocity) / Config.scooterSpeed);
+
+        // Align with Terrain
+        if (terrainMeshes) {
+            this.alignWithTerrain(terrainMeshes, dt, banking);
+        } else {
+            // Fallback if no terrain meshes provided
+            this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, banking, dt * 8);
+        }
 
         // Rotate handle with steering
         if (this.handle) {
             this.handle.rotation.y = this.steerAmount * Config.scooterMaxTurn;
         }
+    }
+
+    alignWithTerrain(terrainMeshes, dt, extraRoll = 0) {
+        // Raycast down from slightly above the scooter
+        const rayOrigin = this.mesh.position.clone().add(new THREE.Vector3(0, 1, 0));
+        const rayDir = new THREE.Vector3(0, -1, 0);
+        this.raycaster.set(rayOrigin, rayDir);
+
+        const intersects = this.raycaster.intersectObjects(terrainMeshes, false);
+        if (intersects.length > 0) {
+            const normal = intersects[0].face.normal.clone();
+            // Transform normal to world space if the terrain mesh is rotated/scaled
+            normal.applyQuaternion(intersects[0].object.quaternion);
+
+            this.terrainNormal.lerp(normal, dt * 10);
+        } else {
+            // Fallback to up
+            this.terrainNormal.lerp(new THREE.Vector3(0, 1, 0), dt * 5);
+        }
+
+        // Calculate rotation that faces 'facingAngle' but aligns 'up' with 'terrainNormal'
+        const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+        const right = new THREE.Vector3().crossVectors(forward, this.terrainNormal).normalize();
+        const adjustedForward = new THREE.Vector3().crossVectors(this.terrainNormal, right);
+
+        const matrix = new THREE.Matrix4();
+        matrix.makeBasis(right, this.terrainNormal, adjustedForward.negate());
+        this.targetQuaternion.setFromRotationMatrix(matrix);
+
+        // Apply extra roll (banking)
+        if (extraRoll !== 0) {
+            const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), extraRoll);
+            this.targetQuaternion.multiply(rollQuat);
+        }
+
+        this.mesh.quaternion.slerp(this.targetQuaternion, dt * 10);
 
         // Update rider position
         this.updateRiderPosition();

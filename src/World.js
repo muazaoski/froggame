@@ -1533,7 +1533,7 @@ export class World {
 
         // Update Scooters
         for (const scooter of this.scooters) {
-            scooter.update(dt, input);
+            scooter.update(dt, input, this.wallMeshes);
         }
 
         // Check scooter spawn zones for highlighting
@@ -1719,6 +1719,7 @@ export class World {
             this.scene,
             this.physics
         );
+        scooter.particles = this.particles;
 
         // Use zone position (X and Z) with a small Y lift to let it fall flush
         const spawnX = zone.position.x + (Math.random() - 0.5) * 4;
