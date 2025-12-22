@@ -55,13 +55,13 @@ export const Config = {
 
     // Hemisphere Light
     hemiSkyColor: 1427122,
-    hemiGroundColor: 12125188,
+    hemiGroundColor: 12198177,
     hemiIntensity: 3,
 
     // Rim Light
-    rimColor: 15468809,
-    rimIntensity: 2.54,
-    rimPosX: 18.8,
+    rimColor: 16763402,
+    rimIntensity: 1.885,
+    rimPosX: 23.6,
     rimPosY: 18.9,
     rimPosZ: 4.2,
 
@@ -195,7 +195,7 @@ export const Config = {
 
     // Ball Settings
     ballRadius: 0.5,
-    ballMass: 0.6225,
+    ballMass: 5,
     ballLinearDamping: 0.533,
     ballAngularDamping: 0.975,
     ballBounciness: 0.7,
@@ -218,7 +218,7 @@ export const Config = {
     scooterDismountKey: 'KeyE',    // Key to dismount
 
     // Scooter Rider Position (frog on scooter)
-    scooterRiderY: 0.1,
+    scooterRiderY: 0.55,
     scooterLegOffsetX: 0,
     scooterLegOffsetY: -0.1,
     scooterLegOffsetZ: -0.85,      // Keep reasonable depth
