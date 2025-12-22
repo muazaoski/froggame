@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three-stdlib';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Config } from './Config.js';
 
 export class Scooter {
-    static loader = new GLTFLoader();
+    static loader = (() => {
+        const l = new GLTFLoader();
+        l.setMeshoptDecoder(MeshoptDecoder);
+        return l;
+    })();
     static modelCache = null;
 
     static setLoaderManager(manager) {
@@ -78,7 +83,7 @@ export class Scooter {
         placeholder.position.y = 0; // Center in physics body
         this.mesh.add(placeholder);
 
-        Scooter.loader.load('/models/scooter.glb', (gltf) => {
+        Scooter.loader.load('/models/scooter_optimized.glb', (gltf) => {
             // Remove placeholder
             this.mesh.remove(placeholder);
             placeholder.geometry.dispose();

@@ -2,12 +2,17 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three-stdlib';
 import { Config } from './Config.js';
 import { Scooter } from './Scooter.js';
 
 export class Frog {
     static modelGeometry = null;
-    static loader = new GLTFLoader();
+    static loader = (() => {
+        const l = new GLTFLoader();
+        l.setMeshoptDecoder(MeshoptDecoder);
+        return l;
+    })();
 
     static setLoaderManager(manager) {
         Frog.loader = new GLTFLoader(manager);
@@ -29,7 +34,7 @@ export class Frog {
             this.applyColor(model);
             this.bodyMesh.add(model);
         } else {
-            Frog.loader.load('/models/frog.glb', (gltf) => {
+            Frog.loader.load('/models/frog_optimized.glb', (gltf) => {
                 const model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
                 model.position.y = -0.6; // Adjust based on model origin

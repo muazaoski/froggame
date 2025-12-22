@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three-stdlib';
 import * as CANNON from 'cannon-es';
 import { Physics } from './Physics.js';
 import { Frog } from './Frog.js';
@@ -616,11 +617,12 @@ export class World {
 
     loadLevel() {
         const loader = new GLTFLoader(this.loadingManager);
+        loader.setMeshoptDecoder(MeshoptDecoder); // Enable meshopt compressed models
         this.wallMeshes = []; // Track walls for camera occlusion
         const grassInstances = [];
         let grassTemplate = null;
 
-        loader.load('/models/world.glb', (gltf) => {
+        loader.load('/models/world_optimized.glb', (gltf) => {
             const level = gltf.scene;
             this.scene.add(level);
 
