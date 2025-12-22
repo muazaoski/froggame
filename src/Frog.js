@@ -275,7 +275,8 @@ export class Frog {
 
             // Update Remote Scooter
             if (this.remoteScooter) {
-                this.remoteScooter.update(dt, null, this.world.terrainMeshes);
+                const terrain = this.world ? this.world.terrainMeshes : null;
+                this.remoteScooter.update(dt, null, terrain);
             }
 
             return;
@@ -625,14 +626,15 @@ export class Frog {
                 this.remoteScooter = new Scooter(
                     `scooter_remote_${this.id}`,
                     this.remoteScooterColor || this.color,
-                    this.mesh.parent || this.world.scene, // Parent to scene, not frog mesh
+                    this.mesh.parent || (this.world ? this.world.scene : null), // Parent to scene, not frog mesh
                     null // No physics
                 );
                 this.remoteScooter.particles = this.particles; // Helper for dust
                 this.remoteScooter.rider = this; // Set rider for following
 
                 // Immediate update to prevent "stuck at origin" frame
-                this.remoteScooter.update(dt, null, this.world.terrainMeshes);
+                const terrain = this.world ? this.world.terrainMeshes : null;
+                this.remoteScooter.update(dt, null, terrain);
             } else if (this.remoteScooter && this.remoteScooterColor) {
                 // Update color dynamically if it changed
                 this.remoteScooter.setColor(this.remoteScooterColor);

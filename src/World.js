@@ -1334,12 +1334,12 @@ export class World {
         frog.bio = data.bio || '';
         frog.badges = data.badges || [];
         frog.userId = data.userId || null;
-        frog.updatePosition(
-            { x: data.x, y: data.y, z: data.z },
-            { qx: data.qx, qy: data.qy, qz: data.qz, qw: data.qw }
-        );
         this.scene.add(frog.mesh);
         this.frogs[id] = frog;
+        frog.world = this; // Set world before updating
+
+        // Initial state sync
+        frog.applySyncState(data);
 
         // Remote frogs also get particles for their effects
         frog.particles = this.particles;
