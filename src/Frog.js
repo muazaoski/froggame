@@ -969,6 +969,10 @@ export class Frog {
 
                     // Update originalColor for hit effects
                     child.userData.originalColor = child.material.color.clone();
+
+                    // Enable shadows
+                    child.castShadow = true;
+                    child.receiveShadow = true;
                 }
             });
         }

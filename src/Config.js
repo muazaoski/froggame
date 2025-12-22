@@ -36,7 +36,7 @@ export const Config = {
     shadowBlurSamples: 32,
     shadowBias: 0.0000800000000000002,
     shadowNormalBias: 0.0428,
-    shadowIntensity: 0.478,
+    shadowIntensity: 0.8, // Increased for visibility
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
     shadowCameraSize: 55.03,
@@ -203,6 +203,7 @@ export const Config = {
     ballKickForce: 21.4,
     ballKickUpward: 6.885,
     ballSpawnHeight: 30,
+    ballSpawnRange: 15, // Random range for X and Z
     ballResetHeight: -20,
 
     // Scooter Settings

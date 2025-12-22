@@ -94,10 +94,10 @@ export class World {
         dirLight.shadow.mapSize.height = Config.shadowMapSize;
         dirLight.shadow.camera.near = Config.shadowCameraNear;
         dirLight.shadow.camera.far = Config.shadowCameraFar;
-        dirLight.shadow.camera.top = Config.shadowCameraTop;
-        dirLight.shadow.camera.bottom = Config.shadowCameraBottom;
-        dirLight.shadow.camera.left = Config.shadowCameraLeft;
-        dirLight.shadow.camera.right = Config.shadowCameraRight;
+        dirLight.shadow.camera.left = -100; // Increased for broader coverage
+        dirLight.shadow.camera.right = 100;
+        dirLight.shadow.camera.top = 100;
+        dirLight.shadow.camera.bottom = -100;
         dirLight.shadow.bias = Config.shadowBias;
         dirLight.shadow.normalBias = Config.shadowNormalBias;
         dirLight.shadow.radius = Config.shadowRadius;
@@ -105,6 +105,7 @@ export class World {
         dirLight.shadow.intensity = Config.shadowIntensity;
 
         this.scene.add(dirLight);
+        this.scene.add(dirLight.target); // Required for target tracking
 
         // PHYSICS
         this.physics = new Physics();
@@ -448,8 +449,10 @@ export class World {
         // Initialize Particle System for VFX
         this.particles = new ParticleSystem(this.scene);
 
-        // Initialize Soccer Ball - spawn from sky so it falls down
-        this.ball = new Ball(this.physics, this.scene, { x: 5, y: 30, z: 0 });
+        // Initialize Soccer Ball - spawn from sky in a random area
+        const spawnX = (Math.random() - 0.5) * Config.ballSpawnRange * 2;
+        const spawnZ = (Math.random() - 0.5) * Config.ballSpawnRange * 2;
+        this.ball = new Ball(this.physics, this.scene, { x: spawnX, y: Config.ballSpawnHeight, z: spawnZ });
     }
 
     setupLoadingManager() {
@@ -515,13 +518,10 @@ export class World {
         }
     }
 
-    setupGrassMaterial(mesh) {
-        if (!mesh.material) return;
+    setupGrassMaterial(material) {
+        if (!material) return;
 
-        // Ensure material is unique
-        mesh.material = mesh.material.clone();
-
-        mesh.material.onBeforeCompile = (shader) => {
+        material.onBeforeCompile = (shader) => {
             // Add uniforms
             shader.uniforms.uTime = this.grassUniforms.uTime;
             shader.uniforms.uPlayerPos = this.grassUniforms.uPlayerPos;
@@ -587,7 +587,7 @@ export class World {
         material.color.setHex(0x3ea331);
 
         // Apply the bending shader to the instanced material
-        this.setupGrassMaterial({ material });
+        this.setupGrassMaterial(material);
 
         const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length);
         instancedMesh.name = 'InstancedGrass';
@@ -1613,6 +1613,16 @@ export class World {
         this.grassUniforms.uTime.value += dt;
         if (this.localFrog && this.localFrog.mesh) {
             this.grassUniforms.uPlayerPos.value.copy(this.localFrog.mesh.position);
+
+            // Update Directional Light to follow player (for high-fidelity shadows)
+            if (this.dirLight) {
+                const targetPos = this.localFrog.mesh.position;
+                // Offset light position from player but keep it at a fixed relative distance
+                const offset = new THREE.Vector3(20, 30, 10);
+                this.dirLight.position.copy(targetPos).add(offset);
+                this.dirLight.target.position.copy(targetPos);
+                this.dirLight.target.updateMatrixWorld();
+            }
         }
 
         // Update Ball
