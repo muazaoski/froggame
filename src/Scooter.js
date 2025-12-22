@@ -372,7 +372,14 @@ export class Scooter {
 
             // Align to ground (including remote)
             const banking = -this.steerAmount * Config.scooterBanking * (Math.abs(this.velocity) / Config.scooterSpeed);
-            if (terrainMeshes) this.alignWithTerrain(terrainMeshes, dt, banking);
+            if (terrainMeshes && terrainMeshes.length > 0) {
+                this.alignWithTerrain(terrainMeshes, dt, banking);
+            } else {
+                // No terrain meshes provided - fallback to rider's Y position
+                if (this.rider && this.rider.mesh) {
+                    this._lastGroundY = this.rider.mesh.position.y - (Config.scooterRiderY || 0.6);
+                }
+            }
 
             this.animateWheels(dt);
             this.spawnDustParticles(dt);
@@ -520,9 +527,18 @@ export class Scooter {
         if (this._dustTimer > 0.1 && this.isGrounded) {
             this._dustTimer = 0;
             const pos = this.mesh.position.clone();
-            // Use the last detected ground height. 
-            // ParticleSystem.spawnWalkDust adds 0.1 already.
-            pos.y = (this._lastGroundY !== undefined) ? this._lastGroundY : this.mesh.position.y - 0.5;
+
+            // Determine dust Y position
+            // Priority: detected ground > rider mesh Y > scooter mesh Y - offset
+            if (this._lastGroundY !== undefined) {
+                pos.y = this._lastGroundY;
+            } else if (this.rider && this.rider.mesh) {
+                // Use rider's Y minus approximate standing height
+                pos.y = this.rider.mesh.position.y - 0.5;
+            } else {
+                pos.y = this.mesh.position.y - 0.5;
+            }
+
             this.particles.spawnWalkDust(pos, this.color || '#ffffff');
         }
     }
