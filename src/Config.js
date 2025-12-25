@@ -7,7 +7,7 @@ export const Config = {
     // Movement
     moveSpeed: 8.5,
     jumpVelocity: 19.5,
-    rotationSpeed: 15.993,
+    rotationSpeed: 10.077,
     airControl: 0.5,
 
     // Animation
@@ -19,8 +19,8 @@ export const Config = {
     linearDamping: 0.93,
 
     // Leg Animation
-    legKickForce: 0.889,
-    legKickDecay: 6.1093,
+    legKickForce: 0.466,
+    legKickDecay: 7.4854,
     walkLegSpeed: 1.0424,
     walkLegHeight: 0.754,
 
@@ -163,9 +163,9 @@ export const Config = {
 
     // Punch/Kick Animation
     punchSwingDistance: 2.537,
-    punchSwingSpeed: 6.35,
-    punchReturnSpeed: 9.38,
-    punchCooldown: 0.3,
+    punchSwingSpeed: 5,
+    punchReturnSpeed: 18.848,
+    punchCooldown: 0.7597,
     punchLegRotation: 0.1,
     punchHitRadius: 2.0,           // Collision radius for punch hits
 

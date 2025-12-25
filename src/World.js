@@ -549,17 +549,23 @@ export class World {
         }
     }
 
-    setupGrassMaterial(material) {
+    setupVegetationMaterial(material, type = 'grass') {
         if (!material) return;
 
         material.onBeforeCompile = (shader) => {
             // Add uniforms
             shader.uniforms.uTime = this.grassUniforms.uTime;
             shader.uniforms.uPlayerPos = this.grassUniforms.uPlayerPos;
-            shader.uniforms.uBendingStrength = this.grassUniforms.uBendingStrength;
-            shader.uniforms.uBendingRadius = this.grassUniforms.uBendingRadius;
+
+            // Customize based on type
+            const strength = type === 'bush' ? Config.grassBendingStrength * 1.5 : Config.grassBendingStrength;
+            const radius = type === 'bush' ? Config.grassBendingRadius * 1.8 : Config.grassBendingRadius;
+            const wind = type === 'bush' ? Config.grassWindStrength * 1.3 : Config.grassWindStrength;
+
+            shader.uniforms.uBendingStrength = { value: strength };
+            shader.uniforms.uBendingRadius = { value: radius };
             shader.uniforms.uWindSpeed = this.grassUniforms.uWindSpeed;
-            shader.uniforms.uWindStrength = this.grassUniforms.uWindStrength;
+            shader.uniforms.uWindStrength = { value: wind };
 
             // Inject vertex shader logic
             shader.vertexShader = `
@@ -587,9 +593,14 @@ export class World {
                 // We use object-space Y for height factor
                 float heightFactor = clamp(position.y * 2.0, 0.0, 1.0); 
                 float windTime = uTime * uWindSpeed;
+                
+                // Enhanced "Leafy" jitter for bushes
+                float jitter = 0.0;
+                ${type === 'bush' ? 'jitter = sin(uTime * 15.0 + worldPos.y * 10.0) * 0.02 * heightFactor;' : ''}
+                
                 float windSway = sin(windTime + worldPos.x * 0.5 + worldPos.z * 0.5) * uWindStrength * heightFactor;
-                transformed.x += windSway;
-                transformed.z += windSway * 0.5;
+                transformed.x += windSway + jitter;
+                transformed.z += windSway * 0.5 + jitter;
 
                 // 2. Player Pushing
                 float dist = distance(worldPos.xyz, uPlayerPos);
@@ -610,21 +621,25 @@ export class World {
         };
     }
 
-    setupInstancedGrass(templateMesh, instances) {
+    setupInstancedVegetation(templateMesh, instances, type = 'grass') {
         const geometry = templateMesh.geometry;
         const material = templateMesh.material.clone();
 
-        // Ensure green color
-        material.color.setHex(0x3ea331);
+        // Color enhancements
+        if (type === 'bush') {
+            material.color.setHex(0x2d5a27); // Rich Forest Green
+        } else {
+            material.color.setHex(0x3ea331); // Classic Grass Green
+        }
 
-        // Apply the bending shader to the instanced material
-        this.setupGrassMaterial(material);
+        // Apply the bending shader
+        this.setupVegetationMaterial(material, type);
 
         const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length);
-        instancedMesh.name = 'InstancedGrass';
-        instancedMesh.castShadow = false;
-        instancedMesh.receiveShadow = false; // DISABLED for performance
-        instancedMesh.frustumCulled = true; // Enable frustum culling
+        instancedMesh.name = type === 'bush' ? 'InstancedBush' : 'InstancedGrass';
+        instancedMesh.castShadow = true; // Bushes deserve shadows
+        instancedMesh.receiveShadow = true;
+        instancedMesh.frustumCulled = true;
 
         for (let i = 0; i < instances.length; i++) {
             instancedMesh.setMatrixAt(i, instances[i]);
@@ -632,7 +647,13 @@ export class World {
 
         instancedMesh.instanceMatrix.needsUpdate = true;
         this.scene.add(instancedMesh);
-        this.grassMeshes.push(instancedMesh);
+
+        if (type === 'bush') {
+            // Use grass system for interaction tracking
+            this.grassMeshes.push(instancedMesh);
+        } else {
+            this.grassMeshes.push(instancedMesh);
+        }
     }
 
     setupWaterMaterial(mesh) {
@@ -693,6 +714,8 @@ export class World {
         this.wallMeshes = []; // Track walls for camera occlusion
         const grassInstances = [];
         let grassTemplate = null;
+        const bushInstances = [];
+        let bushTemplate = null;
 
         loader.load('/models/world.glb', (gltf) => {
             const level = gltf.scene;
@@ -700,7 +723,11 @@ export class World {
 
             level.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = !child.name.toLowerCase().includes('grass');
+                    const nameLower = child.name.toLowerCase();
+                    const isGrass = nameLower.includes('grass');
+                    const isBush = nameLower.includes('bush');
+
+                    child.castShadow = !isGrass;
                     child.receiveShadow = true;
 
                     // Make material support transparency for camera occlusion
@@ -710,40 +737,38 @@ export class World {
                         child.userData.originalOpacity = 1;
                         child.userData.targetOpacity = 1;
 
-                        // TOON LOOK: Inject vibrant colors for terrain/water
-                        // CYCLES LOOK: Natural, physically grounded colors
-                        if (child.name.toLowerCase().includes('terrain') || child.name.toLowerCase().includes('island')) {
+                        // TOON LOOK / CYCLES COLORS
+                        if (nameLower.includes('terrain') || nameLower.includes('island')) {
                             child.material.color.setHex(0x55aa66); // Natural Forest Green
                             child.material.emissive.setHex(0x000000);
                             child.material.emissiveIntensity = 0.0;
                             child.material.roughness = 0.8;
                         }
-                        if (child.name.toLowerCase().includes('water')) {
-                            // Apply animated water shader
+                        if (nameLower.includes('water')) {
                             this.setupWaterMaterial(child);
                             this.waterMeshes.push(child);
                         }
 
-                        // SETUP GRASS INTERACTION (Collect for instancing)
-                        if (child.name.toLowerCase().includes('grass')) {
-                            // Store transform and hide individual mesh
+                        // SETUP VEGETATION (Collect for instancing)
+                        if (isGrass) {
                             child.updateMatrixWorld();
-                            const worldMatrix = child.matrixWorld.clone();
-                            grassInstances.push(worldMatrix);
-
+                            grassInstances.push(child.matrixWorld.clone());
                             if (!grassTemplate) grassTemplate = child;
+                            child.visible = false;
+                        }
+                        if (isBush) {
+                            child.updateMatrixWorld();
+                            bushInstances.push(child.matrixWorld.clone());
+                            if (!bushTemplate) bushTemplate = child;
                             child.visible = false;
                         }
                     }
 
                     // Track terrain for physics/alignment
-                    // Be inclusive: if it's a mesh and not specially handled (grass/water/spawn), it's terrain.
-                    const nameLower = child.name.toLowerCase();
                     const isWater = nameLower.includes('water');
-                    const isGrass = nameLower.includes('grass');
                     const isSpawn = nameLower.includes('scooterspawn');
 
-                    if (!isWater && !isGrass && !isSpawn) {
+                    if (!isWater && !isGrass && !isBush && !isSpawn) {
                         this.terrainMeshes.push(child);
                     }
 
@@ -752,64 +777,52 @@ export class World {
                         this.wallMeshes.push(child);
                     }
 
-                    // Detect scooter spawn zones - plate hidden but scooters still spawn
-                    if (child.name.toLowerCase().includes('scooterspawn')) {
-                        // Hide the spawn plate visual
+                    // Detect scooter spawn zones
+                    if (isSpawn) {
                         child.visible = false;
                         child.userData.isSpawnPlate = true;
-
-                        // Get spawn position and spawn scooter
                         const worldPos = new THREE.Vector3();
                         child.getWorldPosition(worldPos);
-                        const zone = {
-                            position: worldPos,
-                            mesh: child
-                        };
+                        const zone = { position: worldPos, mesh: child };
                         this.scooterSpawnZones.push(zone);
-
-                        // Spawn a scooter at this zone
-                        setTimeout(() => {
-                            this.spawnScooterAtZone(zone);
-                        }, 100);
-
-
+                        setTimeout(() => this.spawnScooterAtZone(zone), 100);
                     }
 
                     // Physics Generation
                     const isWaterPhysics = nameLower.includes('water');
-                    if (child.name.startsWith('Ghost_') || child.name.toLowerCase().includes('grass') || isWaterPhysics) {
-                        // Pass (No physics for ghosts, grass, or water planes)
-                    } else if (!child.name.toLowerCase().includes('scooterspawn')) {
+                    if (child.name.startsWith('Ghost_') || isGrass || isBush || isWaterPhysics) {
+                        // Pass (No physics for foliage or water)
+                    } else if (!isSpawn) {
                         this.createPhysicsForMesh(child);
                     }
                 }
             });
 
-            // Create Instanced Grass for performance
+            // Create Instanced Vegetation
             if (grassTemplate && grassInstances.length > 0) {
                 console.log(`[PERF] Creating instanced grass from ${grassInstances.length} individual pieces`);
-                this.setupInstancedGrass(grassTemplate, grassInstances);
+                this.setupInstancedVegetation(grassTemplate, grassInstances, 'grass');
+            }
+            if (bushTemplate && bushInstances.length > 0) {
+                console.log(`[PERF] Creating instanced bush from ${bushInstances.length} individual pieces`);
+                this.setupInstancedVegetation(bushTemplate, bushInstances, 'bush');
+            }
 
-                // COMPLETELY REMOVE original grass meshes from scene to save memory
-                const toRemove = [];
-                level.traverse((child) => {
-                    if (child.isMesh && child.name.toLowerCase().includes('grass')) {
-                        toRemove.push(child);
-                    }
-                });
-
-                for (const mesh of toRemove) {
-                    if (mesh.parent) mesh.parent.remove(mesh);
-                    if (mesh.geometry) mesh.geometry.dispose();
-                    if (mesh.material) {
-                        if (Array.isArray(mesh.material)) {
-                            mesh.material.forEach(m => m.dispose());
-                        } else {
-                            mesh.material.dispose();
-                        }
-                    }
+            // COMPLETELY REMOVE original foliage from scene to save memory
+            const toRemove = [];
+            level.traverse((child) => {
+                if (child.isMesh && (child.name.toLowerCase().includes('grass') || child.name.toLowerCase().includes('bush'))) {
+                    toRemove.push(child);
                 }
-                console.log(`[PERF] Removed ${toRemove.length} individual grass meshes, replaced with single InstancedMesh`);
+            });
+
+            for (const mesh of toRemove) {
+                if (mesh.parent) mesh.parent.remove(mesh);
+                if (mesh.geometry) mesh.geometry.dispose();
+                if (mesh.material) {
+                    if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
+                    else mesh.material.dispose();
+                }
             }
         }, undefined, (err) => {
             console.error('Error loading world:', err);
