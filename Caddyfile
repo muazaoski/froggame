@@ -1,35 +1,50 @@
-# Frog Multiplayer Game - Caddy Configuration
-# Domain: frog.muazaoski.online
-
+# ===========================================
+# FROG MULTIPLAYER GAME
+# ===========================================
 frog.muazaoski.online {
-    # Reverse proxy to the game server
     reverse_proxy froggame:3000
     
-    # WebSocket support (required for Socket.IO)
     @websockets {
         header Connection *Upgrade*
         header Upgrade websocket
     }
     reverse_proxy @websockets froggame:3000
 
-    # Enable compression
     encode gzip zstd
     
-    # Security headers
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
     }
     
-    # Logging
     log {
         output file /data/access.log
         format console
     }
 }
 
-# Redirect www to non-www
 www.frog.muazaoski.online {
     redir https://frog.muazaoski.online{uri} permanent
+}
+
+# ===========================================
+# OCR API
+# ===========================================
+ocr.muazaoski.online {
+    reverse_proxy 51.79.161.63:8000
+}
+
+# ===========================================
+# SIZE CHART GENERATOR
+# ===========================================
+chart.muazaoski.online {
+    reverse_proxy 51.79.161.63:3005
+}
+
+# ===========================================
+# WORKOUT APP
+# ===========================================
+workout.muazaoski.online {
+    reverse_proxy 172.17.0.1:3080
 }
