@@ -9,6 +9,21 @@
 
 ---
 
+## 🌐 All Apps Hosted on This VPS
+
+This Caddyfile manages reverse proxy for ALL apps:
+
+| App | Domain | Port/Backend |
+|-----|--------|--------------|
+| Frog Game | frog.muazaoski.online | froggame:3000 |
+| OCR API | ocr.muazaoski.online | 51.79.161.63:8000 |
+| Size Chart | chart.muazaoski.online | 51.79.161.63:3005 |
+| Workout | workout.muazaoski.online | 172.17.0.1:3080 |
+
+> ⚠️ **The Caddyfile in this repo contains ALL app domains!** Any changes to Caddyfile should be committed and pushed from Windows to keep all apps working.
+
+---
+
 ## Quick Connect (Windows)
 
 Double-click `connect_vps.bat` or run:
@@ -85,6 +100,24 @@ docker compose logs -f froggame
 
 ---
 
+## ⚠️ WARNING: git reset --hard
+
+**`git reset --hard origin/main` will reset ALL tracked files to the remote version!**
+
+This is SAFE for:
+- ✅ Source code (that's what you want)
+- ✅ Caddyfile (now committed with all apps)
+
+This will NOT touch:
+- ✅ `.env` files (gitignored)
+- ✅ Database files (gitignored)
+- ✅ `node_modules/` (gitignored)
+
+**If you make VPS-only changes to tracked files, they WILL be lost!**
+Always commit important config changes from Windows and push first.
+
+---
+
 ## 📋 Deploy Checklist
 
 1. ✅ Run `npm run build` locally (creates dist/)
@@ -153,11 +186,9 @@ TELEGRAM_CHAT_ID=your_chat_id_here
 PORT=3000
 NODE_ENV=production
 EOF
-
-# Edit Caddyfile - set domain
-nano Caddyfile
-# Replace YOUR_DOMAIN with: frog.muazaoski.online
 ```
+
+> Note: Caddyfile is already configured in the repo with all app domains!
 
 ### Step 5: Build and Run
 ```bash
@@ -257,6 +288,23 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
+### Other apps (OCR, Workout, Chart) not working?
+```bash
+# Check if Caddyfile has all domains
+cat Caddyfile
+
+# Should include blocks for:
+# - frog.muazaoski.online
+# - ocr.muazaoski.online
+# - chart.muazaoski.online
+# - workout.muazaoski.online
+
+# If missing, pull latest from git
+git fetch origin
+git reset --hard origin/main
+docker compose restart caddy
+```
+
 ---
 
 ## DNS Configuration (Cloudflare)
@@ -264,6 +312,9 @@ docker compose up -d
 | Type | Name | Content | Proxy Status |
 |------|------|---------|--------------|
 | A | frog | 51.79.161.63 | **DNS only** (gray cloud) |
+| A | ocr | 51.79.161.63 | **DNS only** (gray cloud) |
+| A | chart | 51.79.161.63 | **DNS only** (gray cloud) |
+| A | workout | 51.79.161.63 | **DNS only** (gray cloud) |
 
 **IMPORTANT:** Must be "DNS only", not "Proxied" - WebSockets need direct connection!
 
@@ -274,8 +325,8 @@ docker compose up -d
 | Path | Purpose |
 |------|---------|
 | `/opt/apps/froggame/` | Main app directory |
-| `/opt/apps/froggame/.env` | Environment variables |
-| `/opt/apps/froggame/Caddyfile` | Reverse proxy config |
+| `/opt/apps/froggame/.env` | Environment variables (gitignored) |
+| `/opt/apps/froggame/Caddyfile` | Reverse proxy for ALL apps |
 | `/opt/apps/froggame/data/` | SQLite database (persistent) |
 | `/opt/apps/froggame/dist/` | Built frontend (from git) |
 
@@ -296,8 +347,13 @@ docker compose up -d
 │                          │           6. docker up           │
 └─────────────────────────────────────────────────────────────┘
 
-Traffic Flow:
-User → Caddy (HTTPS:443) → Froggame (Node.js:3000)
+Traffic Flow (All Apps):
+User → Caddy (HTTPS:443) → App Container
+
+Frog:    → froggame:3000
+OCR:     → 51.79.161.63:8000
+Chart:   → 51.79.161.63:3005
+Workout: → 172.17.0.1:3080
 ```
 
 - **Caddy** - Reverse proxy with automatic HTTPS (port 80, 443)
@@ -309,4 +365,8 @@ User → Caddy (HTTPS:443) → Froggame (Node.js:3000)
 
 ## 🎉 Done!
 
-Game accessible at: **https://frog.muazaoski.online**
+All apps accessible at:
+- **https://frog.muazaoski.online** - Frog Game
+- **https://ocr.muazaoski.online** - OCR API
+- **https://chart.muazaoski.online** - Size Chart Generator
+- **https://workout.muazaoski.online** - Workout App
