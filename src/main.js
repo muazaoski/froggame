@@ -705,15 +705,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Show message (error or success)
+    // Show message (error or success) - TOAST STYLE
+    let authMessageTimeout = null;
     function showMessage(text, isError = true) {
+        if (authMessageTimeout) clearTimeout(authMessageTimeout);
+
         authMessage.textContent = text;
-        authMessage.className = 'auth-message ' + (isError ? 'error' : 'success');
+        authMessage.className = 'auth-message ' + (isError ? 'error' : 'success') + ' visible';
+
+        // Auto hide after 4 seconds
+        authMessageTimeout = setTimeout(() => {
+            hideMessage();
+        }, 4000);
     }
 
     function hideMessage() {
-        authMessage.className = 'auth-message';
-        authMessage.textContent = '';
+        authMessage.classList.remove('visible');
     }
 
     // Show account stats after login
