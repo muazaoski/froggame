@@ -141,6 +141,9 @@ export class World {
         // WATER / DIVING
         this.waterLevel = null; // Will be set when water mesh is detected
 
+        // STEALTH / BUSHES
+        this.bushZones = []; // [{ position: Vector3, radius: number }]
+
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
 
@@ -758,7 +761,21 @@ export class World {
                         }
                         if (isBush) {
                             child.updateMatrixWorld();
-                            bushInstances.push(child.matrixWorld.clone());
+                            const worldMatrix = child.matrixWorld.clone();
+                            bushInstances.push(worldMatrix);
+
+                            // Track position and approximate radius for stealth mechanic
+                            const pos = new THREE.Vector3();
+                            pos.setFromMatrixPosition(worldMatrix);
+
+                            // Get radius from geometry bonding sphere (scaled by largest axis of matrix)
+                            child.geometry.computeBoundingSphere();
+                            const scale = new THREE.Vector3();
+                            scale.setFromMatrixScale(worldMatrix);
+                            const radius = child.geometry.boundingSphere.radius * Math.max(scale.x, scale.y, scale.z);
+
+                            this.bushZones.push({ position: pos, radius: radius * 0.8 }); // 0.8 multiplier for stricter hiding
+
                             if (!bushTemplate) bushTemplate = child;
                             child.visible = false;
                         }
@@ -1795,6 +1812,20 @@ export class World {
         const lookTarget = this.localFrog ? this.getMouseIntersection(input) : null;
         for (const id in this.frogs) {
             const frog = this.frogs[id];
+
+            // Determine if hidden in bush
+            let isInsideBush = false;
+            if (!frog.isDead) {
+                for (const zone of this.bushZones) {
+                    const dist = frog.mesh.position.distanceTo(zone.position);
+                    if (dist < zone.radius) {
+                        isInsideBush = true;
+                        break;
+                    }
+                }
+            }
+            frog.setHidden(isInsideBush);
+
             if (frog.isLocal) {
                 frog.update(dt, input, lookTarget, this.cameraOrbitAngle);
             } else {

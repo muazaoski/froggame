@@ -2323,7 +2323,13 @@ export class Frog {
     showHealthBar() {
         this.healthBarVisible = true;
         this.healthBarVisibleTimer = 3.0; // 3 seconds
-        this.healthBarContainer.style.opacity = '1';
+
+        // Respect stealth
+        if (this.isHidden) {
+            this.healthBarContainer.style.opacity = this.isLocal ? '0.2' : '0';
+        } else {
+            this.healthBarContainer.style.opacity = '1';
+        }
     }
 
     hideHealthBar() {
@@ -2336,6 +2342,9 @@ export class Frog {
             this.healthBarVisibleTimer -= dt;
             if (this.healthBarVisibleTimer <= 0) {
                 this.hideHealthBar();
+            } else if (this.isHidden) {
+                // Ensure it stays at stealth opacity if visible
+                this.healthBarContainer.style.opacity = this.isLocal ? '0.2' : '0';
             }
         }
     }
@@ -2403,6 +2412,9 @@ export class Frog {
             this.mesh.position.set(0, 10, 0);
         }
 
+        // Reset stealth
+        this.setHidden(false);
+
         // Reset opacity & visibility
         this.setMeshOpacity(1);
         this.bodyMesh.visible = true;
@@ -2427,7 +2439,48 @@ export class Frog {
         }
     }
 
+    setHidden(isHidden) {
+        if (this.isHidden === isHidden) return;
+        this.isHidden = isHidden;
 
+        // Apply visual feedback for stealth
+        const opacity = isHidden ? (this.isLocal ? '0.2' : '0') : '1';
+        const display = isHidden && !this.isLocal ? 'none' : 'block';
+
+        // Nametag
+        if (this.nameTagDiv) {
+            this.nameTagDiv.style.opacity = opacity;
+            this.nameTagDiv.style.display = display;
+            this.nameTagDiv.style.transition = 'opacity 0.3s ease';
+        }
+
+        // Health Bar (unless it's currently showing due to damage)
+        if (this.healthBarContainer) {
+            if (isHidden) {
+                this.healthBarContainer.style.opacity = this.isLocal ? '0.2' : '0';
+                if (!this.isLocal) this.healthBarContainer.style.display = 'none';
+            } else {
+                // Return to normal health bar visibility logic
+                this.healthBarContainer.style.display = 'block';
+                if (this.healthBarVisibleTimer > 0) {
+                    this.healthBarContainer.style.opacity = '1';
+                } else {
+                    this.healthBarContainer.style.opacity = '0';
+                }
+            }
+        }
+
+        // Chat Bubble
+        if (this.chatBubbleDiv) {
+            this.chatBubbleDiv.style.opacity = opacity;
+            this.chatBubbleDiv.style.display = display;
+        }
+
+        // Optional: darken the frog mesh slightly for local player to show they are "shadowed"
+        if (this.isLocal) {
+            this.setMeshOpacity(isHidden ? 0.7 : 1.0);
+        }
+    }
 
     updateHealthBar() {
         if (!this.healthBarFill) return;
