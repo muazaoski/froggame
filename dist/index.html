@@ -9,7 +9,8 @@
     <title>Multiplayer Frog Game</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Gasoek+One&display=swap"
+        rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="/svg/frog_favicon.svg">
     <style>
         body {
@@ -636,43 +637,47 @@
 
         .auth-message {
             position: fixed;
-            top: 20px;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%) translateY(-100px);
-            padding: 14px 28px;
-            border-radius: 16px;
-            font-size: 1rem;
+            transform: translate(-50%, -40%);
+            padding: 16px 32px;
+            border-radius: 20px;
+            font-size: 1.1rem;
             font-weight: 800;
             text-align: center;
             z-index: 10000;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
             pointer-events: none;
             opacity: 0;
             width: auto;
             max-width: 90%;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
         }
 
         .auth-message.visible {
-            transform: translateX(-50%) translateY(20px);
+            transform: translate(-50%, -50%);
             opacity: 1;
         }
 
+        /* Fade Up Animation on Hide (via JS class removal or custom property) */
+        .auth-message.hiding {
+            transform: translate(-50%, -80%);
+            opacity: 0;
+        }
+
         .auth-message.error {
-            background: rgba(255, 68, 68, 0.95);
+            background: rgba(255, 68, 68, 0.9);
             color: white;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            display: block;
-            /* Ensure it overrides display: none if any */
+            box-shadow: 0 10px 30px rgba(255, 68, 68, 0.3);
         }
 
         .auth-message.success {
-            background: rgba(76, 175, 80, 0.95);
+            background: rgba(76, 175, 80, 0.9);
             color: white;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            display: block;
+            box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
         }
 
         /* Global Hover/Tap Effects for Premium Feel */
@@ -2467,7 +2472,7 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-a_Gm7VgT.js"></script>
+  <script type="module" crossorigin src="/assets/index-rRNv7V6y.js"></script>
 </head>
 
 <body class="spectator-mode">

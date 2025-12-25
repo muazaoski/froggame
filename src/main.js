@@ -711,15 +711,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (authMessageTimeout) clearTimeout(authMessageTimeout);
 
         authMessage.textContent = text;
+        authMessage.classList.remove('hiding');
         authMessage.className = 'auth-message ' + (isError ? 'error' : 'success') + ' visible';
 
-        // Auto hide after 4 seconds
+        // Auto hide after 3 seconds
         authMessageTimeout = setTimeout(() => {
             hideMessage();
-        }, 4000);
+        }, 3000);
     }
 
     function hideMessage() {
+        authMessage.classList.add('hiding');
         authMessage.classList.remove('visible');
     }
 
