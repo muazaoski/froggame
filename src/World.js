@@ -482,7 +482,7 @@ export class World {
         this.ball = new Ball(this.physics, this.scene, { x: spawnX, y: Config.ballSpawnHeight, z: spawnZ });
 
         // AUDIO MANAGER
-        this.audio = new AudioManager(this.camera);
+        this.audio = new AudioManager(this.camera, this.scene);
         this.ball.audio = this.audio;
     }
 

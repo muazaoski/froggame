@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 export class AudioManager {
-    constructor(camera) {
+    constructor(camera, scene) {
         this.camera = camera;
+        this.scene = scene;
         this.listener = new THREE.AudioListener();
         this.camera.add(this.listener);
 
@@ -115,7 +116,17 @@ export class AudioManager {
         // Create a temporary object to hold the sound at the position
         const tempObj = new THREE.Object3D();
         tempObj.position.copy(position);
-        this.camera.parent.add(tempObj); // Add to scene (camera.parent is usually scene)
+
+        // Add to scene (use provided scene, or camera parent, or scene the camera is in)
+        const scene = this.scene || this.camera.parent;
+        if (scene) {
+            scene.add(tempObj);
+        } else {
+            // Last resort: find the root scene manually if parents aren't helpful
+            let current = this.camera;
+            while (current.parent) current = current.parent;
+            current.add(tempObj);
+        }
 
         tempObj.add(sound);
         sound.play();
