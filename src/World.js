@@ -14,6 +14,7 @@ import { SAOPass } from 'three/addons/postprocessing/SAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Config } from './Config.js';
 import { ParticleSystem } from './ParticleSystem.js';
+import { AudioManager } from './AudioManager.js';
 
 export class World {
     constructor() {
@@ -479,6 +480,10 @@ export class World {
         const spawnX = (Math.random() - 0.5) * Config.ballSpawnRangeX * 2;
         const spawnZ = (Math.random() - 0.5) * Config.ballSpawnRangeZ * 2;
         this.ball = new Ball(this.physics, this.scene, { x: spawnX, y: Config.ballSpawnHeight, z: spawnZ });
+
+        // AUDIO MANAGER
+        this.audio = new AudioManager(this.camera);
+        this.ball.audio = this.audio;
     }
 
     setupLoadingManager() {
@@ -1394,8 +1399,9 @@ export class World {
         this.localFrog = frog;
         this.frogs[id] = frog;
 
-        // Give frog access to particle system for VFX
+        // Give frog access to particle system and audio for VFX
         frog.particles = this.particles;
+        frog.audio = this.audio;
 
         // Punch collision callback
         frog.onPunchHit = (position, direction, radius) => {
@@ -1433,8 +1439,9 @@ export class World {
         // Initial state sync
         frog.applySyncState(data);
 
-        // Remote frogs also get particles for their effects
+        // Remote frogs also get particles and audio for their effects
         frog.particles = this.particles;
+        frog.audio = this.audio;
 
         return frog;
     }
@@ -1979,6 +1986,8 @@ export class World {
             this.physics
         );
         scooter.particles = this.particles;
+        scooter.audio = this.audio;
+        this.scooters.push(scooter);
 
         // Use zone position (X and Z) with a small Y lift to let it fall flush
         const spawnX = zone.position.x + (Math.random() - 0.5) * 4;

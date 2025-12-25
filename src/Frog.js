@@ -171,6 +171,8 @@ export class Frog {
         this.nameTag = new CSS2DObject(this.nameTagDiv);
         this.nameTag.position.set(0, 1.2, 0); // Above head, below health bar
         this.mesh.add(this.nameTag);
+
+        this.audio = null; // Set by World
     }
 
     setName(name) {
@@ -251,6 +253,29 @@ export class Frog {
             // REMOTE VISUAL UPDATES
             const remoteIsMoving = this.remoteVelocity && this.remoteVelocity.length() > 0.1;
 
+            // Detect landing for remote players
+            if (this.isRemoteGrounded && !this.wasRemoteGrounded) {
+                const impactForce = Math.abs(this.remoteVelocity ? this.remoteVelocity.y : 0);
+                if (this.audio && impactForce > 2) {
+                    this.audio.playSpatial('land', this.mesh.position, { volume: Math.min(impactForce / 10, 0.8) });
+                }
+                if (this.particles && impactForce > 3) {
+                    const landPos = this.mesh.position.clone();
+                    landPos.y += Config.vfxGroundOffset;
+                    this.particles.spawnLandingDust(landPos, impactForce, this.color);
+                }
+            }
+
+            // Detect jump for remote players (Velocity Y jump)
+            if (!this.isRemoteGrounded && this.wasRemoteGrounded && this.remoteVelocity && this.remoteVelocity.y > 5) {
+                if (this.audio) {
+                    this.audio.playSpatial('hop', this.mesh.position, { volume: 0.6 });
+                    const grunt = Math.random() > 0.5 ? 'grunt1' : 'grunt2';
+                    this.audio.playSpatial(grunt, this.mesh.position, { volume: 0.4 });
+                }
+            }
+            this.wasRemoteGrounded = this.isRemoteGrounded;
+
             // Update Animations (Legs)
             this.updateAnimations(dt, remoteIsMoving, this.isRemoteGrounded);
 
@@ -260,8 +285,20 @@ export class Frog {
             // Update Eyes
             if (this.targetLook) this.updateEyes(this.targetLook);
 
-            // Update Tongue
+            // Update Tongue (Visuals and Sounds for remote)
+            const oldTongueState = this.tongue.state;
             this.updateTongue(dt, null);
+
+            // Remote Tongue Sounds
+            if (this.audio && this.tongue.state !== oldTongueState) {
+                if (this.tongue.state === 'extending') {
+                    this.audio.playSpatial('tongue_shoot', this.getMouthPosition(), { volume: 0.5 });
+                } else if (this.tongue.state === 'attached') {
+                    // Hit something
+                    const sound = Math.random() > 0.5 ? 'tongue_hit_player1' : 'tongue_hit_player2';
+                    this.audio.playSpatial(sound, this.tongue.lockedPoint, { volume: 0.6 });
+                }
+            }
 
             // Animate Mouth
             if (this.isRemoteTalking && this.mouthMesh && this.mouthBaseScale) {
@@ -279,6 +316,17 @@ export class Frog {
                     this.particles.spawnWalkDust(footPos, this.color);
                     this.walkDustTimer = Config.vfxWalkInterval;
                 }
+            }
+
+            // Remote Punch Audio Logic
+            if (this.isPunching && !this.remotePunchPlayed) {
+                // If remote player starts pulsing punchProgress, play sound once
+                if (this.audio) {
+                    this.audio.playSpatial('punch', this.mesh.position, { volume: 0.5 });
+                }
+                this.remotePunchPlayed = true;
+            } else if (!this.isPunching) {
+                this.remotePunchPlayed = false;
             }
 
             // Update Remote Scooter
@@ -444,6 +492,13 @@ export class Frog {
                 jumpPos.add(forward.multiplyScalar(Config.vfxForwardOffset));
                 this.particles.spawnJumpDust(jumpPos, this.color);
             }
+
+            // Play Jump Sound
+            if (this.audio) {
+                this.audio.playSpatial('hop', this.mesh.position);
+                const grunt = Math.random() > 0.5 ? 'grunt1' : 'grunt2';
+                this.audio.playSpatial(grunt, this.mesh.position, { volume: 0.6 });
+            }
         }
 
         // Landing detection for VFX
@@ -460,6 +515,11 @@ export class Frog {
                 // Screen shake on heavy impact (if local player)
                 if (this.isLocal && impactForce > 8 && this.world) {
                     this.world.triggerScreenShake(impactForce * 0.05, 0.2);
+                }
+
+                // Play Land Sound
+                if (this.audio && impactForce > 3) {
+                    this.audio.playSpatial('land', this.mesh.position, { volume: Math.min(impactForce / 10, 1.0) });
                 }
             }
         }
@@ -1328,6 +1388,12 @@ export class Frog {
                 if (this.onPunchHit) {
                     const hitSomething = this.onPunchHit(checkPosition, kickDir, Config.punchHitRadius);
 
+                    // Play Punch Sound
+                    if (this.audio) {
+                        const soundName = hitSomething ? (Math.random() > 0.15 ? 'punch' : 'punch_crit') : 'punch';
+                        this.audio.playSpatial(soundName, checkPosition, { volume: hitSomething ? 1.0 : 0.5 });
+                    }
+
                     // Shake screen on successful hit or just a tiny shake on miss for juice
                     if (this.isLocal && this.world) {
                         this.world.triggerScreenShake(hitSomething ? 1.5 : 0.3, 0.2);
@@ -2088,10 +2154,18 @@ export class Frog {
             if (this.particles && this.tongue.target) {
                 this.particles.spawnTongueImpact(this.tongue.lockedPoint, Config.tongueColor);
             }
-        }
 
-        // TODO: Add wet snap sound cue
-        // TODO: Add stretch recoil on frog body
+            // Play Hit Sound based on target type
+            if (this.audio && this.tongue.target) {
+                const type = this.tongue.target.type;
+                if (type === 'frog') {
+                    const sound = Math.random() > 0.5 ? 'tongue_hit_player1' : 'tongue_hit_player2';
+                    this.audio.playSpatial(sound, this.tongue.lockedPoint);
+                } else {
+                    this.audio.playSpatial('tongue_hit_surface', this.tongue.lockedPoint);
+                }
+            }
+        }
     }
 
     /**
@@ -2105,6 +2179,11 @@ export class Frog {
         // Small screen shake for feedback
         if (this.world && this.isLocal) {
             this.world.triggerScreenShake(0.2, 0.05);
+        }
+
+        // Play Miss Sound
+        if (this.audio) {
+            this.audio.playSpatial('tongue_miss', this.getMouthPosition(), { volume: 0.5 });
         }
     }
 
@@ -2298,6 +2377,11 @@ export class Frog {
             window.showDeathScreen();
         }
 
+        // Play Death Sound
+        if (this.audio) {
+            this.audio.play('death', { volume: 0.8, randomizePitch: false });
+        }
+
         // If this is OUR death (local frog) and NOT triggered by network event, send it
         if (this.isLocal && !isNetworked && this.world && this.world.network) {
 
@@ -2330,6 +2414,11 @@ export class Frog {
         // Hide death screen for local player
         if (this.isLocal && window.hideDeathScreen) {
             window.hideDeathScreen();
+        }
+
+        // Play Respawn Sound
+        if (this.audio) {
+            this.audio.playSpatial('respawn', this.mesh.position);
         }
 
         // If this is OUR respawn (local frog) and NOT triggered by network, send it

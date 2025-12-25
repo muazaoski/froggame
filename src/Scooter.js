@@ -30,6 +30,8 @@ export class Scooter {
         this.wheelRotation = 0;
         this.jumpCooldown = 0; // Prevent jump spam
         this.steerAmount = 0;  // Current steering direction (-1 to 1)
+        this.audio = null;     // Set by World
+        this.engineSound = null;
 
         // Terrain Alignment
         this.terrainNormal = new THREE.Vector3(0, 1, 0);
@@ -143,6 +145,11 @@ export class Scooter {
             this.dismount();
         }
 
+        if (this.engineSound) {
+            this.engineSound.stop();
+            this.engineSound = null;
+        }
+
         // Remove prompt label
         if (this.label && this.label.element && this.label.element.parentNode) {
             this.label.element.parentNode.removeChild(this.label.element);
@@ -241,6 +248,16 @@ export class Scooter {
         // Position frog on scooter immediately
         this.updateRiderPosition();
 
+        // Play mount sound
+        if (this.audio) {
+            this.audio.playSpatial('scooter_mount', this.mesh.position);
+
+            // Start engine sound
+            if (!this.engineSound) {
+                this.engineSound = this.audio.playSpatial('scooter_engine', this.mesh.position, { loop: true, volume: 0.3 });
+            }
+        }
+
 
         return true;
     }
@@ -290,6 +307,17 @@ export class Scooter {
         frog.isRidingScooter = false;
         frog.currentScooter = null;
         this.rider = null;
+
+        // Stop engine sound
+        if (this.engineSound) {
+            this.engineSound.stop();
+            this.engineSound = null;
+        }
+
+        // Play dismount sound (re-use mount or just let it be)
+        if (this.audio) {
+            this.audio.playSpatial('scooter_mount', this.mesh.position, { playbackRate: 0.8 });
+        }
 
 
     }
@@ -470,6 +498,13 @@ export class Scooter {
         this.updateRiderPosition();
         this.animateWheels(dt);
         this.spawnDustParticles(dt);
+
+        // Update engine sound pitch/volume based on velocity
+        if (this.engineSound && this.rider) {
+            const speedFactor = Math.abs(this.velocity) / Config.scooterSpeed;
+            this.engineSound.setPlaybackRate(0.8 + speedFactor * 0.7);
+            this.engineSound.setVolume(0.2 + speedFactor * 0.4);
+        }
     }
 
     alignWithTerrain(terrainMeshes, dt, extraRoll = 0) {

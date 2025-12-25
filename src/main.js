@@ -718,6 +718,11 @@ document.addEventListener('DOMContentLoaded', () => {
         authMessageTimeout = setTimeout(() => {
             hideMessage();
         }, 3000);
+
+        // Play UI Sound
+        if (world && world.audio) {
+            world.audio.play(isError ? 'ui_error' : 'ui_success');
+        }
     }
 
     function hideMessage() {
@@ -783,6 +788,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 showMessage(isLoginMode ? 'Welcome back!' : 'Account created!', false);
                 showAccountStats(result.user);
+
+                // Play login success sound
+                if (world && world.audio) {
+                    world.audio.play('login_success');
+                }
 
                 // Wait a moment then start game
                 setTimeout(() => startGame(true), 800);
@@ -1165,6 +1175,11 @@ function toggleMusic() {
     } else {
         musicMuted = !musicMuted;
         bgMusic.muted = musicMuted;
+
+        // Also mute game SFX
+        if (world && world.audio) {
+            world.audio.toggleMute();
+        }
     }
     updateVolumeIcon();
 }
@@ -1183,10 +1198,18 @@ if (volumeSlider) {
             volumeValue.textContent = `${e.target.value}%`;
         }
 
+        // Also update game SFX volume
+        if (world && world.audio) {
+            world.audio.setMasterVolume(volume);
+        }
+
         // Unmute if adjusting volume while muted
         if (musicMuted && volume > 0) {
             musicMuted = false;
             bgMusic.muted = false;
+            if (world && world.audio && world.audio.isMuted) {
+                world.audio.toggleMute();
+            }
         }
 
         updateVolumeIcon();
@@ -1909,14 +1932,18 @@ if (emoteBtn && emoteWheel) {
 
 // T key to toggle emote wheel
 window.addEventListener('keydown', (e) => {
-    if (e.key === 't' || e.key === 'T') {
-        // Don't toggle if any input/textarea is focused
-        const isTyping = document.activeElement &&
-            (document.activeElement.tagName === 'INPUT' ||
-                document.activeElement.tagName === 'TEXTAREA');
-        if (isTyping) return;
+    const isTyping = document.activeElement &&
+        (document.activeElement.tagName === 'INPUT' ||
+            document.activeElement.tagName === 'TEXTAREA');
+    if (isTyping) return;
 
+    if (e.key === 't' || e.key === 'T') {
         if (emoteWheel) emoteWheel.classList.toggle('active');
+    }
+
+    // M key to toggle Mute
+    if (e.key === 'm' || e.key === 'M') {
+        toggleMusic();
     }
 });
 

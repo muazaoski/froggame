@@ -11,6 +11,7 @@ export class Ball {
         // Ball properties from Config
         this.radius = Config.ballRadius;
         this.mass = Config.ballMass;
+        this.audio = null; // Set by World
 
         // Create mesh group
         this.mesh = new THREE.Group();
@@ -127,6 +128,21 @@ export class Ball {
 
         this.body.position.set(position.x, position.y, position.z);
         physicsWorld.world.addBody(this.body);
+
+        // Collision sound listener
+        this.body.addEventListener('collide', (e) => {
+            if (!this.audio) return;
+
+            const velocity = e.contact.getImpactVelocityAlongNormal();
+            if (velocity > 2) {
+                const isWater = e.body.material && e.body.material.name === 'water';
+                if (isWater) {
+                    this.audio.playSpatial('splash', this.mesh.position, { volume: Math.min(velocity / 10, 0.8) });
+                } else {
+                    this.audio.playSpatial('ball_drop', this.mesh.position, { volume: Math.min(velocity / 15, 0.6) });
+                }
+            }
+        });
     }
 
     update(dt, waterLevel = null) {
@@ -182,6 +198,13 @@ export class Ball {
         );
 
         this.body.applyImpulse(impulse, this.body.position);
+
+        // Play Kick Sound
+        if (this.audio) {
+            const sound = Math.random() > 0.5 ? 'ball_kick1' : 'ball_kick2';
+            this.audio.playSpatial(sound, this.mesh.position);
+            this.audio.playSpatial('ball_swoosh', this.mesh.position, { volume: 0.4 });
+        }
     }
 
     // Reset ball to spawn position
