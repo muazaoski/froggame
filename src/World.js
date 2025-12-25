@@ -143,6 +143,7 @@ export class World {
 
         // STEALTH / BUSHES
         this.bushZones = []; // [{ position: Vector3, radius: number }]
+        this.bushMeshes = []; // The InstancedMeshes themselves
 
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
@@ -572,6 +573,8 @@ export class World {
 
             // Inject vertex shader logic
             shader.vertexShader = `
+                attribute float instanceOpacity;
+                varying float vInstanceOpacity;
                 uniform float uTime;
                 uniform vec3 uPlayerPos;
                 uniform float uBendingStrength;
@@ -584,6 +587,7 @@ export class World {
                 '#include <begin_vertex>',
                 `
                 #include <begin_vertex>
+                vInstanceOpacity = instanceOpacity;
                 
                 // Get world position of vertex (Handle instancing)
                 #ifdef USE_INSTANCING
@@ -621,16 +625,33 @@ export class World {
                 }
                 `
             );
+
+            shader.fragmentShader = `
+                varying float vInstanceOpacity;
+            ` + shader.fragmentShader;
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <alphatest_fragment>',
+                `
+                #include <alphatest_fragment>
+                diffuseColor.a *= vInstanceOpacity;
+                `
+            );
         };
     }
 
     setupInstancedVegetation(templateMesh, instances, type = 'grass') {
-        const geometry = templateMesh.geometry;
+        const geometry = templateMesh.geometry.clone();
         const material = templateMesh.material.clone();
+
+        // Add instanceOpacity attribute
+        const opacities = new Float32Array(instances.length).fill(1.0);
+        geometry.setAttribute('instanceOpacity', new THREE.InstancedBufferAttribute(opacities, 1));
 
         // Color enhancements
         if (type === 'bush') {
             material.color.setHex(0x2d5a27); // Rich Forest Green
+            material.transparent = true; // MUST be transparent for opacity to work
         } else {
             material.color.setHex(0x3ea331); // Classic Grass Green
         }
@@ -654,6 +675,32 @@ export class World {
         if (type === 'bush') {
             // Use grass system for interaction tracking
             this.grassMeshes.push(instancedMesh);
+            this.bushMeshes.push(instancedMesh);
+
+            // Link zones to this mesh and their indices
+            // We find the closest bushZones that haven't been linked yet
+            for (let i = 0; i < instances.length; i++) {
+                const pos = new THREE.Vector3();
+                pos.setFromMatrixPosition(instances[i]);
+
+                // Find nearest unlinked bushZone
+                let nearest = null;
+                let minDist = Infinity;
+                for (const zone of this.bushZones) {
+                    if (zone.mesh) continue;
+                    const d = zone.position.distanceTo(pos);
+                    if (d < minDist) {
+                        minDist = d;
+                        nearest = zone;
+                    }
+                }
+
+                if (nearest && minDist < 0.1) {
+                    nearest.mesh = instancedMesh;
+                    nearest.index = i;
+                    nearest.currentOpacity = 1.0;
+                }
+            }
         } else {
             this.grassMeshes.push(instancedMesh);
         }
@@ -1830,6 +1877,37 @@ export class World {
                 frog.update(dt, input, lookTarget, this.cameraOrbitAngle);
             } else {
                 frog.update(dt, null, frog.targetLook);
+            }
+        }
+
+        // Fade specific bush if local player is hidden (Client-side only)
+        if (this.localFrog) {
+            let playerHidingZone = null;
+            if (this.localFrog.isHidden) {
+                // Find which zone specifically
+                for (const zone of this.bushZones) {
+                    const dist = this.localFrog.mesh.position.distanceTo(zone.position);
+                    if (dist < zone.radius) {
+                        playerHidingZone = zone;
+                        break;
+                    }
+                }
+            }
+
+            // Update all zones opacities
+            for (const zone of this.bushZones) {
+                const target = (playerHidingZone === zone) ? 0.7 : 1.0;
+
+                if (Math.abs(zone.currentOpacity - target) > 0.01) {
+                    zone.currentOpacity = THREE.MathUtils.lerp(zone.currentOpacity, target, 10 * dt);
+
+                    // Update attribute in instanced mesh
+                    if (zone.mesh && zone.mesh.geometry.attributes.instanceOpacity) {
+                        const attr = zone.mesh.geometry.attributes.instanceOpacity;
+                        attr.setX(zone.index, zone.currentOpacity);
+                        attr.needsUpdate = true;
+                    }
+                }
             }
         }
 
