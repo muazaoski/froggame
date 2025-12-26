@@ -20,6 +20,43 @@ const input = new Input();
 const network = new Network(world);
 world.network = network; // Link network to world for combat sync
 
+// PWA Installation Logic
+let deferredPrompt;
+const btnInstall = document.getElementById('btn-install');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    // Update UI notify the user they can install the PWA
+    if (input.isMobile && btnInstall) {
+        btnInstall.style.display = 'block';
+    }
+});
+
+if (btnInstall) {
+    btnInstall.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        // Show the install prompt
+        deferredPrompt.prompt();
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+        // We've used the prompt, and can't use it again, throw it away
+        deferredPrompt = null;
+        // Hide the install button
+        btnInstall.style.display = 'none';
+    });
+}
+
+window.addEventListener('appinstalled', (event) => {
+    console.log('👍', 'appinstalled', event);
+    // Clear the deferredPrompt so it can be garbage collected
+    deferredPrompt = null;
+    if (btnInstall) btnInstall.style.display = 'none';
+});
+
 // Tongue debug toggle (F3 key)
 window.addEventListener('toggle-tongue-debug', () => {
     Config.tongueDebugEnabled = !Config.tongueDebugEnabled;

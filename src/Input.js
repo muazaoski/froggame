@@ -262,10 +262,13 @@ export class Input {
         document.head.appendChild(style);
 
         // Bind utility buttons
-        document.getElementById('m-btn-fullscreen').addEventListener('touchstart', (e) => {
+        const fsBtn = document.getElementById('m-btn-fullscreen');
+        const fsHandler = (e) => {
             e.preventDefault();
             this.toggleFullscreen();
-        });
+        };
+        fsBtn.addEventListener('touchstart', fsHandler);
+        fsBtn.addEventListener('click', fsHandler);
 
         // Global touch to trigger fullscreen on login
         document.body.addEventListener('touchstart', (e) => {
