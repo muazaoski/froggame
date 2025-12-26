@@ -76,6 +76,8 @@ export class Input {
             this.orientationOverlay.style.display = 'flex';
         } else if (this.orientationOverlay) {
             this.orientationOverlay.style.display = 'none';
+            // Auto-fullscreen when rotating to landscape
+            this.toggleFullscreen(true);
         }
     }
 
@@ -264,6 +266,18 @@ export class Input {
             e.preventDefault();
             this.toggleFullscreen();
         });
+
+        // Global touch to trigger fullscreen on login
+        document.body.addEventListener('touchstart', (e) => {
+            if (this.isMobile && !document.fullscreenElement) {
+                // If login modal is visible, use any tap to enter fullscreen
+                const loginModal = document.getElementById('login-modal');
+                if (loginModal && loginModal.style.display !== 'none') {
+                    this.toggleFullscreen(true);
+                }
+            }
+        }, { passive: true });
+
         document.getElementById('m-btn-chat').addEventListener('touchstart', (e) => {
             e.preventDefault();
             this.toggleChat();
@@ -578,12 +592,16 @@ export class Input {
         }
     }
 
-    toggleFullscreen() {
+    toggleFullscreen(force = false) {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
-            });
-        } else {
+            const doc = document.documentElement;
+            const request = doc.requestFullscreen || doc.mozRequestFullScreen || doc.webkitRequestFullscreen || doc.msRequestFullscreen;
+            if (request) {
+                request.call(doc).catch(err => {
+                    console.warn(`Fullscreen denied: ${err.message}`);
+                });
+            }
+        } else if (!force) {
             if (document.exitFullscreen) {
                 document.exitFullscreen();
             }
