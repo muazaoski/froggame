@@ -817,6 +817,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show mobile controls if on mobile
         if (input.isMobile) {
             input.showMobileControls();
+
+            // Attempt to go fullscreen on first interaction
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => { });
+            }
         }
 
         // Reset camera to normal game view (undo spectator zoom out)

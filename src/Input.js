@@ -63,6 +63,7 @@ export class Input {
 
     detectMobile() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) // iPad Pro fix
             || (window.innerWidth <= 1024 && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
     }
 
@@ -166,6 +167,7 @@ export class Input {
             </div>
 
             <div id="mobile-utils">
+                <button id="m-btn-fullscreen" class="m-util-btn">⛶</button>
                 <button id="m-btn-chat" class="m-util-btn">💬</button>
                 <button id="m-btn-tab" class="m-util-btn">👥</button>
                 <button id="m-btn-esc" class="m-util-btn">⚙️</button>
@@ -258,6 +260,10 @@ export class Input {
         document.head.appendChild(style);
 
         // Bind utility buttons
+        document.getElementById('m-btn-fullscreen').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.toggleFullscreen();
+        });
         document.getElementById('m-btn-chat').addEventListener('touchstart', (e) => {
             e.preventDefault();
             this.toggleChat();
@@ -569,6 +575,18 @@ export class Input {
             case 'Space': this.keys.jump = false; break;
             case 'ShiftLeft':
             case 'ShiftRight': this.keys.dive = false; break;
+        }
+    }
+
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
         }
     }
 
