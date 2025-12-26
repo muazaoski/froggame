@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>Multiplayer Frog Game</title>
@@ -2471,8 +2472,137 @@
                 transform: translateY(-10px);
             }
         }
+
+        /* ================= MOBILE LANDSCAPE OPTIMIZATION ================= */
+        @media (max-width: 920px) and (orientation: landscape) {
+
+            /* Hide Desktop Hints */
+            .tab-hint,
+            .settings-hint {
+                display: none !important;
+            }
+
+            /* Adjust Chat for Mobile */
+            #chat-panel {
+                top: calc(10px + env(safe-area-inset-top));
+                left: calc(10px + env(safe-area-inset-left));
+                width: 220px;
+                max-height: 120px;
+                background: rgba(0, 0, 0, 0.4);
+            }
+
+            #chat-input {
+                bottom: auto;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 80%;
+                z-index: 2000;
+            }
+
+            /* Reposition Stats/XP Bar */
+            #level-display {
+                bottom: auto;
+                top: calc(10px + env(safe-area-inset-top));
+                left: 240px;
+                padding: 4px 10px;
+                transform: scale(0.9);
+                transform-origin: left top;
+            }
+
+            /* Scale Down Top Buttons */
+            #settings-btn,
+            #music-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+                top: calc(10px + env(safe-area-inset-top));
+            }
+
+            #settings-btn {
+                left: auto;
+                right: calc(10px + env(safe-area-inset-right));
+            }
+
+            #music-btn {
+                right: calc(65px + env(safe-area-inset-right));
+            }
+
+            /* Bottom Left Buttons (Profile/Friends/Emote) */
+            .bottom-left-buttons {
+                bottom: calc(10px + env(safe-area-inset-bottom));
+                left: 50%;
+                transform: translateX(-50%);
+                flex-direction: row;
+                background: rgba(0, 0, 0, 0.3);
+                padding: 5px;
+                border-radius: 15px;
+                gap: 10px;
+            }
+
+            .bottom-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+
+            /* Player Table Mobile */
+            #player-table {
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%) scale(0.8);
+                max-height: 80vh;
+                display: none;
+            }
+
+            #player-table.visible-mobile {
+                display: block !important;
+            }
+
+            /* Modals Optimization */
+            .profile-panel-large,
+            .panel {
+                width: 90vw !important;
+                height: 85vh !important;
+                max-width: none !important;
+            }
+
+            .login-card {
+                padding: 20px;
+                border-radius: 25px;
+            }
+
+            .login-logo img {
+                max-width: 300px;
+            }
+
+            /* DM Panel */
+            #dm-chat-panel {
+                width: 250px;
+                height: 250px;
+                left: 10px;
+                bottom: 10px;
+                transform: scale(0.9);
+                transform-origin: left bottom;
+            }
+
+            /* Health Bar Scaling */
+            .health-bar-bg {
+                width: 50px;
+                height: 6px;
+            }
+
+            .name-tag {
+                font-size: 12px;
+            }
+        }
+
+        /* Portrait Block (Defined in JS but good to have base) */
+        #orientation-overlay {
+            display: none;
+        }
     </style>
-  <script type="module" crossorigin src="/assets/index-DBauZ-P6.js"></script>
+  <script type="module" crossorigin src="/assets/index-Dm48PKfU.js"></script>
 </head>
 
 <body class="spectator-mode">
