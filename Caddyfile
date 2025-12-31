@@ -18,6 +18,18 @@ frog.muazaoski.online {
         Referrer-Policy strict-origin-when-cross-origin
     }
     
+    # Prevent caching of HTML (so browser always gets latest)
+    @html {
+        path *.html /
+    }
+    header @html Cache-Control "no-cache, no-store, must-revalidate"
+    
+    # Allow caching of hashed assets (JS/CSS with hash in filename)
+    @assets {
+        path *.js *.css *.woff2 *.glb *.png *.jpg *.webp
+    }
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+    
     log {
         output file /data/access.log
         format console
