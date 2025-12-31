@@ -1037,32 +1037,19 @@ export class Frog {
                 this.tongueLine.visible = true;
                 this.tongueTip.visible = true;
 
-                // Calculate tongue start (mouth position)
-                const mouthOffset = new THREE.Vector3(0, 0.3, 0.5);
-                mouthOffset.applyQuaternion(this.mesh.quaternion);
-                const tongueStart = this.mesh.position.clone().add(mouthOffset);
+                // Update internal state values so updateTongueVisual works
+                this.tongueStartPos.copy(this.getMouthPosition());
+                this.tongue.progress = this.remoteTongueProgress;
 
-                // Calculate current end based on progress
-                const currentEnd = new THREE.Vector3().lerpVectors(
-                    tongueStart,
-                    this.remoteTongueTarget,
-                    this.remoteTongueProgress
-                );
+                // Decode internal state string for visual effects (sag/wobble)
+                const states = ['idle', 'extending', 'retracting', 'attached'];
+                this.tongue.state = states[this.remoteTongueStateCode] || 'idle';
+                this.tongue.lockedPoint.copy(this.remoteTongueTarget);
 
-                // Update line geometry
-                const positions = this.tongueLine.geometry.attributes.position.array;
-                positions[0] = tongueStart.x;
-                positions[1] = tongueStart.y;
-                positions[2] = tongueStart.z;
-                positions[3] = currentEnd.x;
-                positions[4] = currentEnd.y;
-                positions[5] = currentEnd.z;
-                this.tongueLine.geometry.attributes.position.needsUpdate = true;
-
-                // Update tip position
-                this.tongueTip.position.copy(currentEnd);
+                // Call the standard visual update
+                this.updateTongueVisual();
             }
-        } else if (this.tongueLine) {
+        } else if (this.tongueLine && this.tongueLine.visible) {
             // Hide tongue when idle
             this.tongueLine.visible = false;
             if (this.tongueTip) this.tongueTip.visible = false;

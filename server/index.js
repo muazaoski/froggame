@@ -736,6 +736,12 @@ io.on('connection', (socket) => {
             players[socket.id].isPunching = data.isPunching;
             players[socket.id].punchProgress = data.punchProgress;
 
+            // Update tongue status
+            players[socket.id].tongueTargetX = data.tongueTargetX;
+            players[socket.id].tongueTargetY = data.tongueTargetY;
+            players[socket.id].tongueTargetZ = data.tongueTargetZ;
+            players[socket.id].tongueProgress = data.tongueProgress;
+
             // Update activity tracking
             if (playerActivity[socket.id]) {
                 const wasAFK = playerActivity[socket.id].isAFK;
