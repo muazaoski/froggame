@@ -190,7 +190,17 @@ EOF
 
 > Note: Caddyfile is already configured in the repo with all app domains!
 
-### Step 5: Build and Run
+### Step 5: Create Persistent Data Directories
+```bash
+# Create data directories
+mkdir -p data server_data
+
+# Create empty JSON files for wall art and player persistence
+echo '{"counter":1,"arts":{}}' > server_data/wall_arts.json
+echo '{}' > server_data/players.json
+```
+
+### Step 6: Build and Run
 ```bash
 docker compose up -d --build
 docker compose ps
@@ -328,6 +338,7 @@ docker compose restart caddy
 | `/opt/apps/froggame/.env` | Environment variables (gitignored) |
 | `/opt/apps/froggame/Caddyfile` | Reverse proxy for ALL apps |
 | `/opt/apps/froggame/data/` | SQLite database (persistent) |
+| `/opt/apps/froggame/server_data/` | Wall arts & player data (persistent) |
 | `/opt/apps/froggame/dist/` | Built frontend (from git) |
 
 ---

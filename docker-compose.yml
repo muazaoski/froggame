@@ -8,6 +8,8 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data # Persist SQLite database
+      - ./server_data/wall_arts.json:/app/server/wall_arts.json # Persist wall art
+      - ./server_data/players.json:/app/server/players.json # Persist player list
       - ./.env:/app/.env:ro # Environment variables
     environment:
       - NODE_ENV=production
