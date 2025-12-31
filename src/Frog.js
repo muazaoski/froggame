@@ -1497,7 +1497,12 @@ export class Frog {
 
                     // Play Punch Sound
                     if (this.audio) {
-                        const soundName = hitSomething ? (Math.random() > 0.15 ? 'punch' : 'punch_crit') : 'punch_whoosh';
+                        let soundName;
+                        if (hitSomething) {
+                            soundName = Math.random() > 0.15 ? 'punch' : 'punch_crit';
+                        } else {
+                            soundName = Math.random() > 0.5 ? 'punch_whoosh' : 'punch_whoosh2';
+                        }
                         this.audio.playSpatial(soundName, checkPosition, { volume: hitSomething ? 1.0 : 0.7 });
                     }
 

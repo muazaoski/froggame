@@ -30,7 +30,8 @@ export class AudioManager {
             // Combat
             'punch': '/soundfx/punchbase.mp3',
             'punch_crit': '/soundfx/punchcritical.wav',
-            'punch_whoosh': '/soundfx/quickwhoosh (1).mp3',
+            'punch_whoosh': '/soundfx/quickwhoosh-01.mp3',
+            'punch_whoosh2': '/soundfx/quickwhoosh-02.mp3',
             'death': '/soundfx/deathjingle.mp3',
             'respawn': '/soundfx/respawn.wav',
 
