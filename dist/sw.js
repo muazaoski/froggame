@@ -1,22 +1,30 @@
-const CACHE_NAME = 'frog-v1';
-const ASSETS = [
-    '/',
-    '/index.html',
-    '/manifest.json'
-];
+const CACHE_NAME = 'frog-v2'; // Bump version to invalidate old cache
 
 self.addEventListener('install', (event) => {
+    // Skip waiting - activate immediately
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+    // Clear old caches
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS);
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+            );
         })
     );
 });
 
 self.addEventListener('fetch', (event) => {
+    // For HTML - always fetch from network (never cache)
+    if (event.request.mode === 'navigate' || event.request.url.endsWith('.html')) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    // For other assets - network first, fallback to cache
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
-        })
+        fetch(event.request).catch(() => caches.match(event.request))
     );
 });
