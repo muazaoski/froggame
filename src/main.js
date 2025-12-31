@@ -26,6 +26,9 @@ world.network = network; // Link network to world for combat sync
 const drawingSystem = new DrawingSystem(world, network);
 world.drawingSystem = drawingSystem;
 
+// Expose for debugging
+window.world = world;
+
 // PWA Installation Logic
 let deferredPrompt;
 const btnInstall = document.getElementById('btn-install');
