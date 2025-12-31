@@ -420,6 +420,17 @@ export class DrawingSystem {
         }
         this.hoveredArt = found;
         if (found) {
+            // Only show tooltip if player is close enough (within 10 units)
+            const playerPos = this.world.localFrog?.mesh?.position;
+            const artPos = found.position;
+            const distance = playerPos && artPos ? playerPos.distanceTo(artPos) : Infinity;
+
+            if (distance > 10) {
+                this.tooltip.style.display = 'none';
+                this.hoveredArt = null; // Don't allow selection if too far
+                return;
+            }
+
             const myId = this.network?.socket?.id;
             const myUserId = this.world.localFrog?.userId;
             const isOwner = found.userData.authorId === myId || (found.userData.authorUserId && found.userData.authorUserId === myUserId);

@@ -252,9 +252,9 @@ export class Scooter {
         if (this.audio) {
             this.audio.playSpatial('scooter_mount', this.mesh.position);
 
-            // Start engine sound
+            // Start engine sound (attached to scooter mesh so it follows)
             if (!this.engineSound) {
-                this.engineSound = this.audio.playSpatial('scooter_engine', this.mesh.position, { loop: true, volume: 0.3 });
+                this.engineSound = this.audio.playSpatialAttached('scooter_engine', this.mesh, { loop: true, volume: 0.3, refDistance: 8 });
             }
         }
 

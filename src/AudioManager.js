@@ -139,6 +139,49 @@ export class AudioManager {
         return sound;
     }
 
+    /**
+     * Play spatial audio attached to a THREE.Object3D.
+     * The sound will follow the object as it moves.
+     * @param {string} name - Sound name from manifest
+     * @param {THREE.Object3D} object3D - The object to attach the sound to
+     * @param {Object} options - { volume, refDistance, loop, randomizePitch }
+     * @returns {THREE.PositionalAudio} The sound object (call .stop() to stop)
+     */
+    playSpatialAttached(name, object3D, options = {}) {
+        if (this.isMuted || !this.sounds[name] || !object3D) return null;
+
+        const sound = new THREE.PositionalAudio(this.listener);
+        sound.setBuffer(this.sounds[name]);
+
+        const volume = (options.volume !== undefined ? options.volume : 1.0) * this.masterVolume;
+        sound.setVolume(volume);
+
+        const refDistance = options.refDistance || 10;
+        sound.setRefDistance(refDistance);
+        sound.setRolloffFactor(options.rolloff || 1);
+        sound.setMaxDistance(options.maxDistance || 100);
+
+        if (options.loop) sound.setLoop(true);
+
+        if (options.randomizePitch !== false && !options.loop) {
+            const pitch = 0.9 + Math.random() * 0.2;
+            sound.playbackRate = pitch;
+        }
+
+        // Attach directly to the object - it will follow automatically!
+        object3D.add(sound);
+        sound.play();
+
+        // Store reference for cleanup
+        sound.userData = { attachedTo: object3D };
+
+        sound.onEnded = () => {
+            if (object3D) object3D.remove(sound);
+        };
+
+        return sound;
+    }
+
     setMasterVolume(v) {
         this.masterVolume = THREE.MathUtils.clamp(v, 0, 1);
         this.listener.setMasterVolume(this.isMuted ? 0 : this.masterVolume);
