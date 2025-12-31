@@ -1497,8 +1497,8 @@ export class Frog {
 
                     // Play Punch Sound
                     if (this.audio) {
-                        const soundName = hitSomething ? (Math.random() > 0.15 ? 'punch' : 'punch_crit') : 'punch';
-                        this.audio.playSpatial(soundName, checkPosition, { volume: hitSomething ? 1.0 : 0.5 });
+                        const soundName = hitSomething ? (Math.random() > 0.15 ? 'punch' : 'punch_crit') : 'punch_whoosh';
+                        this.audio.playSpatial(soundName, checkPosition, { volume: hitSomething ? 1.0 : 0.7 });
                     }
 
                     // Shake screen on successful hit or just a tiny shake on miss for juice

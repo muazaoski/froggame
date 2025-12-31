@@ -14,7 +14,7 @@ export class AudioManager {
         // Sound manifest
         this.manifest = {
             // Frog
-            'hop': '/soundfx/Small Hop.aiff',
+            'hop': '/soundfx/Small Hop.mp3',
             'grunt1': '/soundfx/froggrunt-01.mp3',
             'grunt2': '/soundfx/froggrunt-02.mp3',
             'land': '/soundfx/landground.mp3',
@@ -30,6 +30,7 @@ export class AudioManager {
             // Combat
             'punch': '/soundfx/punchbase.mp3',
             'punch_crit': '/soundfx/punchcritical.wav',
+            'punch_whoosh': '/soundfx/quickwhoosh (1).mp3',
             'death': '/soundfx/deathjingle.mp3',
             'respawn': '/soundfx/respawn.wav',
 
@@ -42,9 +43,9 @@ export class AudioManager {
             'scooter_engine': '/soundfx/scooterengine.mp3',
 
             // UI
-            'ui_click': '/soundfx/clickbutton-ui.aiff',
+            'ui_click': '/soundfx/clickbutton-ui.mp3',
             'ui_error': '/soundfx/error_toast.wav',
-            'ui_success': '/soundfx/toast_success.flac',
+            'ui_success': '/soundfx/toast_success.mp3',
             'login_success': '/soundfx/login_success.wav',
             'levelup': '/soundfx/levelup.mp3',
             'message': '/soundfx/message_received.wav',
