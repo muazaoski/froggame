@@ -253,7 +253,14 @@ export class DrawingSystem {
         for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 250) { empty = false; break; }
         if (empty) { this.world.showToast?.('Draw something first! 🎨', 'error'); return; }
 
-        this.close(); // Closes modal
+        // Hide modal (but DON'T call close() as it cancels placement!)
+        if (this.modal) this.modal.classList.remove('visible');
+        if (this.world.localFrog) {
+            this.world.localFrog.controlsDisabled = false;
+            this.world.localFrog.setDrawingMode(false);
+            this.network?.sendDrawingStatus(false);
+        }
+
         this.isPlacingArt = true;
         this.placementRotation = 0;
         this.createPlacementPreview();
