@@ -120,6 +120,7 @@ export class World {
         // Pass manager to entity loaders
         Frog.setLoaderManager(this.loadingManager);
         Scooter.setLoaderManager(this.loadingManager);
+        Ball.setLoaderManager(this.loadingManager);
 
         // COLLISION GROUPS
         this.terrainMeshes = []; // For scooter alignment & dust
@@ -766,6 +767,33 @@ export class World {
         let grassTemplate = null;
         const bushInstances = [];
         let bushTemplate = null;
+
+        // PRELOAD ALL ENTITY MODELS during loading screen
+        // These will be cached by their respective classes for instant cloning later
+        Frog.loader.setMeshoptDecoder(MeshoptDecoder);
+        Frog.loader.load('/models/frog.glb', (gltf) => {
+            gltf.scene.scale.set(0.5, 0.5, 0.5);
+            gltf.scene.position.y = -0.6;
+            gltf.scene.rotation.y = Math.PI;
+            Frog.modelGeometry = gltf.scene.clone();
+            console.log('🐸 Frog model preloaded');
+        });
+        Frog.loader.load('/models/frog_draw.glb', (gltf) => {
+            gltf.scene.scale.set(0.5, 0.5, 0.5);
+            gltf.scene.position.y = -0.6;
+            gltf.scene.rotation.y = Math.PI;
+            Frog.drawingModelGeometry = gltf.scene.clone();
+            console.log('🎨 Frog drawing model preloaded');
+        });
+        Scooter.loader.setMeshoptDecoder(MeshoptDecoder);
+        Scooter.loader.load('/models/scooter.glb', (gltf) => {
+            Scooter.modelCache = gltf.scene.clone();
+            console.log('🛴 Scooter model preloaded');
+        });
+        Ball.loader.load('/models/ball.glb', (gltf) => {
+            Ball.modelCache = gltf.scene.clone();
+            console.log('⚽ Ball model preloaded');
+        });
 
         loader.load('/models/world.glb', (gltf) => {
             const level = gltf.scene;
@@ -1515,6 +1543,14 @@ export class World {
 
         // Initial state sync
         frog.applySyncState(data);
+
+        // Initial drawing state
+        if (data.isDrawing) {
+            frog.setDrawingMode(true);
+            if (data.drawingData && this.network) {
+                this.network.updateFrogTexture(frog, data.drawingData);
+            }
+        }
 
         // Remote frogs also get particles and audio for their effects
         frog.particles = this.particles;

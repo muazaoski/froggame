@@ -8,6 +8,7 @@ import { Scooter } from './Scooter.js';
 
 export class Frog {
     static modelGeometry = null;
+    static drawingModelGeometry = null;
     static loader = (() => {
         const l = new GLTFLoader();
         l.setMeshoptDecoder(MeshoptDecoder);
@@ -25,10 +26,13 @@ export class Frog {
 
         // VISUALS
         this.mesh = new THREE.Group();
-        this.bodyMesh = new THREE.Group(); // Container
+        this.bodyMesh = new THREE.Group(); // Normal state
+        this.drawingMesh = new THREE.Group(); // Drawing pose
+        this.drawingMesh.visible = false;
         this.mesh.add(this.bodyMesh);
+        this.mesh.add(this.drawingMesh);
 
-        // Load Model
+        // Load Normal Model
         if (Frog.modelGeometry) {
             const model = Frog.modelGeometry.clone();
             this.applyColor(model);
@@ -37,21 +41,30 @@ export class Frog {
             Frog.loader.load('/models/frog.glb', (gltf) => {
                 const model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
-                model.position.y = -0.6; // Adjust based on model origin
-                // Rotate to face forward if needed. Model facing -Z? 
-                model.rotation.y = Math.PI; // Usually models face +Z, but game uses -Z or vice versa. Adjust if backwards.
-
-                // Cache it
+                model.position.y = -0.6;
+                model.rotation.y = Math.PI;
                 Frog.modelGeometry = model.clone();
-
                 this.applyColor(model);
                 this.bodyMesh.add(model);
-            }, undefined, (error) => {
-                console.error("Error loading model:", error);
-                // Fallback
-                const geo = new THREE.SphereGeometry(0.5);
-                const mat = new THREE.MeshStandardMaterial({ color: this.color });
-                this.bodyMesh.add(new THREE.Mesh(geo, mat));
+            });
+        }
+
+        // Load Drawing Pose Model
+        if (Frog.drawingModelGeometry) {
+            this.initDrawingModel(Frog.drawingModelGeometry.clone());
+        } else {
+            Frog.loader.load('/models/frog_draw.glb', (gltf) => {
+                const model = gltf.scene;
+                model.scale.set(0.5, 0.5, 0.5);
+                model.position.y = -0.6;
+                model.rotation.y = Math.PI;
+                Frog.drawingModelGeometry = model.clone();
+                this.initDrawingModel(model);
+            }, undefined, (err) => {
+                console.error("Drawing pose model error:", err);
+                if (this.isLocal && this.world && this.world.showToast) {
+                    this.world.showToast('Error loading frog_draw.glb!', 'error');
+                }
             });
         }
 
@@ -173,6 +186,10 @@ export class Frog {
         this.mesh.add(this.nameTag);
 
         this.audio = null; // Set by World
+
+        // Pose/Editor States
+        this.isPoserMode = false;
+        this.isDrawingPose = false;
     }
 
     setName(name) {
@@ -190,7 +207,10 @@ export class Frog {
     }
 
     update(dt, input, lookTarget, cameraOrbitAngle = 0) {
-        // Handle scooter riding state FIRST (before body checks, since body may be removed from world)
+        // POSER MODE or DRAWING MODE: Skip all physics/animation updates if enabled
+        if (this.isPoserMode || this.isDrawingPose) return;
+
+        // Handle scooter riding state FIRST for remote players...
         if (this.isRidingScooter && this.currentScooter) {
             // Update health bar and jiggle even while riding
             this.updateHealthBar();
@@ -1145,6 +1165,93 @@ export class Frog {
             }
         });
 
+    }
+
+    initDrawingModel(model) {
+        this.drawingMesh.add(model);
+        this.paperMesh = null;
+
+        model.traverse(child => {
+            if (child.isMesh) {
+                const name = child.name.toLowerCase();
+                child.material = child.material.clone();
+
+                // Color standard parts
+                if (name.includes('eye') || name.includes('white')) {
+                    child.material.color.set(0xffffff);
+                } else if (name.includes('pupil')) {
+                    child.material.color.set(0x000000);
+                } else if (name.includes('paper') || name.includes('plane') || name.includes('canvas') || name.includes('sheet') || name.includes('page') || name.includes('quad')) {
+                    // This is our drawing surface!
+                    this.paperMesh = child;
+
+                    // Force a consistent material that ignores world lighting
+                    if (!(child.material instanceof THREE.MeshBasicMaterial)) {
+                        child.material = new THREE.MeshBasicMaterial({
+                            color: 0xffffff,
+                            side: THREE.DoubleSide
+                        });
+                    }
+
+                    // Ensure it can show the texture
+                    child.material.map = null;
+                    child.material.needsUpdate = true;
+                } else {
+                    child.material.color.set(this.color);
+                }
+            }
+        });
+
+        if (this.isLocal && this.world && this.world.showToast) {
+            this.world.showToast('🎨 Artist Pose Loaded!', 'success');
+        }
+        console.log(`[Frog ${this.id}] Drawing model initialized. Paper mesh found: ${!!this.paperMesh}`);
+    }
+
+    setDrawingMode(enabled) {
+        this.isDrawingPose = enabled;
+        console.log(`[Frog ${this.id}] setDrawingMode: ${enabled}`);
+
+        if (this.drawingMesh) {
+            this.drawingMesh.visible = enabled;
+            this.bodyMesh.visible = !enabled;
+
+            // Recurse to be absolutely sure
+            this.drawingMesh.traverse(child => { if (child.isMesh) child.visible = enabled; });
+            this.bodyMesh.traverse(child => { if (child.isMesh) child.visible = !enabled; });
+        }
+    }
+
+    updateDrawingTexture(source) {
+        if (!this.paperMesh || !source) return;
+
+        // Force material type if it got reset or lost (ensures paper is always visible)
+        if (!(this.paperMesh.material instanceof THREE.MeshBasicMaterial)) {
+            this.paperMesh.material = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide
+            });
+        }
+
+        if (!this.drawingTexture) {
+            // Check if source is canvas or image
+            if (source instanceof HTMLCanvasElement) {
+                this.drawingTexture = new THREE.CanvasTexture(source);
+            } else {
+                this.drawingTexture = new THREE.Texture(source);
+            }
+
+            this.drawingTexture.minFilter = THREE.LinearFilter;
+            this.drawingTexture.magFilter = THREE.LinearFilter;
+            this.paperMesh.material.map = this.drawingTexture;
+        } else if (source instanceof HTMLImageElement && this.drawingTexture.image !== source) {
+            // Update texture image from network source
+            this.drawingTexture.image = source;
+        }
+
+        // Always mark for update to trigger re-render
+        this.drawingTexture.needsUpdate = true;
+        this.paperMesh.material.needsUpdate = true;
     }
 
     // Change frog color at runtime

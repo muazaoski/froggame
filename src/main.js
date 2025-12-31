@@ -6,8 +6,10 @@ import './Frog.js';
 import { World } from './World.js';
 import { Network } from './Network.js';
 import { Input } from './Input.js';
+import { DrawingSystem } from './Drawing.js';
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import GUI from 'lil-gui';
 import { Config } from './Config.js';
 
@@ -19,6 +21,10 @@ const world = new World();
 const input = new Input();
 const network = new Network(world);
 world.network = network; // Link network to world for combat sync
+
+// Initialize Drawing System
+const drawingSystem = new DrawingSystem(world, network);
+world.drawingSystem = drawingSystem;
 
 // PWA Installation Logic
 let deferredPrompt;
@@ -622,16 +628,27 @@ function animate(time) {
     // This fixes the "freeze" issue when switching tabs
     if (dt > 0.1) dt = 0.1; // Max 100ms per frame
 
+    // Update drawing system (for placement preview and selection)
+    if (drawingSystem) {
+        drawingSystem.update(input);
+    }
+
     world.step(dt, input);
     network.update(dt);
+
+    // Initialize Poser GUI once local frog is spawned
+    if (world.localFrog && !world._poseEditorInitialized) {
+        setupPoseEditor(world.localFrog);
+        world._poseEditorInitialized = true;
+    }
 
     // Send local updates if player exists
     if (world.localFrog) {
         const lookTarget = world.getMouseIntersection(input);
         world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle);
 
-        // Handle tongue input
-        if (input.consumeTongue() && lookTarget) {
+        // Handle tongue input (only if not in placement mode)
+        if (!drawingSystem.isPlacingArt && input.consumeTongue() && lookTarget) {
             world.localFrog.shootTongue(lookTarget, world);
         }
         // Release grapple when right mouse released
@@ -1987,5 +2004,255 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'm' || e.key === 'M') {
         toggleMusic();
     }
+
+    // P key to open drawing
+    if (e.key === 'p' || e.key === 'P') {
+        if (drawingSystem && world.localFrog) {
+            drawingSystem.open();
+        }
+    }
+
+    // ESC to cancel placement
+    if (e.key === 'Escape') {
+        if (drawingSystem) {
+            drawingSystem.handleKeyDown(e);
+        }
+    }
 });
 
+// === DRAWING SYSTEM ===
+const drawingBtn = document.getElementById('drawing-btn');
+const placementHint = document.getElementById('placement-hint');
+
+if (drawingBtn) {
+    drawingBtn.addEventListener('click', () => {
+        if (drawingSystem && world.localFrog) {
+            drawingSystem.open();
+        }
+    });
+}
+
+// Handle click for wall art placement
+document.addEventListener('click', (e) => {
+    if (!drawingSystem || !drawingSystem.isPlacingArt) return;
+
+    // Ignore UI clicks
+    if (e.target.closest('.bottom-left-buttons') ||
+        e.target.closest('#drawing-modal') ||
+        e.target.closest('.panel-overlay')) {
+        return;
+    }
+
+    // Try to place the art
+    if (drawingSystem.tryPlaceArt(input)) {
+        if (placementHint) placementHint.classList.remove('visible');
+    }
+});
+
+// Show/hide placement hint based on drawing system state
+setInterval(() => {
+    if (placementHint && drawingSystem) {
+        if (drawingSystem.isPlacingArt) {
+            placementHint.classList.add('visible');
+        } else {
+            placementHint.classList.remove('visible');
+        }
+    }
+}, 100);
+
+// Request existing wall arts when joining
+if (network && network.socket) {
+    network.socket.on('selfJoined', () => {
+        // Delay to ensure we're fully loaded
+        setTimeout(() => {
+            network.socket.emit('getWallArts');
+        }, 500);
+    });
+
+    // Handle wall art rate limit error
+    network.socket.on('wallArtError', (message) => {
+        if (world.showToast) {
+            world.showToast(message, 'error');
+        }
+    });
+}
+
+// --- Pose Editor System ---
+function setupPoseEditor(frog) {
+    console.log('🐸 Initializing Pose Editor...');
+    const poseFolder = gui.addFolder('🐸 Pose Mode');
+
+    // State
+    const state = {
+        enabled: false,
+        paperBackground: false,
+        gridHelper: false,
+        refresh: () => buildPartsGUI()
+    };
+
+    // Helper references
+    let paperBg = null;
+    let grid = null;
+
+    // Custom Pose Loader
+    let customModel = null;
+    const modelParams = {
+        load: () => {
+            const loader = new GLTFLoader();
+            loader.load('/models/frog_posed.glb', (gltf) => {
+                if (customModel) frog.mesh.remove(customModel);
+                customModel = gltf.scene;
+                // Match standard frog transforms
+                customModel.scale.set(0.5, 0.5, 0.5);
+                customModel.position.y = -0.6;
+                customModel.rotation.y = Math.PI;
+
+                frog.mesh.add(customModel);
+                frog.bodyMesh.visible = false; // Hide original
+
+                if (world.showToast) world.showToast('Loaded frog_posed.glb!', 'success');
+            }, undefined, (err) => {
+                console.error(err);
+                if (world.showToast) world.showToast('Error: Create models/frog_posed.glb first!', 'error');
+            });
+        },
+        reset: () => {
+            if (customModel) {
+                frog.mesh.remove(customModel);
+                customModel = null;
+            }
+            frog.bodyMesh.visible = true;
+            if (world.showToast) world.showToast('Reset to default model', 'info');
+        }
+    };
+
+    poseFolder.add(modelParams, 'load').name('📂 Load frog_posed.glb');
+    poseFolder.add(modelParams, 'reset').name('↩️ Reset Model');
+
+    // Enable Toggle
+    poseFolder.add(state, 'enabled').name('Enable Poser').onChange(enabled => {
+        frog.isPoserMode = enabled;
+
+        if (enabled) {
+            // Disable physics body interaction
+            if (frog.body) {
+                // Stop momentum
+                frog.body.velocity.set(0, 0, 0);
+                frog.body.angularVelocity.set(0, 0, 0);
+            }
+
+            gui.show(); // Ensure GUI is visible
+            poseFolder.open();
+
+            // Auto-refresh parts if empty
+            if (partsFoundCount === 0) {
+                buildPartsGUI();
+            }
+
+            if (world.showToast) world.showToast('Pose Mode Enabled! Physics paused.', 'info');
+        } else {
+            if (world.showToast) world.showToast('Pose Mode Disabled.', 'info');
+            if (frog.body) frog.body.wakeUp();
+        }
+    });
+
+    // Backgrounds
+    poseFolder.add(state, 'paperBackground').name('White Paper BG').onChange(isPaper => {
+        if (isPaper) {
+            world.scene.background = new THREE.Color(0xffffff);
+            world.terrainMeshes.forEach(m => m.visible = false);
+            if (world.water) world.water.visible = false;
+            if (world.grass) world.grass.visible = false;
+        } else {
+            world.scene.background = new THREE.Color(Config.hemiSkyColor);
+            world.terrainMeshes.forEach(m => m.visible = true);
+            if (world.water) world.water.visible = true;
+            if (world.grass) world.grass.visible = true;
+        }
+    });
+
+    poseFolder.add(state, 'gridHelper').name('Show Grid').onChange(show => {
+        if (show) {
+            if (!grid) {
+                grid = new THREE.GridHelper(20, 20, 0x000000, 0xdddddd);
+                world.scene.add(grid);
+            }
+            grid.visible = true;
+        } else {
+            if (grid) grid.visible = false;
+        }
+    });
+
+    poseFolder.add(state, 'refresh').name('🔄 Reload Parts');
+
+    // Body Parts Control - Dynamic Builder
+    let partsGUI = null;
+    let partsFoundCount = 0;
+
+    function buildPartsGUI() {
+        if (partsGUI) {
+            partsGUI.destroy(); // Remove old folder
+        }
+        partsGUI = poseFolder.addFolder('Body Parts');
+
+        const partsFound = new Set();
+        partsFoundCount = 0;
+
+        frog.bodyMesh.traverse((child) => {
+            // Only controls for Meshes or Groups with names
+            if ((child.isMesh || child.isGroup) && child.name && child.name.length > 1) {
+                // Ignore technical objects
+                if (child.name.includes('Scene') || child.name.includes('Sketch')) return;
+
+                if (partsFound.has(child.name)) return;
+                partsFound.add(child.name);
+                partsFoundCount++;
+
+                // Clean up name
+                const niceName = child.name.replace(/_/g, ' ');
+
+                const folder = partsGUI.addFolder(niceName);
+                folder.close();
+
+                // Position
+                const pFolder = folder.addFolder('Position');
+                pFolder.add(child.position, 'x', -5, 5, 0.01).name('X');
+                pFolder.add(child.position, 'y', -5, 5, 0.01).name('Y');
+                pFolder.add(child.position, 'z', -5, 5, 0.01).name('Z');
+                pFolder.close();
+
+                // Rotation
+                const rFolder = folder.addFolder('Rotation');
+                const rotProxy = {
+                    get x() { return child.rotation.x; },
+                    set x(v) { child.rotation.x = v; },
+                    get y() { return child.rotation.y; },
+                    set y(v) { child.rotation.y = v; },
+                    get z() { return child.rotation.z; },
+                    set z(v) { child.rotation.z = v; }
+                };
+
+                rFolder.add(rotProxy, 'x', -Math.PI, Math.PI, 0.01).name('X');
+                rFolder.add(rotProxy, 'y', -Math.PI, Math.PI, 0.01).name('Y');
+                rFolder.add(rotProxy, 'z', -Math.PI, Math.PI, 0.01).name('Z');
+                rFolder.close();
+
+                // Scale
+                const sFolder = folder.addFolder('Scale');
+                sFolder.add(child.scale, 'x', 0, 5, 0.01).name('X');
+                sFolder.add(child.scale, 'y', 0, 5, 0.01).name('Y');
+                sFolder.add(child.scale, 'z', 0, 5, 0.01).name('Z');
+                sFolder.close();
+            }
+        });
+
+        console.log(`🐸 Pose Editor found ${partsFoundCount} parts.`);
+        if (partsFoundCount === 0 && state.enabled) {
+            // Retry in a second if empty
+            setTimeout(buildPartsGUI, 1000);
+        }
+    }
+
+    // Initial build
+    buildPartsGUI();
+}

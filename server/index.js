@@ -79,6 +79,33 @@ function savePlayersToFile() {
     }
 }
 
+// Wall Art Persistence
+function saveWallArtsToFile() {
+    try {
+        const data = {
+            counter: wallArtIdCounter,
+            arts: wallArts
+        };
+        fs.writeFileSync(path.join(__dirname, 'wall_arts.json'), JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error('Failed to save wall arts file:', error.message);
+    }
+}
+
+function loadWallArtsFromFile() {
+    try {
+        const filePath = path.join(__dirname, 'wall_arts.json');
+        if (fs.existsSync(filePath)) {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            wallArtIdCounter = data.counter || 1;
+            wallArts = data.arts || {};
+            console.log(`🖼️  Loaded ${Object.keys(wallArts).length} wall arts from disk`);
+        }
+    } catch (error) {
+        console.error('Failed to load wall arts file:', error.message);
+    }
+}
+
 // API endpoint for player list
 app.get('/api/players', (req, res) => {
     const playerList = [];
@@ -184,6 +211,14 @@ let ballState = {
     vx: 0, vy: 0, vz: 0
 };
 let ballAuthority = null; // Socket ID of the player controlling ball physics
+
+// Wall Art Storage - drawings placed on walls
+let wallArts = {}; // { id: { imageData, position, normal, authorId, authorName, createdAt } }
+let wallArtIdCounter = 1;
+const MAX_WALL_ARTS = 100; // Increased limit slightly
+
+// Load wall arts on startup
+loadWallArtsFromFile();
 
 io.on('connection', (socket) => {
     console.log('Player connected (waiting for join):', socket.id);
@@ -876,6 +911,107 @@ io.on('connection', (socket) => {
         }
         socket.emit('all_pings', pings);
     }, 2000);
+
+    // === DRAWING SYNC SYSTEM ===
+    socket.on('playerDrawingStatus', (data) => {
+        if (players[socket.id]) {
+            players[socket.id].isDrawing = data.isDrawing;
+            players[socket.id].drawingData = data.drawingData;
+            // Relay to other players
+            socket.broadcast.emit('playerDrawingStatus', {
+                id: socket.id,
+                isDrawing: data.isDrawing,
+                drawingData: data.drawingData
+            });
+        }
+    });
+
+    socket.on('playerDrawingUpdate', (data) => {
+        if (players[socket.id]) {
+            players[socket.id].drawingData = data.drawingData;
+            // Relay to other players (throttle on client side)
+            socket.broadcast.emit('playerDrawingUpdate', {
+                id: socket.id,
+                drawingData: data.drawingData
+            });
+        }
+    });
+
+    // === WALL ART SYSTEM ===
+    // Send existing wall arts to new player
+    socket.on('getWallArts', () => {
+        const artsList = Object.values(wallArts);
+        socket.emit('wallArts', artsList);
+    });
+
+    // Place new wall art
+    socket.on('placeWallArt', (data) => {
+        if (!data.imageData || !data.position || !data.normal) {
+            console.log('❌ Invalid wall art data');
+            return;
+        }
+
+        // Rate limit: one art per 1 second per player (for easier testing)
+        const lastArtTime = players[socket.id]?.lastWallArtTime || 0;
+        if (Date.now() - lastArtTime < 1000) {
+            socket.emit('wallArtError', 'Please wait before placing another drawing');
+            return;
+        }
+
+        // Check if we need to remove old arts
+        const artKeys = Object.keys(wallArts);
+        if (artKeys.length >= MAX_WALL_ARTS) {
+            // Remove oldest art
+            const oldestId = artKeys[0];
+            delete wallArts[oldestId];
+            io.emit('wallArtRemoved', oldestId);
+            console.log(`🗑️ Removed oldest wall art ${oldestId} to make room`);
+        }
+
+        const player = players[socket.id];
+        const artistUserId = auth.getUserId(socket.id);
+
+        const art = {
+            id: wallArtIdCounter++,
+            imageData: data.imageData,
+            position: data.position,
+            normal: data.normal,
+            name: data.name || 'Untitled',
+            rotation: data.rotation || 0,
+
+            authorId: socket.id,
+            authorUserId: artistUserId, // For persistence ownership
+            authorName: player?.name || 'Unknown',
+            createdAt: Date.now()
+        };
+
+        wallArts[art.id] = art;
+        if (players[socket.id]) {
+            players[socket.id].lastWallArtTime = Date.now();
+        }
+
+        saveWallArtsToFile();
+
+        // Broadcast to all players
+        io.emit('wallArtPlaced', art);
+        console.log(`🎨 Wall art ${art.id} placed by ${art.authorName}`);
+    });
+
+    // Remove wall art (by author)
+    socket.on('removeWallArt', (artId) => {
+        const art = wallArts[artId];
+        const myUserId = auth.getUserId(socket.id);
+
+        // Allow if same session OR same logged-in account
+        if (art && (art.authorId === socket.id || (art.authorUserId && art.authorUserId === myUserId))) {
+            delete wallArts[artId];
+            saveWallArtsToFile();
+            io.emit('wallArtRemoved', artId);
+            console.log(`🗑️ Wall art ${artId} removed by author`);
+        } else {
+            socket.emit('wallArtError', 'You cannot remove someone else\'s art!');
+        }
+    });
 
     socket.on('disconnect', () => {
         clearInterval(pingBroadcastInterval);

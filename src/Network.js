@@ -256,6 +256,25 @@ export class Network {
             if (frog) frog.respawn(true);
         });
 
+        // --- Drawing Sync ---
+        this.socket.on('playerDrawingStatus', (data) => {
+            console.log(`🎨 Network: Player ${data.id} drawing status: ${data.isDrawing}`);
+            const frog = this.world.frogs[data.id];
+            if (frog) {
+                frog.setDrawingMode(data.isDrawing);
+                if (data.isDrawing && data.drawingData) {
+                    this.updateFrogTexture(frog, data.drawingData);
+                }
+            }
+        });
+
+        this.socket.on('playerDrawingUpdate', (data) => {
+            const frog = this.world.frogs[data.id];
+            if (frog && data.drawingData) {
+                this.updateFrogTexture(frog, data.drawingData);
+            }
+        });
+
         // Ball Sync - when another player kicks the ball
         this.socket.on('ballKicked', (ballState) => {
             if (this.world.ball) {
@@ -396,14 +415,29 @@ export class Network {
         }
     }
 
+    // --- Drawing Sync Methods ---
+    sendDrawingStatus(isDrawing, drawingData = null) {
+        this.socket.emit('playerDrawingStatus', { isDrawing, drawingData });
+    }
+
+    sendDrawingUpdate(drawingData) {
+        this.socket.emit('playerDrawingUpdate', { drawingData });
+    }
+
+    updateFrogTexture(frog, dataUrl) {
+        const img = new Image();
+        img.onload = () => {
+            frog.updateDrawingTexture(img);
+        };
+        img.src = dataUrl;
+    }
+
     toggleMute(id) {
         if (this.mutedPlayers.has(id)) {
             this.mutedPlayers.delete(id);
-
             return false;
         } else {
             this.mutedPlayers.add(id);
-
             return true;
         }
     }

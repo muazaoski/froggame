@@ -2485,6 +2485,250 @@
             }
         }
 
+        /* ================= DRAWING MODAL ================= */
+        #drawing-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 6000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        #drawing-modal.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .drawing-container {
+            background: linear-gradient(145deg, #fefcf3, #f5f0e1);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            max-width: 400px;
+            width: 90%;
+            position: relative;
+        }
+
+        .drawing-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .drawing-title {
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .drawing-close {
+            width: 35px;
+            height: 35px;
+            background: #ff6b6b;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .drawing-close:hover {
+            background: #ee5a5a;
+            transform: scale(1.1);
+        }
+
+        .drawing-canvas-wrapper {
+            background: white;
+            border: 3px solid #e0d8c0;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #drawing-canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: crosshair;
+            border-radius: 5px;
+            touch-action: none;
+        }
+
+        .drawing-tools {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .color-palette {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .draw-color {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .draw-color:hover {
+            transform: scale(1.15);
+        }
+
+        .draw-color.active {
+            border-color: #4CAF50;
+            transform: scale(1.2);
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+        }
+
+        .drawing-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .drawing-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .drawing-btn.secondary {
+            background: #e0e0e0;
+            color: #555;
+        }
+
+        .drawing-btn.secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .drawing-btn.secondary.active {
+            background: #ff9800;
+            color: white;
+        }
+
+        .drawing-btn.primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            box-shadow: 0 4px 0 #3d8b40;
+        }
+
+        .drawing-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #3d8b40;
+        }
+
+        .drawing-btn.primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 0 0 #3d8b40;
+        }
+
+        .brush-size-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .brush-size-control label {
+            font-weight: 600;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        #brush-size {
+            width: 80px;
+            cursor: pointer;
+        }
+
+        #brush-size-label {
+            font-weight: 700;
+            color: #333;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        /* Drawing button in bottom left */
+        #drawing-btn {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+        }
+
+        #drawing-btn:hover {
+            background: linear-gradient(135deg, #ffb74d, #ff9800);
+        }
+
+        /* Placement mode indicator */
+        .placement-hint {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.95), rgba(56, 142, 60, 0.95));
+            color: white;
+            padding: 18px 35px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            z-index: 5000;
+            display: none;
+            box-shadow: 0 8px 32px rgba(76, 175, 80, 0.4), 0 0 0 3px rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            animation: pulseHint 1.5s ease-in-out infinite;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .placement-hint.visible {
+            display: block;
+        }
+
+        @keyframes pulseHint {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
         /* ================= MOBILE LANDSCAPE OPTIMIZATION ================= */
         @media (max-width: 920px) and (orientation: landscape) {
 
@@ -2659,7 +2903,7 @@
             display: none;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-C1j-Baae.js"></script>
+  <script type="module" crossorigin src="/assets/index-BJQ0GSRx.js"></script>
 </head>
 
 <body class="spectator-mode">
@@ -2814,6 +3058,10 @@
                         <span class="control-action">Mount</span>
                         <span class="control-key">E</span>
                     </div>
+                    <div class="control-item">
+                        <span class="control-action">Draw</span>
+                        <span class="control-key">P</span>
+                    </div>
                 </div>
             </div>
 
@@ -2909,6 +3157,7 @@
             <span class="notification-dot" id="friend-notification-dot" style="display: none;"></span>
         </button>
         <button class="bottom-btn" id="emote-btn" title="Emotes (T)">😀</button>
+        <button class="bottom-btn" id="drawing-btn" title="Draw (P)">🎨</button>
     </div>
 
     <!-- Level/XP Display -->
@@ -2942,6 +3191,95 @@
         <div class="emote-option" style="bottom: -15px; left: 75px;" data-emote="gg">👍</div>
         <div class="emote-option" style="bottom: 25px; left: -15px;" data-emote="cry">😢</div>
         <div class="emote-option" style="top: 25px; left: -15px;" data-emote="angry">😤</div>
+    </div>
+
+    <!-- Drawing Modal -->
+    <div id="drawing-modal">
+        <div class="drawing-container">
+            <div class="drawing-header">
+                <div class="drawing-title">🎨 Draw on Paper</div>
+                <button class="drawing-close" id="drawing-close">✕</button>
+            </div>
+
+            <div class="drawing-canvas-wrapper">
+                <canvas id="drawing-canvas" width="256" height="256"></canvas>
+            </div>
+
+            <div class="drawing-tools">
+                <!-- Name Input -->
+                <input type="text" id="drawing-name-input" placeholder="Name your art..." maxlength="20"
+                    style="width: 100%; padding: 8px; border-radius: 8px; border: none; background: rgba(0,0,0,0.3); color: white; margin-bottom: 15px; font-family: 'Outfit'; font-size: 16px;">
+
+                <!-- Color Palette -->
+                <div class="color-palette">
+                    <div class="draw-color active" data-color="#000000" style="background: #000000;"></div>
+                    <div class="draw-color" data-color="#FFFFFF" style="background: #FFFFFF; border: 1px solid #ddd;">
+                    </div>
+                    <div class="draw-color" data-color="#FF0000" style="background: #FF0000;"></div>
+                    <div class="draw-color" data-color="#FF9800" style="background: #FF9800;"></div>
+                    <div class="draw-color" data-color="#FFEB3B" style="background: #FFEB3B;"></div>
+                    <div class="draw-color" data-color="#8BC34A" style="background: #8BC34A;"></div>
+                    <div class="draw-color" data-color="#4CAF50" style="background: #4CAF50;"></div>
+                    <div class="draw-color" data-color="#00BCD4" style="background: #00BCD4;"></div>
+                    <div class="draw-color" data-color="#2196F3" style="background: #2196F3;"></div>
+                    <div class="draw-color" data-color="#3F51B5" style="background: #3F51B5;"></div>
+                    <div class="draw-color" data-color="#9C27B0" style="background: #9C27B0;"></div>
+                    <div class="draw-color" data-color="#E91E63" style="background: #E91E63;"></div>
+                    <div class="draw-color" data-color="#795548" style="background: #795548;"></div>
+                    <div class="draw-color" data-color="#9E9E9E" style="background: #9E9E9E;"></div>
+                </div>
+
+                <!-- Controls -->
+                <div class="drawing-controls">
+                    <div class="brush-size-control">
+                        <label>Size:</label>
+                        <input type="range" id="brush-size" min="1" max="20" value="4">
+                        <span id="brush-size-label">4</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="drawing-btn secondary" id="fill-btn" title="Fill (Bucket)">🪣</button>
+                        <button class="drawing-btn secondary" id="eraser-btn">🧽</button>
+                        <button class="drawing-btn secondary" id="clear-canvas-btn">🗑️</button>
+                    </div>
+                </div>
+
+                <!-- Place Button -->
+                <button class="drawing-btn primary" id="place-drawing-btn">
+                    📌 Place on Wall
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Placement Mode Hint -->
+    <div class="placement-hint" id="placement-hint">
+        🖼️ Click to place! <span style="font-size: 0.9em; opacity: 0.8; margin-left:10px;">(Q/E to Rotate • ESC to
+            cancel)</span>
+    </div>
+
+    <!-- Art Edit UI (appears when selecting your own art) -->
+    <div id="art-edit-ui"
+        style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); color: white; padding: 15px 25px; border-radius: 15px; border: 2px solid rgba(255,255,255,0.1); display: none; flex-direction: column; align-items: center; gap: 10px; z-index: 5000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: 'Outfit';">
+        <div style="font-weight: 800; font-size: 1.1rem; color: #ffbc00;">🎨 Editing Your Art</div>
+        <div id="art-edit-name" style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 5px;">Untitled</div>
+        <div style="display: flex; gap: 10px;">
+            <button class="drawing-btn secondary" id="art-move-btn"
+                style="background: #4CAF50; color: white; box-shadow: 0 4px 0 #3d8b40;">
+                <span
+                    style="font-weight: 900; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; margin-right: 5px;">M</span>
+                Move
+            </button>
+            <button class="drawing-btn secondary" id="art-trash-btn"
+                style="background: #ff4757; color: white; box-shadow: 0 4px 0 #d63031;">
+                <span
+                    style="font-weight: 900; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; margin-right: 5px;">G</span>
+                Trash
+            </button>
+            <button class="drawing-btn secondary" id="art-cancel-btn">
+                Cancel
+            </button>
+        </div>
+        <div style="font-size: 0.75rem; opacity: 0.5;">Press keys on keyboard or click buttons</div>
     </div>
 
     <!-- Profile Editor Panel - Revamped -->

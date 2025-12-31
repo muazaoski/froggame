@@ -324,6 +324,10 @@ export class Input {
             const x = touch.clientX;
             const y = touch.clientY;
 
+            // Update mouse coordinates for raycasting
+            this.mouse.x = (x / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(y / window.innerHeight) * 2 + 1;
+
             // Joystick zone (left 40% of screen)
             if (x < window.innerWidth * 0.4 && !this.joystick.active) {
                 this.joystick.active = true;
@@ -356,6 +360,10 @@ export class Input {
 
     onTouchMove(e) {
         for (const touch of e.changedTouches) {
+            // Always update mouse coordinates for raycasting, regardless of which zone is touched
+            this.mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
             if (this.joystick.active && touch.identifier === this.joystick.touchId) {
                 const dx = touch.clientX - this.joystick.startX;
                 const dy = touch.clientY - this.joystick.startY;
@@ -450,7 +458,7 @@ export class Input {
         }
 
         // Check if clicking on UI elements - don't trigger game actions
-        const isUIClick = e.target.closest('button, input, textarea, .panel, .panel-overlay, .bottom-left-buttons, #profile-modal, #dm-chat-panel, #emote-wheel, #friend-list-overlay, #profile-editor-overlay');
+        const isUIClick = e.target.closest('button, input, textarea, .panel, .panel-overlay, .bottom-left-buttons, #profile-modal, #dm-chat-panel, #emote-wheel, #friend-list-overlay, #profile-editor-overlay, #art-edit-ui, #drawing-modal');
 
         // Left mouse button (button 0) for punch
         if (e.button === 0 && !this.chatOpen && !isUIClick) {
@@ -549,6 +557,9 @@ export class Input {
         // Disable movement while chatting or typing in any input
         if (this.chatOpen || isTyping) return;
 
+        // Keep track of all pressed keys for systems that need them (like Drawing rotation)
+        this.keys[e.code] = true;
+
         switch (e.code) {
             case 'ArrowUp':
             case 'KeyW': this.keys.forward = true; break;
@@ -579,6 +590,9 @@ export class Input {
                 document.activeElement.tagName === 'TEXTAREA');
 
         if (this.chatOpen || isTyping) return;
+
+        // Clear key from tracker
+        this.keys[e.code] = false;
 
         switch (e.code) {
             case 'ArrowUp':

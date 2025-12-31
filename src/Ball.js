@@ -4,6 +4,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Config } from './Config.js';
 
 export class Ball {
+    static loader = new GLTFLoader();
+    static modelCache = null;
+
+    static setLoaderManager(manager) {
+        Ball.loader = new GLTFLoader(manager);
+    }
+
     constructor(physicsWorld, scene, position = { x: 0, y: 2, z: 0 }) {
         this.scene = scene;
         this.physicsWorld = physicsWorld;
@@ -26,54 +33,59 @@ export class Ball {
             position.z = (Math.random() - 0.5) * 20;
         }
 
-        // Load GLB model
-        const loader = new GLTFLoader();
-        loader.load('/models/ball.glb', (gltf) => {
-            // Remove fallback sphere if it exists
-            if (this.fallbackSphere) {
-                this.mesh.remove(this.fallbackSphere);
-            }
-
-            const model = gltf.scene;
-
-            // --- PERFECT SCALING LOGIC ---
-            // Calculate bounding box to fit the model exactly to the physics radius
-            const box = new THREE.Box3().setFromObject(model);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const targetSize = this.radius * 2;
-            const scale = targetSize / maxDim;
-            model.scale.set(scale, scale, scale);
-
-            // Center the model relative to its geometry
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            model.position.sub(center.multiplyScalar(scale));
-
-            // Apply material and shadows
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    if (child.material) {
-                        child.material.roughness = 0.4;
-                        child.material.metalness = 0.1;
-                    }
-                }
+        // Load GLB model using static loader (uses LoadingManager)
+        if (Ball.modelCache) {
+            this.setupModel(Ball.modelCache.clone());
+        } else {
+            Ball.loader.load('/models/ball.glb', (gltf) => {
+                Ball.modelCache = gltf.scene.clone();
+                this.setupModel(gltf.scene);
+            }, undefined, (error) => {
+                console.error('Error loading ball GLB:', error);
             });
-
-            this.mesh.add(model);
-            this.modelLoaded = true;
-
-        }, undefined, (error) => {
-            console.error('Error loading ball GLB:', error);
-        });
+        }
 
         scene.add(this.mesh);
 
         // Create physics body
         this.createPhysicsBody(physicsWorld, position);
+    }
+
+    setupModel(model) {
+        // Remove fallback sphere if it exists
+        if (this.fallbackSphere) {
+            this.mesh.remove(this.fallbackSphere);
+        }
+
+        // --- PERFECT SCALING LOGIC ---
+        // Calculate bounding box to fit the model exactly to the physics radius
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const targetSize = this.radius * 2;
+        const scale = targetSize / maxDim;
+        model.scale.set(scale, scale, scale);
+
+        // Center the model relative to its geometry
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.sub(center.multiplyScalar(scale));
+
+        // Apply material and shadows
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.roughness = 0.4;
+                    child.material.metalness = 0.1;
+                }
+            }
+        });
+
+        this.mesh.add(model);
+        this.modelLoaded = true;
     }
 
     createFallbackSphere() {
