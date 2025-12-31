@@ -772,17 +772,19 @@ export class World {
         // These will be cached by their respective classes for instant cloning later
         Frog.loader.setMeshoptDecoder(MeshoptDecoder);
         Frog.loader.load('/models/frog.glb', (gltf) => {
-            gltf.scene.scale.set(0.5, 0.5, 0.5);
-            gltf.scene.position.y = -0.6;
-            gltf.scene.rotation.y = Math.PI;
-            Frog.modelGeometry = gltf.scene.clone();
+            const model = gltf.scene;
+            model.scale.set(0.5, 0.5, 0.5);
+            model.position.y = -0.6;
+            model.rotation.y = Math.PI;
+            Frog.modelGeometry = model.clone();
             console.log('🐸 Frog model preloaded');
         });
         Frog.loader.load('/models/frog_draw.glb', (gltf) => {
-            gltf.scene.scale.set(0.5, 0.5, 0.5);
-            gltf.scene.position.y = -0.6;
-            gltf.scene.rotation.y = Math.PI;
-            Frog.drawingModelGeometry = gltf.scene.clone();
+            const model = gltf.scene;
+            model.scale.set(0.5, 0.5, 0.5);
+            model.position.y = -0.6;
+            model.rotation.y = Math.PI;
+            Frog.drawingModelGeometry = model.clone();
             console.log('🎨 Frog drawing model preloaded');
         });
         Scooter.loader.setMeshoptDecoder(MeshoptDecoder);
