@@ -658,14 +658,8 @@ function animate(time) {
     // Send local updates if player exists
     if (world.localFrog) {
         const lookTarget = world.getMouseIntersection(input);
-        world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle);
 
-        // Handle tongue input (only if not in placement mode)
-        if (!drawingSystem.isPlacingArt && !noteSystem.isPlacing && input.consumeTongue() && lookTarget) {
-            world.localFrog.shootTongue(lookTarget, world);
-        }
-
-        // Try placing art/notes
+        // Try placing art/notes (do this BEFORE frog update so it can consume the punch input)
         if (input.leftClickPunch) {
             if (drawingSystem.isPlacingArt) {
                 drawingSystem.tryPlaceArt(input);
@@ -673,6 +667,14 @@ function animate(time) {
                 noteSystem.tryPlace(input);
             }
         }
+
+        world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle);
+
+        // Handle tongue input (only if not in placement mode)
+        if (!drawingSystem.isPlacingArt && !noteSystem.isPlacing && input.consumeTongue() && lookTarget) {
+            world.localFrog.shootTongue(lookTarget, world);
+        }
+
         // Release grapple when right mouse released
         if (!input.tongueHeld && world.localFrog.tongue.state === 'attached') {
             world.localFrog.releaseTongue();

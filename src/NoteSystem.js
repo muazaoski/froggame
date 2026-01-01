@@ -278,6 +278,8 @@ export class NoteSystem {
             return true;
         }
 
+        input.consumePunch?.();
+
         const noteData = {
             title: this.titleInput.value,
             content: this.contentInput.value,
