@@ -17,6 +17,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    // Exclude Socket.IO requests from interception entirely
+    // This fixes the "Failed to convert value to 'Response'" error when polling fails
+    if (event.request.url.includes('socket.io')) {
+        return;
+    }
+
     // For HTML - always fetch from network (never cache)
     if (event.request.mode === 'navigate' || event.request.url.endsWith('.html')) {
         event.respondWith(fetch(event.request));
