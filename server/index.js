@@ -92,6 +92,33 @@ function saveWallArtsToFile() {
     }
 }
 
+// Wall Note Persistence
+function saveWallNotesToFile() {
+    try {
+        const data = {
+            counter: wallNoteIdCounter,
+            notes: wallNotes
+        };
+        fs.writeFileSync(path.join(__dirname, 'wall_notes.json'), JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error('Failed to save wall notes file:', error.message);
+    }
+}
+
+function loadWallNotesFromFile() {
+    try {
+        const filePath = path.join(__dirname, 'wall_notes.json');
+        if (fs.existsSync(filePath)) {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            wallNoteIdCounter = data.counter || 1;
+            wallNotes = data.notes || {};
+            console.log(`📝 Loaded ${Object.keys(wallNotes).length} wall notes from disk`);
+        }
+    } catch (error) {
+        console.error('Failed to load wall notes file:', error.message);
+    }
+}
+
 function loadWallArtsFromFile() {
     try {
         const filePath = path.join(__dirname, 'wall_arts.json');
@@ -217,8 +244,14 @@ let wallArts = {}; // { id: { imageData, position, normal, authorId, authorName,
 let wallArtIdCounter = 1;
 const MAX_WALL_ARTS = 100; // Increased limit slightly
 
-// Load wall arts on startup
+// Wall Note Storage - drawings placed on walls
+let wallNotes = {}; // { id: { title, content, paperColor, textColor, position, normal, authorId, authorName, createdAt } }
+let wallNoteIdCounter = 1;
+const MAX_WALL_NOTES = 100;
+
+// Load wall arts and notes on startup
 loadWallArtsFromFile();
+loadWallNotesFromFile();
 
 io.on('connection', (socket) => {
     console.log('Player connected (waiting for join):', socket.id);
@@ -1016,6 +1049,55 @@ io.on('connection', (socket) => {
             console.log(`🗑️ Wall art ${artId} removed by author`);
         } else {
             socket.emit('wallArtError', 'You cannot remove someone else\'s art!');
+        }
+    });
+
+    // === WALL NOTE SYSTEM ===
+    socket.on('getWallNotes', () => {
+        socket.emit('wallNotes', Object.values(wallNotes));
+    });
+
+    socket.on('placeNote', (data) => {
+        if (!data.title || !data.content || !data.position || !data.normal) {
+            return;
+        }
+
+        const player = players[socket.id];
+        const artistUserId = auth.getUserId(socket.id);
+
+        const note = {
+            id: wallNoteIdCounter++,
+            title: data.title,
+            content: data.content,
+            paperColor: data.paperColor || '#FFFCEB',
+            textColor: data.textColor || '#333333',
+            position: data.position,
+            normal: data.normal,
+            rotation: data.rotation || 0,
+
+            authorId: socket.id,
+            authorUserId: artistUserId,
+            authorName: player?.name || 'Unknown',
+            createdAt: Date.now()
+        };
+
+        wallNotes[note.id] = note;
+        saveWallNotesToFile();
+
+        // Broadcast to all players
+        io.emit('notePlaced', note);
+        console.log(`📝 Note ${note.id} placed by ${note.authorName}`);
+    });
+
+    socket.on('removeNote', (noteId) => {
+        const note = wallNotes[noteId];
+        const myUserId = auth.getUserId(socket.id);
+
+        if (note && (note.authorId === socket.id || (note.authorUserId && note.authorUserId === myUserId))) {
+            delete wallNotes[noteId];
+            saveWallNotesToFile();
+            io.emit('noteRemoved', noteId);
+            console.log(`🗑️ Note ${noteId} removed by author`);
         }
     });
 

@@ -7,6 +7,7 @@ import { World } from './World.js';
 import { Network } from './Network.js';
 import { Input } from './Input.js';
 import { DrawingSystem } from './Drawing.js';
+import { NoteSystem } from './NoteSystem.js';
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -25,6 +26,10 @@ world.network = network; // Link network to world for combat sync
 // Initialize Drawing System
 const drawingSystem = new DrawingSystem(world, network);
 world.drawingSystem = drawingSystem;
+
+// Initialize Note System
+const noteSystem = new NoteSystem(world, network);
+world.noteSystem = noteSystem;
 
 // Expose for debugging
 window.world = world;
@@ -636,6 +641,11 @@ function animate(time) {
         drawingSystem.update(input);
     }
 
+    // Update note system
+    if (noteSystem) {
+        noteSystem.update(input);
+    }
+
     world.step(dt, input);
     network.update(dt);
 
@@ -651,8 +661,17 @@ function animate(time) {
         world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle);
 
         // Handle tongue input (only if not in placement mode)
-        if (!drawingSystem.isPlacingArt && input.consumeTongue() && lookTarget) {
+        if (!drawingSystem.isPlacingArt && !noteSystem.isPlacing && input.consumeTongue() && lookTarget) {
             world.localFrog.shootTongue(lookTarget, world);
+        }
+
+        // Try placing art/notes
+        if (input.leftClickPunch) {
+            if (drawingSystem.isPlacingArt) {
+                drawingSystem.tryPlaceArt(input);
+            } else if (noteSystem.isPlacing) {
+                noteSystem.tryPlace(input);
+            }
         }
         // Release grapple when right mouse released
         if (!input.tongueHeld && world.localFrog.tongue.state === 'attached') {

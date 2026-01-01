@@ -26,6 +26,210 @@
         rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="/svg/frog_favicon.svg">
     <style>
+        /* Note System CSS */
+        .note-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 6000;
+        }
+
+        .note-modal.visible {
+            display: flex;
+        }
+
+        .note-container {
+            background: #fff;
+            width: 380px;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            font-family: 'Outfit', sans-serif;
+            position: relative;
+            transform-origin: center;
+            animation: note-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes note-pop {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .note-title-ui {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #333;
+        }
+
+        .note-close {
+            background: #eee;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .note-close:hover {
+            background: #ff4757;
+            color: white;
+            transform: rotate(90deg);
+        }
+
+        .note-form-group {
+            margin-bottom: 15px;
+        }
+
+        .note-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 800;
+            color: #888;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .note-input,
+        .note-textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 2px solid #f0f0f0;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .note-input:focus,
+        .note-textarea:focus {
+            border-color: #4CAF50;
+        }
+
+        .note-textarea {
+            height: 100px;
+            resize: none;
+        }
+
+        .note-color-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .note-color-presets {
+            display: flex;
+            gap: 8px;
+        }
+
+        .note-color-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: transform 0.2s;
+        }
+
+        .note-color-circle:hover {
+            transform: scale(1.15);
+        }
+
+        .note-color-circle.selected {
+            border-color: rgba(0, 0, 0, 0.1);
+            transform: scale(1.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .note-btn-place {
+            width: 100%;
+            padding: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 10px;
+            box-shadow: 0 6px 0 #3d8b40;
+            transition: all 0.2s;
+        }
+
+        .note-btn-place:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        .note-btn-place:active {
+            transform: translateY(2px);
+            box-shadow: 0 0 0 #3d8b40;
+        }
+
+        /* View Modal Styles */
+        .note-view-paper {
+            background: #fffceb;
+            padding: 30px;
+            border-radius: 2px;
+            box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.05);
+            position: relative;
+            transform: rotate(-1deg);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .note-view-title {
+            font-size: 1.8rem;
+            font-weight: 900;
+            margin-bottom: 15px;
+            border-bottom: 2px dashed rgba(0, 0, 0, 0.1);
+            padding-bottom: 10px;
+        }
+
+        .note-view-content {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+        }
+
+        .note-view-meta {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            text-align: right;
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            padding-top: 10px;
+        }
+
         body {
             margin: 0;
             overflow: hidden;
@@ -3442,6 +3646,63 @@
                 <div id="loading-bar" class="loading-bar"></div>
             </div>
             <div id="loading-status" class="loading-status">Optimizing Lilypads...</div>
+        </div>
+    </div>
+
+    <!-- Note Creator Modal -->
+    <div id="note-creator-modal" class="note-modal">
+        <div class="note-container">
+            <div class="note-header">
+                <div class="note-title-ui">📝 Leave a Note</div>
+                <button class="note-close" id="note-close">✕</button>
+            </div>
+
+            <div class="note-form-group">
+                <label class="note-label">Title</label>
+                <input type="text" id="note-title-input" class="note-input" placeholder="Note heading..."
+                    maxlength="30">
+            </div>
+
+            <div class="note-form-group">
+                <label class="note-label">Message</label>
+                <textarea id="note-content-input" class="note-textarea" placeholder="Write your message here..."
+                    maxlength="200"></textarea>
+            </div>
+
+            <div class="note-form-group">
+                <label class="note-label">Paper Color</label>
+                <div class="note-color-presets" id="note-paper-colors">
+                    <div class="note-color-circle selected" data-color="#FFFCEB" style="background: #FFFCEB;"></div>
+                    <div class="note-color-circle" data-color="#E3F2FD" style="background: #E3F2FD;"></div>
+                    <div class="note-color-circle" data-color="#F1F8E9" style="background: #F1F8E9;"></div>
+                    <div class="note-color-circle" data-color="#FCE4EC" style="background: #FCE4EC;"></div>
+                    <div class="note-color-circle" data-color="#FFF3E0" style="background: #FFF3E0;"></div>
+                </div>
+            </div>
+
+            <div class="note-form-group">
+                <label class="note-label">Text Color</label>
+                <div class="note-color-presets" id="note-text-colors">
+                    <div class="note-color-circle selected" data-color="#333333" style="background: #333333;"></div>
+                    <div class="note-color-circle" data-color="#1A237E" style="background: #1A237E;"></div>
+                    <div class="note-color-circle" data-color="#1B5E20" style="background: #1B5E20;"></div>
+                    <div class="note-color-circle" data-color="#880E4F" style="background: #880E4F;"></div>
+                    <div class="note-color-circle" data-color="#E65100" style="background: #E65100;"></div>
+                </div>
+            </div>
+
+            <button class="note-btn-place" id="place-note-btn">📌 Place Note</button>
+        </div>
+    </div>
+
+    <!-- Note Viewer Modal -->
+    <div id="note-viewer-modal" class="note-modal">
+        <div class="note-view-paper" id="note-view-paper">
+            <button class="note-close" id="note-view-close"
+                style="position: absolute; top: 10px; right: 10px;">✕</button>
+            <div class="note-view-title" id="note-view-title">Title</div>
+            <div class="note-view-content" id="note-view-content">Message goes here...</div>
+            <div class="note-view-meta" id="note-view-meta">By Muaz • Jan 1, 2026</div>
         </div>
     </div>
 

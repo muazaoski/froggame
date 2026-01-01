@@ -458,7 +458,7 @@ export class Input {
         }
 
         // Check if clicking on UI elements - don't trigger game actions
-        const isUIClick = e.target.closest('button, input, textarea, .panel, .panel-overlay, .bottom-left-buttons, #profile-modal, #dm-chat-panel, #emote-wheel, #friend-list-overlay, #profile-editor-overlay, #art-edit-ui, #drawing-modal');
+        const isUIClick = e.target.closest('button, input, textarea, .panel, .panel-overlay, .bottom-left-buttons, #profile-modal, #dm-chat-panel, #emote-wheel, #friend-list-overlay, #profile-editor-overlay, #art-edit-ui, #drawing-modal, #note-creator-modal, #note-viewer-modal');
 
         // Left mouse button (button 0) for punch
         if (e.button === 0 && !this.chatOpen && !isUIClick) {
