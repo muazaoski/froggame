@@ -1423,11 +1423,14 @@ export class Frog {
         this.wasMoving = isMoving;
     }
 
-    updatePunch(dt, input, isPlacing) {
+    updatePunch(dt, input, isPlacingMode) {
         if (!this.rightLeg || !this.rightLegBasePos) return;
 
         // Prevent punch if we are placing art/notes
-        if (isPlacing) return;
+        if (isPlacingMode) {
+            // console.log("Punch BLOCKED by placement mode"); 
+            return;
+        }
 
         // Update cooldown
         if (this.punchCooldownTimer > 0) {

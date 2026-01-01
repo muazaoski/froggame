@@ -675,18 +675,9 @@ function animate(time) {
         const isPlacing = drawingSystem.isPlacingArt || noteSystem.isPlacing;
 
         if (input.leftClickPunch) {
-            // DEBUG: Show toast to confirm state
-            if (isPlacing) {
-                world.showToast(`DEBUG: Placing Mode Active (consume punch)`, 'info');
-            } else {
-                // Check if we *should* be placing
-                if (document.getElementById('note-creator-modal').classList.contains('visible')) {
-                    // Modal is open, so naturally false
-                } else if (noteSystem.placementPreview && noteSystem.placementPreview.visible) {
-                    // Preview is visible but isPlacing is false??
-                    world.showToast(`DEBUG: ERROR - Preview Visible but isPlacing=false`, 'error');
-                }
-            }
+            // Debug log
+            if (isPlacing) console.log('[DEBUG] Placing active');
+
 
             // If we are in placement mode, we ALWAYS consume the click so the frog doesn't punch.
             if (drawingSystem.isPlacingArt) {
