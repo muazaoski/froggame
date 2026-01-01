@@ -660,6 +660,8 @@ function animate(time) {
         const lookTarget = world.getMouseIntersection(input);
 
         // Try placing art/notes (do this BEFORE frog update so it can consume the punch input)
+        const isPlacing = drawingSystem.isPlacingArt || noteSystem.isPlacing;
+
         if (input.leftClickPunch) {
             // If we are in placement mode, we ALWAYS consume the click so the frog doesn't punch.
             if (drawingSystem.isPlacingArt) {
@@ -671,7 +673,7 @@ function animate(time) {
             }
         }
 
-        world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle);
+        world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle, isPlacing);
 
         // Handle tongue input (only if not in placement mode)
         if (!drawingSystem.isPlacingArt && !noteSystem.isPlacing && input.consumeTongue() && lookTarget) {

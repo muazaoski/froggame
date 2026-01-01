@@ -206,9 +206,14 @@ export class Frog {
         this.nameTagDiv.innerHTML = html;
     }
 
-    update(dt, input, lookTarget, cameraOrbitAngle = 0) {
+    update(dt, input, lookTarget, cameraOrbitAngle = 0, isPlacing = false) {
         // POSER MODE or DRAWING MODE: Skip all physics/animation updates if enabled
         if (this.isPoserMode || this.isDrawingPose) return;
+
+        // ...
+
+        // Update Punch/Kick Animation
+        this.updatePunch(dt, input, isPlacing);
 
         // Handle scooter riding state FIRST for remote players...
         if (this.isRidingScooter && this.currentScooter) {
@@ -1418,8 +1423,11 @@ export class Frog {
         this.wasMoving = isMoving;
     }
 
-    updatePunch(dt, input) {
+    updatePunch(dt, input, isPlacing) {
         if (!this.rightLeg || !this.rightLegBasePos) return;
+
+        // Prevent punch if we are placing art/notes
+        if (isPlacing) return;
 
         // Update cooldown
         if (this.punchCooldownTimer > 0) {
