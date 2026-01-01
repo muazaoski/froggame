@@ -637,6 +637,18 @@ function animate(time) {
     if (dt > 0.1) dt = 0.1; // Max 100ms per frame
 
     // Update drawing system (for placement preview and selection)
+    // --- DEBUG HUD START ---
+    const debugIsPlacing = (drawingSystem && drawingSystem.isPlacingArt) || (noteSystem && noteSystem.isPlacing);
+    let debugHud = document.getElementById('debug-hud');
+    if (!debugHud) {
+        debugHud = document.createElement('div');
+        debugHud.id = 'debug-hud';
+        debugHud.style.cssText = 'position:fixed;top:10px;left:10px;background:rgba(0,0,0,0.7);color:#0f0;padding:5px;font-family:monospace;z-index:99999;pointer-events:none;';
+        document.body.appendChild(debugHud);
+    }
+    debugHud.innerHTML = `Mode: ${debugIsPlacing ? 'PLACING 🛑' : 'PLAYING ▶️'}<br>Click: ${input.leftClickPunch ? 'YES' : 'NO'}<br>Note: ${noteSystem && noteSystem.isPlacing}`;
+    // --- DEBUG HUD END ---
+
     if (drawingSystem) {
         drawingSystem.update(input);
     }
