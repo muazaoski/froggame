@@ -661,10 +661,13 @@ function animate(time) {
 
         // Try placing art/notes (do this BEFORE frog update so it can consume the punch input)
         if (input.leftClickPunch) {
+            // If we are in placement mode, we ALWAYS consume the click so the frog doesn't punch.
             if (drawingSystem.isPlacingArt) {
                 drawingSystem.tryPlaceArt(input);
+                input.consumePunch();
             } else if (noteSystem.isPlacing) {
                 noteSystem.tryPlace(input);
+                input.consumePunch();
             }
         }
 
