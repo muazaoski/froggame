@@ -1045,7 +1045,7 @@ export class DrawingSystem {
 
         // Position modal slightly above the art
         this.editUI.style.left = `${x}px`;
-        this.editUI.style.top = `${y - 120}px`;
+        this.editUI.style.top = `${y - 20}px`;
         this.editUI.style.transform = 'translate(-50%, -100%)';
     }
 }

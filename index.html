@@ -3877,25 +3877,20 @@
             </div>
         </div>
     </div>
-    <!-- Contextual Art Edit UI -->
-    <div id="art-edit-ui" class="confirm-panel"
-        style="display: none; position: fixed; z-index: 5000; width: 220px; padding: 15px; border-radius: 18px; pointer-events: auto;">
-        <div id="art-edit-name" class="confirm-text"
-            style="font-size: 13px; margin-bottom: 12px; opacity: 0.9; font-weight: 800; color: #333;">Untitled</div>
+    <!-- Contextual Art Edit UI (Minimalist bar above art) -->
+    <div id="art-edit-ui"
+        style="display: none; position: fixed; z-index: 5000; background-color: #f0ede1; border-radius: 16px; padding: 8px 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); border: 4px solid #f0ede1; flex-direction: column; align-items: center; pointer-events: auto; min-width: 150px; font-family: 'Outfit';">
+        <div id="art-edit-name"
+            style="font-size: 11px; margin-bottom: 6px; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 0.5px;">
+            Untitled</div>
 
-        <div class="confirm-actions" style="gap: 8px;">
+        <div style="display: flex; gap: 6px; width: 100%;">
             <button class="confirm-btn confirm-btn-primary" id="art-move-btn"
-                style="background: #4caf50; color: white; box-shadow: 0 4px 0 #3d8b40; padding: 8px; font-size: 12px;">
-                Move
-            </button>
+                style="background: #4caf50; color: white; box-shadow: 0 3px 0 #3d8b40; padding: 6px 10px; font-size: 11px; flex: 1; border-radius: 8px;">Move</button>
             <button class="confirm-btn confirm-btn-primary" id="art-trash-btn"
-                style="background: #ff4757; color: white; box-shadow: 0 4px 0 #d63031; padding: 8px; font-size: 12px;">
-                Trash
-            </button>
+                style="background: #ff4757; color: white; box-shadow: 0 3px 0 #d63031; padding: 6px 10px; font-size: 11px; flex: 1; border-radius: 8px;">Trash</button>
             <button class="confirm-btn confirm-btn-secondary" id="art-cancel-btn"
-                style="padding: 8px; font-size: 12px; flex: 0.6;">
-                ✕
-            </button>
+                style="background: #e2e2e2; color: #888; box-shadow: 0 3px 0 #bbb; padding: 6px 8px; font-size: 11px; min-width: 25px; flex: 0.3; border-radius: 8px;">✕</button>
         </div>
     </div>
 
