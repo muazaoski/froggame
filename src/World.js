@@ -1912,7 +1912,8 @@ export class World {
             frog.setHidden(isInsideBush);
 
             if (frog.isLocal) {
-                frog.update(dt, input, lookTarget, this.cameraOrbitAngle);
+                // Local frog is updated in main.js with isPlacing parameter
+                // Do NOT call frog.update here or it will consume input before placement handling
             } else {
                 frog.update(dt, null, frog.targetLook);
             }
