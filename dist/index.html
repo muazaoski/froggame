@@ -3048,24 +3048,80 @@
 
         .layer-item {
             background: #fff;
-            border-radius: 10px;
-            padding: 10px 15px;
+            border-radius: 12px;
+            padding: 8px 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
             cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid transparent;
+            user-select: none;
+        }
+
+        .layer-item:hover {
+            transform: scale(1.02);
+            background: #f9f9f9;
         }
 
         .layer-item.active {
+            background: #fff;
+            border-color: #ffbc00;
+            box-shadow: 0 4px 15px rgba(255, 188, 0, 0.2);
+        }
+
+        .layer-item.bg-layer {
             background: #f0f0f0;
-            outline: 2px solid #ffbc00;
+            opacity: 0.9;
+        }
+
+        .layer-item-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .layer-index {
+            font-size: 10px;
+            font-weight: 900;
+            color: #bbb;
+            width: 18px;
+            height: 18px;
+            background: #eee;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .layer-item.active .layer-index {
+            background: #ffbc00;
+            color: #fff;
         }
 
         .layer-name {
             font-size: 13px;
-            font-weight: 600;
-            color: #444;
+            font-weight: 700;
+            color: #555;
+        }
+
+        .layer-icons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .layer-visibility-icon {
+            padding: 4px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .layer-visibility-icon:hover {
+            background: rgba(0, 0, 0, 0.05);
         }
 
         .place-on-wall-btn {
@@ -3294,7 +3350,7 @@
             display: none;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-7qbkgb1P.js"></script>
+  <script type="module" crossorigin src="/assets/index-uYKOcRfQ.js"></script>
 </head>
 
 <body class="spectator-mode">

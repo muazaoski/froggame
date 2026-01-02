@@ -142,8 +142,7 @@ export class DrawingSystem {
                 btn.classList.add('active');
                 this.currentColor = btn.dataset.color;
                 this.isEraser = this.isFilling = false;
-                document.getElementById('eraser-btn')?.classList.remove('active');
-                document.getElementById('fill-btn')?.classList.remove('active');
+                this.updateToolUI();
             });
         });
 
@@ -234,7 +233,12 @@ export class DrawingSystem {
     }
 
     addLayer(name = null, transparent = true) {
-        const layerName = name || `Layer ${this.layers.length + 1}`;
+        if (this.layers.length >= 7) {
+            this.world.showToast?.('Maximum 7 layers allowed!', 'error');
+            return;
+        }
+
+        const layerName = name || `Layer ${this.layers.length + (this.layers[0]?.name === "Background" ? 0 : 1)}`;
         const canvas = document.createElement('canvas');
         canvas.width = this.displayCanvas.width;
         canvas.height = this.displayCanvas.height;
@@ -293,20 +297,21 @@ export class DrawingSystem {
         // Display layers in reverse order (top to bottom)
         for (let i = this.layers.length - 1; i >= 0; i--) {
             const layer = this.layers[i];
+            const isBackground = layer.name === "Background";
             const item = document.createElement('div');
-            item.className = `layer-item ${i === this.activeLayerIndex ? 'active' : ''}`;
+            item.className = `layer-item ${i === this.activeLayerIndex ? 'active' : ''} ${isBackground ? 'bg-layer' : ''}`;
 
             item.innerHTML = `
-                <span class="layer-name" style="pointer-events: none;">${layer.name}</span>
+                <div class="layer-item-content">
+                    <span class="layer-index">${i + 1}</span>
+                    <span class="layer-name">${layer.name}</span>
+                </div>
                 <div class="layer-icons">
-                    <span class="layer-visibility-icon" style="opacity: ${layer.visible ? 1 : 0.3}; padding: 5px; cursor: pointer;">${layer.visible ? '👁️' : '🕶️'}</span>
+                    <span class="layer-visibility-icon" style="opacity: ${layer.visible ? 1 : 0.3}">${layer.visible ? '👁️' : '🕶️'}</span>
                 </div>
             `;
 
-            item.addEventListener('click', (e) => {
-                this.selectLayer(i);
-            });
-
+            item.addEventListener('click', () => this.selectLayer(i));
             item.querySelector('.layer-visibility-icon').addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.toggleLayerVisibility(i);
