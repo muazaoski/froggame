@@ -239,9 +239,7 @@
             display: flex;
             gap: 10px;
             justify-content: center;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px dashed rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
         }
 
         .note-action-btn {
@@ -256,8 +254,9 @@
         }
 
         .note-delete-btn {
-            background: #ff5252;
+            background: rgba(255, 82, 82, 0.9);
             color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
 
         .note-delete-btn:hover {
@@ -3739,11 +3738,11 @@
             <div class="note-view-title" id="note-view-title">Title</div>
             <div class="note-view-content" id="note-view-content">Message goes here...</div>
             <div class="note-view-meta" id="note-view-meta">By Muaz • Jan 1, 2026</div>
+        </div>
 
-            <!-- Author-only actions -->
-            <div id="note-author-actions" class="note-author-actions" style="display: none;">
-                <button id="note-delete-btn" class="note-action-btn note-delete-btn">🗑️ Delete Note</button>
-            </div>
+        <!-- Author-only actions (below the note) -->
+        <div id="note-author-actions" class="note-author-actions" style="display: none;">
+            <button id="note-delete-btn" class="note-action-btn note-delete-btn">🗑️ Delete Note</button>
         </div>
     </div>
 
