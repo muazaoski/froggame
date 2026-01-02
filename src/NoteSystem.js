@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 
 export class NoteSystem {
     constructor(world, network) {
@@ -17,6 +18,11 @@ export class NoteSystem {
         this.placementIndicator = null;
         this.placementRotation = 0;
         this._lastHit = null;
+
+        // Selection / Editing (like Drawing.js)
+        this.selectedNote = null;
+        this.hoveredNote = null;
+        this.crumpledPapers = [];
 
         this.initUI();
         this.initNetworkHandlers();
@@ -380,6 +386,8 @@ export class NoteSystem {
             if (hoveredNote || inter.object.visible) break;
         }
 
+        this.hoveredNote = hoveredNote;
+
         if (hoveredNote) {
             const playerPos = this.world.localFrog?.mesh?.position;
             const dist = playerPos ? playerPos.distanceTo(hoveredNote.position) : Infinity;
@@ -390,26 +398,49 @@ export class NoteSystem {
                 // Interaction hint
                 const data = hoveredNote.userData.noteData;
                 const date = new Date(data.createdAt).toLocaleDateString();
-                this.world.drawingSystem?.tooltip?.style.display && (this.world.drawingSystem.tooltip.style.display = 'block');
+
+                // Check if we're the owner
+                const myId = this.network?.socket?.id;
+                const myUserId = this.world.localFrog?.userId;
+                const isOwner = data.authorId === myId || (data.authorUserId && data.authorUserId === myUserId);
+
                 if (this.world.drawingSystem?.tooltip) {
                     const tooltip = this.world.drawingSystem.tooltip;
-                    tooltip.innerHTML = `<b>${data.title}</b><br><small>Click to read • Posted ${date}</small>`;
+                    if (isOwner) {
+                        tooltip.innerHTML = `<b>${data.title}</b><br><small>Click to edit/delete • Posted ${date}</small>`;
+                    } else {
+                        tooltip.innerHTML = `<b>${data.title}</b><br><small>Click to read • Posted ${date}</small>`;
+                    }
                     tooltip.style.left = ((input.mouse.x + 1) * window.innerWidth / 2 + 15) + 'px';
                     tooltip.style.top = ((-input.mouse.y + 1) * window.innerHeight / 2 + 15) + 'px';
                     tooltip.style.display = 'block';
                 }
 
                 if (input.leftClickPunch) {
-                    this.openViewer(data);
+                    if (isOwner) {
+                        // Owner clicks: select the note for editing
+                        this.selectNote(hoveredNote);
+                    } else {
+                        // Non-owner clicks: just view
+                        this.openViewer(data);
+                    }
                     input.consumePunch?.();
                 }
             } else {
                 document.body.style.cursor = 'default';
             }
         } else {
-            // Check if we were previously hovering a note to hide tooltip (if drawing system isn't handling it)
-            // Actually DrawingSystem.updateTooltip will run and might hide it.
+            document.body.style.cursor = 'default';
         }
+
+        // Handle keyboard commands when a note is selected
+        if (this.selectedNote) {
+            if (input.keys?.KeyG) this.trashSelectedNote();
+            if (input.keys?.Escape) this.deselectNote();
+        }
+
+        // Update crumpled papers physics
+        this.updateCrumpledPapers();
     }
 
     openViewer(note) {
@@ -435,6 +466,117 @@ export class NoteSystem {
             if (this.isPlacing) this.cancelPlacement();
             if (this.creatorModal.classList.contains('visible')) this.closeCreator();
             if (this.viewerModal.classList.contains('visible')) this.closeViewer();
+            if (this.selectedNote) this.deselectNote();
+        }
+    }
+
+    // Selection methods (like Drawing.js)
+    selectNote(mesh) {
+        this.deselectNote();
+        this.selectedNote = mesh;
+
+        // Highlight the selected note
+        if (mesh.material) {
+            mesh.userData._oldEmissive = mesh.material.emissive?.getHex() || 0;
+            if (mesh.material.emissive) mesh.material.emissive.set(0x4CAF50);
+        }
+
+        // Show the note content and options in viewer
+        const data = mesh.userData.noteData;
+        this.openViewer(data);
+
+        this.world.showToast?.('Note selected! [G] Trash [ESC] Cancel', 'success');
+    }
+
+    deselectNote() {
+        if (this.selectedNote) {
+            if (this.selectedNote.material && this.selectedNote.material.emissive) {
+                this.selectedNote.material.emissive.setHex(this.selectedNote.userData._oldEmissive || 0);
+            }
+            this.selectedNote = null;
+        }
+    }
+
+    trashSelectedNote() {
+        if (!this.selectedNote) return;
+
+        const noteId = this.selectedNote.userData.noteId;
+        const pos = this.selectedNote.position.clone();
+        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(this.selectedNote.quaternion);
+
+        // Send remove request to server
+        this.network.socket.emit('removeNote', noteId);
+
+        // Create crumpled paper effect
+        this.createCrumpledPaper(pos, normal);
+
+        // Close viewer and deselect
+        this.closeViewer();
+        this.deselectNote();
+
+        this.world.showToast?.('Note deleted! 🗑️', 'info');
+    }
+
+    createCrumpledPaper(pos, normal) {
+        // Create a dodecahedron mesh to represent crumpled paper
+        const mesh = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(0.15, 0),
+            new THREE.MeshBasicMaterial({ color: 0xfffceb })
+        );
+        mesh.position.copy(pos);
+        mesh.scale.setScalar(0.5 + Math.random() * 0.5);
+        this.world.scene.add(mesh);
+
+        // Add physics body
+        if (this.world.physics?.world) {
+            const body = new CANNON.Body({
+                mass: 0.2,
+                shape: new CANNON.Sphere(0.1),
+                position: new CANNON.Vec3(pos.x, pos.y, pos.z)
+            });
+
+            // Random velocity in the normal direction
+            const f = 4 + Math.random() * 3;
+            body.velocity.set(
+                normal.x * f + (Math.random() - 0.5) * 3,
+                normal.y * f + 3 + Math.random() * 3,
+                normal.z * f + (Math.random() - 0.5) * 3
+            );
+            body.angularVelocity.set(
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15
+            );
+
+            this.world.physics.world.addBody(body);
+            this.crumpledPapers.push({ mesh, body, createdAt: Date.now() });
+        }
+    }
+
+    updateCrumpledPapers() {
+        const now = Date.now();
+        for (let i = this.crumpledPapers.length - 1; i >= 0; i--) {
+            const p = this.crumpledPapers[i];
+
+            // Sync mesh with physics body
+            p.mesh.position.copy(p.body.position);
+            p.mesh.quaternion.copy(p.body.quaternion);
+
+            const age = now - p.createdAt;
+
+            // Remove after 10 seconds
+            if (age > 10000) {
+                this.world.scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+                this.world.physics.world.removeBody(p.body);
+                this.crumpledPapers.splice(i, 1);
+            }
+            // Fade out in the last 2 seconds
+            else if (age > 8000) {
+                p.mesh.material.transparent = true;
+                p.mesh.material.opacity = 1 - (age - 8000) / 2000;
+            }
         }
     }
 }
