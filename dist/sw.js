@@ -1,4 +1,4 @@
-const CACHE_NAME = 'frog-v2'; // Bump version to invalidate old cache
+const CACHE_NAME = 'frog-v3'; // Bump version to invalidate old cache - 2026-01-02
 
 self.addEventListener('install', (event) => {
     // Skip waiting - activate immediately
