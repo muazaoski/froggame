@@ -3486,7 +3486,7 @@
             display: none;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-CSsDRXKr.js"></script>
+  <script type="module" crossorigin src="/assets/index-CyCYUVSo.js"></script>
 </head>
 
 <body class="spectator-mode">
@@ -3878,34 +3878,25 @@
             </div>
         </div>
     </div>
-    <!-- Art Edit UI (appears when selecting your own art) -->
+    <!-- Contextual Art Edit UI -->
     <div id="art-edit-ui" class="confirm-panel"
-        style="display: none; position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 5000;">
-        <div class="confirm-icon-ring" style="margin-top: -5px;">🎨</div>
-        <div class="confirm-title" style="font-size: 18px;">Manage Your Art</div>
+        style="display: none; position: fixed; z-index: 5000; width: 220px; padding: 15px; border-radius: 18px; pointer-events: auto;">
         <div id="art-edit-name" class="confirm-text"
-            style="font-size: 12px; margin-top: -2px; opacity: 0.6; margin-bottom: 15px;">Untitled</div>
+            style="font-size: 13px; margin-bottom: 12px; opacity: 0.9; font-weight: 800; color: #333;">Untitled</div>
 
-        <div class="confirm-actions">
+        <div class="confirm-actions" style="gap: 8px;">
             <button class="confirm-btn confirm-btn-primary" id="art-move-btn"
-                style="background: #4caf50; color: white; box-shadow: 0 4px 0 #3d8b40;">
-                <span
-                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 1px 6px; border-radius: 4px; font-size: 0.8em;">M</span>
+                style="background: #4caf50; color: white; box-shadow: 0 4px 0 #3d8b40; padding: 8px; font-size: 12px;">
                 Move
             </button>
             <button class="confirm-btn confirm-btn-primary" id="art-trash-btn"
-                style="background: #ff4757; color: white; box-shadow: 0 4px 0 #d63031;">
-                <span
-                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 1px 6px; border-radius: 4px; font-size: 0.8em;">G</span>
+                style="background: #ff4757; color: white; box-shadow: 0 4px 0 #d63031; padding: 8px; font-size: 12px;">
                 Trash
             </button>
-            <button class="confirm-btn confirm-btn-secondary" id="art-cancel-btn" style="flex: 0.4;">
-                Close
+            <button class="confirm-btn confirm-btn-secondary" id="art-cancel-btn"
+                style="padding: 8px; font-size: 12px; flex: 0.6;">
+                ✕
             </button>
-        </div>
-        <div
-            style="font-size: 9px; opacity: 0.4; margin-top: 10px; font-family: 'Outfit'; color: #666; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">
-            [M] • [G] • [ESC]
         </div>
     </div>
 

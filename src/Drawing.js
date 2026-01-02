@@ -889,9 +889,18 @@ export class DrawingSystem {
                 if (isOwner) { this.selectArt(this.hoveredArt); input.consumePunch?.(); }
             }
             if (this.selectedArt) {
-                if (input.keys?.KeyM) this.moveSelectedArt();
-                if (input.keys?.KeyG) this.trashSelectedArt();
-                if (input.keys?.Escape) this.deselectArt();
+                // Distance check: auto-close if too far
+                const playerPos = this.world.localFrog?.mesh?.position;
+                const artPos = this.selectedArt.position;
+                if (playerPos && artPos && playerPos.distanceTo(artPos) > 10) {
+                    this.deselectArt();
+                } else {
+                    // Update contextual UI position
+                    this.updateEditUIPosition();
+                    if (input.keys?.KeyM) this.moveSelectedArt();
+                    if (input.keys?.KeyG) this.trashSelectedArt();
+                    if (input.keys?.Escape) this.deselectArt();
+                }
             }
             if (this.modal?.classList.contains('visible') && this.world.localFrog) {
                 this.world.localFrog.updateDrawingTexture(this.displayCanvas);
@@ -953,8 +962,8 @@ export class DrawingSystem {
         if (this.editUI) {
             this.editUI.style.display = 'flex';
             if (this.editNameLabel) this.editNameLabel.textContent = mesh.userData.artName;
+            this.updateEditUIPosition();
         }
-        this.world.showToast?.('Art Selected! [M] Move [G] Trash', 'success');
     }
 
     deselectArt() {
@@ -1023,5 +1032,20 @@ export class DrawingSystem {
             if (e.code === 'KeyM') this.moveSelectedArt();
             if (e.code === 'KeyG') this.trashSelectedArt();
         }
+    }
+
+    updateEditUIPosition() {
+        if (!this.selectedArt || !this.editUI || !this.world.camera) return;
+
+        const vector = this.selectedArt.position.clone();
+        vector.project(this.world.camera);
+
+        const x = (vector.x + 1) * window.innerWidth / 2;
+        const y = (-vector.y + 1) * window.innerHeight / 2;
+
+        // Position modal slightly above the art
+        this.editUI.style.left = `${x}px`;
+        this.editUI.style.top = `${y - 120}px`;
+        this.editUI.style.transform = 'translate(-50%, -100%)';
     }
 }
