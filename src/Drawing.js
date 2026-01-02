@@ -94,6 +94,172 @@ export class DrawingSystem {
         document.getElementById('art-move-btn')?.addEventListener('click', () => this.moveSelectedArt());
         document.getElementById('art-trash-btn')?.addEventListener('click', () => this.trashSelectedArt());
         document.getElementById('art-cancel-btn')?.addEventListener('click', () => this.deselectArt());
+
+        this.initColorPicker();
+
+        // Confirmation Modal Listeners
+        this.confirmModal = document.getElementById('drawing-confirm-modal');
+        document.getElementById('btn-cancel-place')?.addEventListener('click', () => {
+            if (this.confirmModal) this.confirmModal.style.display = 'none';
+        });
+        document.getElementById('btn-confirm-place')?.addEventListener('click', () => {
+            if (this.confirmModal) this.confirmModal.style.display = 'none';
+            this.executePlacement();
+        });
+    }
+
+    initColorPicker() {
+        this.pickerCanvas = document.getElementById('color-picker-canvas');
+        this.pickerCtx = this.pickerCanvas?.getContext('2d');
+        this.colorPreview = document.getElementById('color-preview');
+        this.currentHue = 0;
+        this.currentSat = 100;
+        this.currentVal = 100;
+
+        if (!this.pickerCanvas) return;
+
+        const handleMove = (e) => {
+            const rect = this.pickerCanvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            this.handleColorPickerInteraction(x, y);
+        };
+
+        this.pickerCanvas.addEventListener('mousedown', (e) => {
+            this.isPickingColor = true;
+            handleMove(e);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (this.isPickingColor) handleMove(e);
+        });
+
+        window.addEventListener('mouseup', () => {
+            this.isPickingColor = false;
+        });
+
+        // Touch support
+        this.pickerCanvas.addEventListener('touchstart', (e) => {
+            this.isPickingColor = true;
+            handleMove(e); e.preventDefault();
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            if (this.isPickingColor) handleMove(e);
+        }, { passive: false });
+        window.addEventListener('touchend', () => {
+            this.isPickingColor = false;
+        });
+
+        this.renderColorPicker();
+        this.updateColorFromHSV();
+    }
+
+    renderColorPicker() {
+        if (!this.pickerCtx) return;
+        const ctx = this.pickerCtx;
+        const size = this.pickerCanvas.width;
+        const center = size / 2;
+        const ringRadius = 70;
+        const ringWidth = 15;
+
+        ctx.clearRect(0, 0, size, size);
+
+        // Draw Color Ring
+        for (let i = 0; i < 360; i++) {
+            const startAngle = (i - 1) * Math.PI / 180;
+            const endAngle = (i + 1) * Math.PI / 180;
+            ctx.beginPath();
+            ctx.arc(center, center, ringRadius, startAngle, endAngle);
+            ctx.strokeStyle = `hsl(${i}, 100%, 50%)`;
+            ctx.lineWidth = ringWidth;
+            ctx.stroke();
+        }
+
+        // Draw S/V Square in the middle
+        const sqSize = 70;
+        const sqX = center - sqSize / 2;
+        const sqY = center - sqSize / 2;
+
+        // Base color for saturation gradient
+        ctx.fillStyle = `hsl(${this.currentHue}, 100%, 50%)`;
+        ctx.fillRect(sqX, sqY, sqSize, sqSize);
+
+        // Saturation gradient (white to transparent)
+        const satGrad = ctx.createLinearGradient(sqX, sqY, sqX + sqSize, sqY);
+        satGrad.addColorStop(0, 'white');
+        satGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = satGrad;
+        ctx.fillRect(sqX, sqY, sqSize, sqSize);
+
+        // Value gradient (transparent to black)
+        const valGrad = ctx.createLinearGradient(sqX, sqY, sqX, sqY + sqSize);
+        valGrad.addColorStop(0, 'transparent');
+        valGrad.addColorStop(1, 'black');
+        ctx.fillStyle = valGrad;
+        ctx.fillRect(sqX, sqY, sqSize, sqSize);
+    }
+
+    handleColorPickerInteraction(x, y) {
+        const size = this.pickerCanvas.width;
+        const center = size / 2;
+        const dx = x - center;
+        const dy = y - center;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Detect if interacting with ring or square
+        if (dist > 55 && dist < 85) {
+            // Hue change
+            let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            if (angle < 0) angle += 360;
+            this.currentHue = angle;
+        } else {
+            // Square change
+            const sqSize = 70;
+            const sqX = center - sqSize / 2;
+            const sqY = center - sqSize / 2;
+
+            if (x >= sqX && x <= sqX + sqSize && y >= sqY && y <= sqY + sqSize) {
+                this.currentSat = ((x - sqX) / sqSize) * 100;
+                this.currentVal = 100 - ((y - sqY) / sqSize) * 100;
+            }
+        }
+
+        this.updateColorFromHSV();
+        this.renderColorPicker();
+    }
+
+    updateColorFromHSV() {
+        // Simple HSV to RGB/Hex
+        const h = this.currentHue / 360;
+        const s = this.currentSat / 100;
+        const v = this.currentVal / 100;
+
+        let r, g, b;
+        const i = Math.floor(h * 6);
+        const f = h * 6 - i;
+        const p = v * (1 - s);
+        const q = v * (1 - f * s);
+        const t = v * (1 - (1 - f) * s);
+
+        switch (i % 6) {
+            case 0: r = v, g = t, b = p; break;
+            case 1: r = q, g = v, b = p; break;
+            case 2: r = p, g = v, b = t; break;
+            case 3: r = p, g = q, b = v; break;
+            case 4: r = t, g = p, b = v; break;
+            case 5: r = v, g = p, b = q; break;
+        }
+
+        const toHex = x => Math.round(x * 255).toString(16).padStart(2, '0');
+        this.currentColor = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+
+        if (this.colorPreview) {
+            this.colorPreview.style.background = this.currentColor;
+        }
+
+        // Switch back to brush if picking color
+        this.isEraser = this.isFilling = false;
+        this.updateToolUI();
     }
 
     initNetworkHandlers() {
@@ -147,17 +313,6 @@ export class DrawingSystem {
     }
 
     setupToolListeners() {
-        const colorBtns = document.querySelectorAll('.draw-color-new');
-        colorBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                colorBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.currentColor = btn.dataset.color;
-                this.isEraser = this.isFilling = false;
-                this.updateToolUI();
-            });
-        });
-
         const brushSlider = document.getElementById('brush-size');
         if (brushSlider) {
             brushSlider.addEventListener('input', (e) => {
@@ -226,6 +381,10 @@ export class DrawingSystem {
         if (!this.modal) return;
         this.modal.classList.add('visible');
 
+        // Reset art name
+        const nameInput = document.getElementById('drawing-name-input');
+        if (nameInput) nameInput.value = '';
+
         // Reset layers on open
         this.layers = [];
         this.addLayer("Background", false); // Background layer with white base
@@ -236,11 +395,37 @@ export class DrawingSystem {
         this.historyIndex = -1;
         this.saveHistory();
 
+        this.renderDisplay(); // Ensure white background is visible
+
         if (this.world.localFrog) {
             this.world.localFrog.controlsDisabled = true;
             this.world.localFrog.setDrawingMode(true);
             this.network?.sendDrawingStatus(true, this.composeLayersToDataURL());
         }
+    }
+
+    startPlacement() {
+        if (this.confirmModal) {
+            this.confirmModal.style.display = 'flex';
+        } else {
+            this.executePlacement();
+        }
+    }
+
+    executePlacement() {
+        // Ensure white background if background is hidden? 
+        // No, we use all visible layers
+        const dataURL = this.composeLayersToDataURL();
+        const nameInput = document.getElementById('drawing-name-input');
+        const artName = nameInput ? nameInput.value.trim() : '';
+
+        if (!artName) {
+            this.world.showToast?.('Please enter a name for your art!', 'error');
+            return;
+        }
+
+        this.network?.sendPlaceWallArt(dataURL, artName);
+        this.close();
     }
 
     addLayer(name = null, transparent = true) {
@@ -530,11 +715,25 @@ export class DrawingSystem {
     }
 
     startPlacement() {
+        if (this.confirmModal) {
+            this.confirmModal.style.display = 'flex';
+        } else {
+            this.executePlacement();
+        }
+    }
+
+    executePlacement() {
         const nameInput = document.getElementById('drawing-name-input');
         this.artName = nameInput ? nameInput.value.trim() : 'Untitled';
+
+        if (!this.artName || this.artName === 'Untitled') {
+            this.world.showToast?.('Please name your art first! 🎨', 'error');
+            return;
+        }
+
         this.currentDrawingData = this.composeLayersToDataURL();
 
-        // Simple empty check on composed data
+        // Simple empty check on composed data (check if anything was drawn beyond the white bg)
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         tempCanvas.width = this.displayCanvas.width;
@@ -544,13 +743,17 @@ export class DrawingSystem {
 
         let empty = true;
         for (let i = 0; i < pixels.length; i += 4) {
-            // Check if pixel is not fully transparent and not pure white (on bg layer)
+            // Check if pixel is not fully transparent and not pure white
             if (pixels[i + 3] > 0 && (pixels[i] < 250 || pixels[i + 1] < 250 || pixels[i + 2] < 250)) {
                 empty = false;
                 break;
             }
         }
-        if (empty) { this.world.showToast?.('Draw something first! 🎨', 'error'); return; }
+
+        if (empty) {
+            this.world.showToast?.('Draw something first! 🎨', 'error');
+            return;
+        }
 
         // Hide modal (but DON'T call close() as it cancels placement!)
         if (this.modal) this.modal.classList.remove('visible');
@@ -563,7 +766,7 @@ export class DrawingSystem {
         this.isPlacingArt = true;
         this.placementRotation = 0;
         this.createPlacementPreview();
-        this.world.showToast?.('Place: CLICK | Rotate: [Q]/[E] | Cancel: [ESC]', 'info');
+        this.world.showToast?.('Click to place! | Rotate: [Q]/[E] | Cancel: [ESC]', 'info');
     }
 
     cancelPlacement() {
