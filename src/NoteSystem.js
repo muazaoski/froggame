@@ -45,6 +45,10 @@ export class NoteSystem {
         this.viewPaper = document.getElementById('note-view-paper');
         this.viewClose = document.getElementById('note-view-close');
 
+        // Author-only actions
+        this.authorActions = document.getElementById('note-author-actions');
+        this.deleteBtn = document.getElementById('note-delete-btn');
+
         if (!this.creatorModal) return;
 
         // Color picking logic
@@ -65,6 +69,11 @@ export class NoteSystem {
         this.closeBtn.addEventListener('click', () => this.closeCreator());
         this.placeBtn.addEventListener('click', () => this.startPlacement());
         this.viewClose.addEventListener('click', () => this.closeViewer());
+
+        // Delete button handler
+        if (this.deleteBtn) {
+            this.deleteBtn.addEventListener('click', () => this.trashSelectedNote());
+        }
 
         // Global key listeners for notes
         window.addEventListener('keydown', (e) => {
@@ -452,6 +461,19 @@ export class NoteSystem {
         this.viewPaper.style.backgroundColor = note.paperColor;
         this.viewPaper.style.color = note.textColor;
 
+        // Store current note for deletion
+        this._currentViewedNote = note;
+
+        // Check if we are the owner
+        const myId = this.network?.socket?.id;
+        const myUserId = this.world.localFrog?.userId;
+        const isOwner = note.authorId === myId || (note.authorUserId && note.authorUserId === myUserId);
+
+        // Show/hide author actions
+        if (this.authorActions) {
+            this.authorActions.style.display = isOwner ? 'flex' : 'none';
+        }
+
         this.viewerModal.classList.add('visible');
         if (this.world.localFrog) this.world.localFrog.controlsDisabled = true;
     }
@@ -498,21 +520,37 @@ export class NoteSystem {
     }
 
     trashSelectedNote() {
-        if (!this.selectedNote) return;
+        // Get note info either from selected mesh or from current viewed note
+        let noteId, pos, normal;
 
-        const noteId = this.selectedNote.userData.noteId;
-        const pos = this.selectedNote.position.clone();
-        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(this.selectedNote.quaternion);
+        if (this.selectedNote) {
+            noteId = this.selectedNote.userData.noteId;
+            pos = this.selectedNote.position.clone();
+            normal = new THREE.Vector3(0, 0, 1).applyQuaternion(this.selectedNote.quaternion);
+        } else if (this._currentViewedNote) {
+            // Called from UI button without mesh selection
+            noteId = this._currentViewedNote.id;
+            const note3D = this.notes[noteId];
+            if (note3D && note3D.mesh) {
+                pos = note3D.mesh.position.clone();
+                normal = new THREE.Vector3(0, 0, 1).applyQuaternion(note3D.mesh.quaternion);
+            }
+        }
+
+        if (!noteId) return;
 
         // Send remove request to server
         this.network.socket.emit('removeNote', noteId);
 
         // Create crumpled paper effect
-        this.createCrumpledPaper(pos, normal);
+        if (pos && normal) {
+            this.createCrumpledPaper(pos, normal);
+        }
 
         // Close viewer and deselect
         this.closeViewer();
         this.deselectNote();
+        this._currentViewedNote = null;
 
         this.world.showToast?.('Note deleted! 🗑️', 'info');
     }

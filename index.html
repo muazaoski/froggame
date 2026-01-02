@@ -235,6 +235,36 @@
             margin-top: auto;
         }
 
+        .note-author-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed rgba(0, 0, 0, 0.1);
+        }
+
+        .note-action-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .note-delete-btn {
+            background: #ff5252;
+            color: white;
+        }
+
+        .note-delete-btn:hover {
+            background: #ff1744;
+            transform: scale(1.05);
+        }
+
         body {
             margin: 0;
             overflow: hidden;
@@ -3708,6 +3738,11 @@
             <div class="note-view-title" id="note-view-title">Title</div>
             <div class="note-view-content" id="note-view-content">Message goes here...</div>
             <div class="note-view-meta" id="note-view-meta">By Muaz • Jan 1, 2026</div>
+
+            <!-- Author-only actions -->
+            <div id="note-author-actions" class="note-author-actions" style="display: none;">
+                <button id="note-delete-btn" class="note-action-btn note-delete-btn">🗑️ Delete Note</button>
+            </div>
         </div>
     </div>
 
