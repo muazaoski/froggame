@@ -153,6 +153,59 @@
             box-shadow: 0 0 0 #3d8b40;
         }
 
+        .note-color-presets {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .note-color-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .note-color-circle:hover {
+            transform: scale(1.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .note-color-circle.selected {
+            border-color: white;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .note-close-floating {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 36px;
+            height: 36px;
+            background: #ff5e5e;
+            color: white;
+            border: 4px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 900;
+            box-shadow: 0 5px 15px rgba(255, 94, 94, 0.4);
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .note-close-floating:hover {
+            transform: scale(1.1) rotate(90deg);
+            background: #ff4747;
+        }
+
         /* View Modal Styles */
         .note-viewer-container {
             display: flex;
@@ -4022,13 +4075,12 @@
         <div class="note-creator-layout">
             <!-- Central Paper -->
             <div class="note-creator-paper" id="note-paper-target">
-                <button class="note-close" id="note-close"
-                    style="position: absolute; top: 15px; right: 15px;">✕</button>
+                <button class="note-close-floating" id="note-close">✕</button>
 
-                <input type="text" id="note-title-input" class="note-paper-input-title" placeholder="Note Title"
-                    maxlength="25">
-                <textarea id="note-content-input" class="note-paper-input-content" placeholder="Write something..."
-                    maxlength="180"></textarea>
+                <input type="text" id="note-title-input" class="note-paper-input-title" placeholder="Note heading..."
+                    maxlength="35">
+                <textarea id="note-content-input" class="note-paper-input-content"
+                    placeholder="Write your message here..." maxlength="400"></textarea>
 
                 <div class="note-paper-footer-preview" id="note-footer-preview">
                     By muaz • 1 Jan 2026
