@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WebGPURenderer } from 'three/webgpu';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three-stdlib';
@@ -7,11 +8,8 @@ import { Physics } from './Physics.js';
 import { Frog } from './Frog.js';
 import { Ball } from './Ball.js';
 import { Scooter } from './Scooter.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { SAOPass } from 'three/addons/postprocessing/SAOPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createVegetationMaterial, updateVegetationPlayerPos } from './VegetationMaterial.js';
+import { createWaterMaterial } from './WaterMaterial.js';
 import { Config } from './Config.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { AudioManager } from './AudioManager.js';
@@ -47,21 +45,9 @@ export class World {
         this.tongueCursorIndicator = null;
         this.createTongueCursorIndicator();
 
-        // RENDERER (antialiasing disabled for performance)
-        this.renderer = new THREE.WebGLRenderer({ antialias: false });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Cap pixel ratio
-
-        // Shadow map configuration from Config
-        this.renderer.shadowMap.enabled = Config.shadowEnabled;
-        this.renderer.shadowMap.type = THREE.PCFShadowMap; // Faster than PCFSoft
-        this.renderer.shadowMap.autoUpdate = Config.shadowAutoUpdate;
-
-        // Realistic Tone Mapping (Cycles Look)
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
-
-        this.container.appendChild(this.renderer.domElement);
+        // RENDERER - Deferred to async init() for WebGPU
+        this.renderer = null;
+        this.rendererReady = false;
 
         // LABEL RENDERER (Chat bubbles, damage toasts, health bars)
         this.labelRenderer = new CSS2DRenderer();
@@ -181,303 +167,6 @@ export class World {
             uFoamColor: { value: new THREE.Color(0xffffff) }
         };
 
-        // POST PROCESSING
-        this.composer = new EffectComposer(this.renderer);
-        this.composer.addPass(new RenderPass(this.scene, this.camera));
-
-        // SAO - Scalable Ambient Occlusion (The "Cycles" deep corner shadows)
-        this.saoPass = new SAOPass(this.scene, this.camera);
-        this.saoPass.params.output = SAOPass.OUTPUT.Default;
-        this.saoPass.params.saoBias = 0.5;
-        this.saoPass.params.saoIntensity = 0.015; // Increased for deeper "Cycles" feel
-        this.saoPass.params.saoScale = 12;
-        this.saoPass.params.saoKernelRadius = 40;
-        this.saoPass.params.saoMinResolution = 0;
-        this.saoPass.enabled = Config.saonEnabled;
-        this.composer.addPass(this.saoPass);
-
-        // Comprehensive Post-Processing Shader
-        const postFX = {
-            uniforms: {
-                "tDiffuse": { value: null },
-                "uTime": { value: 0 },
-                "uResolution": { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-
-                // Color Grading
-                "uSaturation": { value: Config.shaderSaturation },
-                "uBrightness": { value: Config.shaderBrightness },
-                "uContrast": { value: Config.shaderContrast },
-                "uGamma": { value: Config.shaderGamma },
-
-                // Color Tint / Temperature
-                "uTint": { value: new THREE.Vector3(Config.shaderTintR, Config.shaderTintG, Config.shaderTintB) },
-                "uTemperature": { value: Config.shaderTemperature },
-
-                // Vignette
-                "uVignetteEnabled": { value: Config.vignetteEnabled ? 1.0 : 0.0 },
-                "uVignetteIntensity": { value: Config.vignetteIntensity },
-                "uVignetteRadius": { value: Config.vignetteRadius },
-                "uVignetteSoftness": { value: Config.vignetteSoftness },
-
-                // Chromatic Aberration
-                "uChromaticEnabled": { value: Config.chromaticEnabled ? 1.0 : 0.0 },
-                "uChromaticIntensity": { value: Config.chromaticIntensity },
-                "uChromaticRadial": { value: Config.chromaticRadial ? 1.0 : 0.0 },
-
-                // Film Grain
-                "uGrainEnabled": { value: Config.grainEnabled ? 1.0 : 0.0 },
-                "uGrainIntensity": { value: Config.grainIntensity },
-                "uGrainSpeed": { value: Config.grainSpeed },
-                "uGrainSize": { value: Config.grainSize },
-
-                // Sharpen
-                "uSharpenEnabled": { value: Config.sharpenEnabled ? 1.0 : 0.0 },
-                "uSharpenIntensity": { value: Config.sharpenIntensity },
-
-                // Bloom
-                "uBloomEnabled": { value: Config.bloomEnabled ? 1.0 : 0.0 },
-                "uBloomIntensity": { value: Config.bloomIntensity },
-                "uBloomThreshold": { value: Config.bloomThreshold },
-                "uBloomRadius": { value: Config.bloomRadius },
-
-                // Toon / Outline
-                "uToonEnabled": { value: Config.toonEnabled ? 1.0 : 0.0 },
-                "uOutlineEnabled": { value: Config.outlineEnabled ? 1.0 : 0.0 },
-                "uOutlineIntensity": { value: Config.outlineIntensity },
-                "uSkyColor": { value: new THREE.Vector3(1.0, 0.53, 0.0) },
-                "uLowHealth": { value: 0.0 }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                precision highp float;
-                
-                uniform sampler2D tDiffuse;
-                uniform float uTime;
-                uniform vec2 uResolution;
-                
-                // Color Grading
-                uniform float uSaturation;
-                uniform float uBrightness;
-                uniform float uContrast;
-                uniform float uGamma;
-                
-                // Tint / Temperature
-                uniform vec3 uTint;
-                uniform float uTemperature;
-                
-                // Vignette
-                uniform float uVignetteEnabled;
-                uniform float uVignetteIntensity;
-                uniform float uVignetteRadius;
-                uniform float uVignetteSoftness;
-                
-                // Chromatic Aberration
-                uniform float uChromaticEnabled;
-                uniform float uChromaticIntensity;
-                uniform float uChromaticRadial;
-                
-                // Film Grain
-                uniform float uGrainEnabled;
-                uniform float uGrainIntensity;
-                uniform float uGrainSpeed;
-                uniform float uGrainSize;
-                
-                // Sharpen
-                uniform float uSharpenEnabled;
-                uniform float uSharpenIntensity;
-                
-                // Bloom
-                uniform float uBloomEnabled;
-                uniform float uBloomIntensity;
-                uniform float uBloomThreshold;
-                uniform float uBloomRadius;
-
-                // Toon / Outline
-                uniform float uToonEnabled;
-                uniform float uOutlineEnabled;
-                uniform float uOutlineIntensity;
-                uniform vec3 uSkyColor;
-                uniform float uLowHealth;
-                
-                varying vec2 vUv;
-                
-                // Random function for grain
-                float random(vec2 st) {
-                    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
-                }
-                
-                // Luminance calculation
-                float getLuminance(vec3 c) {
-                    return dot(c, vec3(0.299, 0.587, 0.114));
-                }
-                
-                void main() {
-                    vec2 uv = vUv;
-                    vec2 texelSize = 1.0 / uResolution;
-                    
-                    // === CHROMATIC ABERRATION ===
-                    vec4 color;
-                    if (uChromaticEnabled > 0.5) {
-                        vec2 direction;
-                        if (uChromaticRadial > 0.5) {
-                            direction = uv - 0.5;
-                        } else {
-                            direction = vec2(1.0, 0.0);
-                        }
-                        float r = texture2D(tDiffuse, uv + direction * uChromaticIntensity).r;
-                        float g = texture2D(tDiffuse, uv).g;
-                        float b = texture2D(tDiffuse, uv - direction * uChromaticIntensity).b;
-                        color = vec4(r, g, b, 1.0);
-                    } else {
-                        color = texture2D(tDiffuse, uv);
-                    }
-                    
-                    // === SHARPEN ===
-                    if (uSharpenEnabled > 0.5) {
-                        vec4 center = color;
-                        vec4 left = texture2D(tDiffuse, uv - vec2(texelSize.x, 0.0));
-                        vec4 right = texture2D(tDiffuse, uv + vec2(texelSize.x, 0.0));
-                        vec4 top = texture2D(tDiffuse, uv - vec2(0.0, texelSize.y));
-                        vec4 bottom = texture2D(tDiffuse, uv + vec2(0.0, texelSize.y));
-                        
-                        vec4 sharpened = center * (1.0 + 4.0 * uSharpenIntensity) - 
-                                       (left + right + top + bottom) * uSharpenIntensity;
-                        color = sharpened;
-                    }
-                    
-                    // === BLOOM (simplified glow) ===
-                    if (uBloomEnabled > 0.5) {
-                        vec4 bloomColor = vec4(0.0);
-                        float bloomSamples = 0.0;
-                        for (float x = -4.0; x <= 4.0; x += 1.0) {
-                            for (float y = -4.0; y <= 4.0; y += 1.0) {
-                                vec2 offset = vec2(x, y) * texelSize * uBloomRadius * 10.0;
-                                vec4 sampleCol = texture2D(tDiffuse, uv + offset);
-                                float bright = getLuminance(sampleCol.rgb);
-                                if (bright > uBloomThreshold) {
-                                    bloomColor += sampleCol * (bright - uBloomThreshold);
-                                    bloomSamples += 1.0;
-                                }
-                            }
-                        }
-                        if (bloomSamples > 0.0) {
-                            bloomColor /= bloomSamples;
-                            color.rgb += bloomColor.rgb * uBloomIntensity;
-                        }
-                    }
-                    
-                    // === COLOR TEMPERATURE ===
-                    color.r += uTemperature * 0.1;
-                    color.b -= uTemperature * 0.1;
-                    
-                    // === COLOR TINT ===
-                    color.rgb *= uTint;
-                    
-                    // === SATURATION ===
-                    float gray = getLuminance(color.rgb);
-                    color.rgb = mix(vec3(gray), color.rgb, uSaturation);
-                    
-                    // === BRIGHTNESS ===
-                    color.rgb += uBrightness;
-                    
-                    // === CONTRAST ===
-                    color.rgb = (color.rgb - 0.5) * uContrast + 0.5;
-                    
-                    // === GAMMA CORRECTION ===
-                    color.rgb = pow(max(color.rgb, vec3(0.0)), vec3(1.0 / uGamma));
-                    
-                    // === FILM GRAIN ===
-                    if (uGrainEnabled > 0.5) {
-                        vec2 grainUv = vUv * uResolution / uGrainSize;
-                        float grain = random(grainUv + uTime * uGrainSpeed) * 2.0 - 1.0;
-                        color.rgb += grain * uGrainIntensity;
-                    }
-                    
-                    // === CEL SHADING (Smooth Posterize) ===
-                    bool isSky = distance(color.rgb, uSkyColor) < 0.25;
-                    
-                    if (uToonEnabled > 0.5 && !isSky) {
-                        float levels = 8.0;
-                        vec3 originalCol = color.rgb;
-                        
-                        // Use a smoother floor for cleaner ramps
-                        vec3 low = floor(color.rgb * levels) / levels;
-                        vec3 high = ceil(color.rgb * levels) / levels;
-                        vec3 posterized = mix(low, high, fract(color.rgb * levels) * 0.4);
-                        
-                        // Mix back heavily for that soft "Ghibli" feel
-                        color.rgb = mix(posterized, originalCol, 0.7);
-                    }
-
-                    // === SOBEL OUTLINE ===
-                    if (uOutlineEnabled > 0.5 && !isSky) {
-                        float thickness = 0.6; // Even thinner edge
-                        vec2 offset = thickness / uResolution;
-                        
-                        float t00 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x, -offset.y)).rgb);
-                        float t10 = getLuminance(texture2D(tDiffuse, uv + vec2( 0.0,      -offset.y)).rgb);
-                        float t20 = getLuminance(texture2D(tDiffuse, uv + vec2( offset.x, -offset.y)).rgb);
-                        float t01 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x,  0.0)).rgb);
-                        float t21 = getLuminance(texture2D(tDiffuse, uv + vec2( offset.x,  0.0)).rgb);
-                        float t02 = getLuminance(texture2D(tDiffuse, uv + vec2(-offset.x,  offset.y)).rgb);
-                        float t12 = getLuminance(texture2D(tDiffuse, uv + vec2( 0.0,       offset.y)).rgb);
-                        float t22 = getLuminance(texture2D(tDiffuse, uv + vec2( offset.x,  offset.y)).rgb);
-                        
-                        float gx = t00 + 2.0 * t01 + t02 - t20 - 2.0 * t21 - t22;
-                        float gy = t00 + 2.0 * t10 + t20 - t02 - 2.0 * t12 - t22;
-                        float edge = sqrt(gx * gx + gy * gy);
-                        
-                        if (edge > 0.25) { // Protect smooth surfaces
-                            color.rgb *= (1.0 - uOutlineIntensity * 2.5);
-                        }
-                    }
-
-                    // === VIGNETTE ===
-                    if (uVignetteEnabled > 0.5) {
-                        vec2 vignetteUv = vUv - 0.5;
-                        float dist = length(vignetteUv);
-                        
-                        // Heartbeat pulse calculation
-                        float pulseSpeed = 4.0 + (uLowHealth * 8.0);
-                        float pulse = (0.5 + 0.5 * sin(uTime * pulseSpeed)) * uLowHealth;
-                        
-                        // Modulate vignette parameters based on health/pulse
-                        float currentRadius = uVignetteRadius * (1.1 - uLowHealth * 0.4);
-                        float currentIntensity = uVignetteIntensity + (pulse * 0.5);
-                        
-                        float vig = smoothstep(currentRadius, currentRadius - uVignetteSoftness, dist);
-                        
-                        // Mix in red tint for low health
-                        vec3 vignetteColor = mix(vec3(0.0), vec3(0.8, 0.0, 0.0), uLowHealth * 0.7);
-                        
-                        // Apply darkening and red tint
-                        vec3 processedColor = color.rgb * (1.0 - currentIntensity);
-                        processedColor += (vignetteColor * (dist * 2.0) * currentIntensity);
-                        
-                        color.rgb = mix(processedColor, color.rgb, vig);
-                    }
-                    
-                    // Clamp final output
-                    color.rgb = clamp(color.rgb, 0.0, 1.0);
-                    
-                    gl_FragColor = color;
-                }
-            `
-        };
-
-        this.customPass = new ShaderPass(postFX);
-        this.composer.addPass(this.customPass);
-
-        // Final Output Pass for high-fidelity tone mapping
-        const outputPass = new OutputPass();
-        this.composer.addPass(outputPass);
-
         // Initialize Particle System for VFX
         this.particles = new ParticleSystem(this.scene);
 
@@ -489,6 +178,33 @@ export class World {
         // AUDIO MANAGER
         this.audio = new AudioManager(this.camera, this.scene);
         this.ball.audio = this.audio;
+    }
+
+    /**
+     * Async initialization for WebGPU renderer.
+     * MUST be called and awaited before the game loop starts.
+     */
+    async init() {
+        console.log('🚀 Initializing WebGPU Renderer...');
+
+        if (!navigator.gpu) {
+            throw new Error('WebGPU is not supported. Use Chrome 113+, Edge 113+, Firefox 141+, or Safari 26+.');
+        }
+
+        // Create and init WebGPU Renderer
+        this.renderer = new WebGPURenderer({ antialias: false });
+        await this.renderer.init();
+
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+
+        this.container.appendChild(this.renderer.domElement);
+
+        this.rendererReady = true;
+        console.log('✅ WebGPU Renderer ready!');
+        return this;
     }
 
     setupLoadingManager() {
@@ -555,114 +271,47 @@ export class World {
     }
 
     setupVegetationMaterial(material, type = 'grass') {
-        if (!material) return;
+        if (!material) return null;
 
-        material.onBeforeCompile = (shader) => {
-            // Add uniforms
-            shader.uniforms.uTime = this.grassUniforms.uTime;
-            shader.uniforms.uPlayerPos = this.grassUniforms.uPlayerPos;
+        // Create WebGPU-compatible TSL material
+        const tslMaterial = createVegetationMaterial({
+            type,
+            color: material.color ? material.color.getHex() : (type === 'bush' ? 0x2d5a27 : 0x3ea331),
+            windStrength: type === 'bush' ? Config.grassWindStrength * 1.3 : Config.grassWindStrength,
+            windSpeed: this.grassUniforms.uWindSpeed.value,
+            bendingStrength: type === 'bush' ? Config.grassBendingStrength * 1.5 : Config.grassBendingStrength,
+            bendingRadius: type === 'bush' ? Config.grassBendingRadius * 1.8 : Config.grassBendingRadius,
+            playerPosRef: this.grassUniforms.uPlayerPos.value
+        });
 
-            // Customize based on type
-            const strength = type === 'bush' ? Config.grassBendingStrength * 1.5 : Config.grassBendingStrength;
-            const radius = type === 'bush' ? Config.grassBendingRadius * 1.8 : Config.grassBendingRadius;
-            const wind = type === 'bush' ? Config.grassWindStrength * 1.3 : Config.grassWindStrength;
+        // Copy map/texture from original material if exists
+        if (material.map) {
+            tslMaterial.map = material.map;
+        }
 
-            shader.uniforms.uBendingStrength = { value: strength };
-            shader.uniforms.uBendingRadius = { value: radius };
-            shader.uniforms.uWindSpeed = this.grassUniforms.uWindSpeed;
-            shader.uniforms.uWindStrength = { value: wind };
-
-            // Inject vertex shader logic
-            shader.vertexShader = `
-                attribute float instanceOpacity;
-                varying float vInstanceOpacity;
-                uniform float uTime;
-                uniform vec3 uPlayerPos;
-                uniform float uBendingStrength;
-                uniform float uBendingRadius;
-                uniform float uWindSpeed;
-                uniform float uWindStrength;
-            ` + shader.vertexShader;
-
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <begin_vertex>',
-                `
-                #include <begin_vertex>
-                vInstanceOpacity = instanceOpacity;
-                
-                // Get world position of vertex (Handle instancing)
-                #ifdef USE_INSTANCING
-                    vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-                #else
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                #endif
-                
-                // 1. Wind Sway (Simple sin wave based on height)
-                // We use object-space Y for height factor
-                float heightFactor = clamp(position.y * 2.0, 0.0, 1.0); 
-                float windTime = uTime * uWindSpeed;
-                
-                // Enhanced "Leafy" jitter for bushes
-                float jitter = 0.0;
-                ${type === 'bush' ? 'jitter = sin(uTime * 15.0 + worldPos.y * 10.0) * 0.02 * heightFactor;' : ''}
-                
-                float windSway = sin(windTime + worldPos.x * 0.5 + worldPos.z * 0.5) * uWindStrength * heightFactor;
-                transformed.x += windSway + jitter;
-                transformed.z += windSway * 0.5 + jitter;
-
-                // 2. Player Pushing
-                float dist = distance(worldPos.xyz, uPlayerPos);
-                if (dist < uBendingRadius) {
-                    float pushFactor = (1.0 - (dist / uBendingRadius)) * uBendingStrength * heightFactor;
-                    vec3 pushDir = normalize(worldPos.xyz - uPlayerPos);
-                    pushDir.y = -0.3; // Push down slightly
-                    
-                    // Transform push direction back to local space
-                    #ifdef USE_INSTANCING
-                        transformed += (inverse(instanceMatrix) * inverse(modelMatrix) * vec4(pushDir * pushFactor, 0.0)).xyz;
-                    #else
-                        transformed += (inverse(modelMatrix) * vec4(pushDir * pushFactor, 0.0)).xyz;
-                    #endif
-                }
-                `
-            );
-
-            shader.fragmentShader = `
-                varying float vInstanceOpacity;
-            ` + shader.fragmentShader;
-
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <alphatest_fragment>',
-                `
-                #include <alphatest_fragment>
-                diffuseColor.a *= vInstanceOpacity;
-                `
-            );
-        };
+        return tslMaterial;
     }
 
     setupInstancedVegetation(templateMesh, instances, type = 'grass') {
         const geometry = templateMesh.geometry.clone();
-        const material = templateMesh.material.clone();
 
-        // Add instanceOpacity attribute
-        const opacities = new Float32Array(instances.length).fill(1.0);
-        geometry.setAttribute('instanceOpacity', new THREE.InstancedBufferAttribute(opacities, 1));
+        // Create TSL-based material for WebGPU
+        const tslMaterial = this.setupVegetationMaterial(templateMesh.material, type);
+
+        // Fallback if TSL material creation failed
+        const material = tslMaterial || templateMesh.material.clone();
 
         // Color enhancements
         if (type === 'bush') {
-            material.color.setHex(0x2d5a27); // Rich Forest Green
-            material.transparent = true; // MUST be transparent for opacity to work
+            material.color.setHex(0x2d5a27);
+            material.transparent = true;
         } else {
-            material.color.setHex(0x3ea331); // Classic Grass Green
+            material.color.setHex(0x3ea331);
         }
-
-        // Apply the bending shader
-        this.setupVegetationMaterial(material, type);
 
         const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length);
         instancedMesh.name = type === 'bush' ? 'InstancedBush' : 'InstancedGrass';
-        instancedMesh.castShadow = true; // Bushes deserve shadows
+        instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
 
@@ -677,72 +326,18 @@ export class World {
             // Use grass system for interaction tracking
             this.grassMeshes.push(instancedMesh);
             this.bushMeshes.push(instancedMesh);
-
-            // Link zones to this mesh and their indices
-            // We find the closest bushZones that haven't been linked yet
-            for (let i = 0; i < instances.length; i++) {
-                const pos = new THREE.Vector3();
-                pos.setFromMatrixPosition(instances[i]);
-
-                // Find nearest unlinked bushZone
-                let nearest = null;
-                let minDist = Infinity;
-                for (const zone of this.bushZones) {
-                    if (zone.mesh) continue;
-                    const d = zone.position.distanceTo(pos);
-                    if (d < minDist) {
-                        minDist = d;
-                        nearest = zone;
-                    }
-                }
-
-                if (nearest && minDist < 0.1) {
-                    nearest.mesh = instancedMesh;
-                    nearest.index = i;
-                    nearest.currentOpacity = 1.0;
-                }
-            }
         } else {
             this.grassMeshes.push(instancedMesh);
         }
+
+        return instancedMesh;
     }
 
     setupWaterMaterial(mesh) {
-        // Enhanced translucent blue water with subtle shimmer
-        const waterMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: this.waterUniforms.uTime,
-                uColor: { value: new THREE.Color(0x1a8ccc) },
-                uOpacity: { value: 0.6 }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform float uTime;
-                uniform vec3 uColor;
-                uniform float uOpacity;
-                varying vec2 vUv;
-                
-                void main() {
-                    // Two layers of scrolling diagonal lines for a "shimmer" effect
-                    float ripple1 = sin((vUv.x + vUv.y) * 30.0 + uTime * 1.5);
-                    float ripple2 = sin((vUv.x - vUv.y) * 25.0 - uTime * 1.2);
-                    
-                    float shimmer = (ripple1 * 0.5 + ripple2 * 0.5);
-                    shimmer = smoothstep(0.7, 1.0, shimmer);
-                    
-                    vec3 finalColor = mix(uColor, vec3(1.0), shimmer * 0.15);
-                    gl_FragColor = vec4(finalColor, uOpacity);
-                }
-            `,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: true
+        // Enhanced translucent blue water with subtle shimmer using TSL
+        const waterMaterial = createWaterMaterial({
+            waterColor: 0x1a8ccc,
+            opacity: 0.6
         });
 
         mesh.material = waterMaterial;
@@ -756,7 +351,7 @@ export class World {
         const worldPos = new THREE.Vector3();
         mesh.getWorldPosition(worldPos);
         this.waterLevel = worldPos.y;
-        console.log(`[WATER] Water surface detected at Y=${this.waterLevel} (Collision DISABLED)`);
+        console.log(`[WATER] Water surface detected at Y = ${this.waterLevel} (Collision DISABLED)`);
     }
 
     loadLevel() {
@@ -1344,7 +939,7 @@ export class World {
 
         // Need at least 3 vertices to form a triangle
         if (posAttr.count < 3) {
-            console.warn(`Skipping physics for mesh "${mesh.name}": not enough vertices (${posAttr.count})`);
+            console.warn(`Skipping physics for mesh "${mesh.name}": not enough vertices(${posAttr.count})`);
             return;
         }
 
@@ -1367,7 +962,7 @@ export class World {
 
             // Skip if any vertex contains NaN or Infinity
             if (!isFinite(x) || !isFinite(y) || !isFinite(z)) {
-                console.warn(`Skipping physics for mesh "${mesh.name}": invalid vertex at index ${i}`);
+                console.warn(`Skipping physics for mesh "${mesh.name}": invalid vertex at index ${i} `);
                 return;
             }
 
@@ -1377,7 +972,7 @@ export class World {
         if (indexAttr && indexAttr.count > 0) {
             // Need at least 3 indices to form a triangle
             if (indexAttr.count < 3) {
-                console.warn(`Skipping physics for mesh "${mesh.name}": not enough indices (${indexAttr.count})`);
+                console.warn(`Skipping physics for mesh "${mesh.name}": not enough indices(${indexAttr.count})`);
                 return;
             }
 
@@ -1385,7 +980,7 @@ export class World {
                 const idx = indexAttr.getX(i);
                 // Validate index is within bounds
                 if (idx < 0 || idx >= posAttr.count) {
-                    console.warn(`Skipping physics for mesh "${mesh.name}": index out of bounds at ${i}`);
+                    console.warn(`Skipping physics for mesh "${mesh.name}": index out of bounds at ${i} `);
                     return;
                 }
                 indices.push(idx);
@@ -1433,7 +1028,7 @@ export class World {
 
             this.physics.world.addBody(body);
         } catch (error) {
-            console.error(`Failed to create physics for mesh "${mesh.name}":`, error);
+            console.error(`Failed to create physics for mesh "${mesh.name}": `, error);
         }
     }
 
@@ -1641,7 +1236,7 @@ export class World {
     removeFrog(id) {
         if (this.frogs[id]) {
             const frog = this.frogs[id];
-            const frogName = frog.name || `Frog ${id.substr(0, 4)}`;
+            const frogName = frog.name || `Frog ${id.substr(0, 4)} `;
 
             // Call dispose to clean up CSS2D elements
             if (frog.dispose) {
@@ -1666,57 +1261,58 @@ export class World {
             container = document.createElement('div');
             container.id = 'toast-container';
             container.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 1000;
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                pointer-events: none;
-            `;
+position: fixed;
+top: 20px;
+right: 20px;
+z - index: 1000;
+display: flex;
+flex - direction: column;
+gap: 10px;
+pointer - events: none;
+`;
             document.body.appendChild(container);
         }
 
         // Create toast element
         const toast = document.createElement('div');
-        toast.className = `game-toast toast-${type}`;
+        toast.className = `game - toast toast - ${type} `;
         toast.innerHTML = `
-            <span class="toast-icon">${type === 'join' ? '🐸' : type === 'leave' ? '👋' : 'ℹ️'}</span>
-            <span class="toast-message">${message}</span>
-        `;
+    < span class="toast-icon" > ${type === 'join' ? '🐸' : type === 'leave' ? '👋' : 'ℹ️'}</span >
+        <span class="toast-message">${message}</span>
+`;
         toast.style.cssText = `
-            background: ${type === 'join' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
+background: ${type === 'join' ? 'linear-gradient(135deg, #22c55e, #16a34a)' :
                 type === 'leave' ? 'linear-gradient(135deg, #f87171, #ef4444)' :
-                    'linear-gradient(135deg, #3b82f6, #2563eb)'};
-            color: white;
-            padding: 12px 20px;
-            border-radius: 12px;
-            font-family: 'Segoe UI', sans-serif;
-            font-weight: 600;
-            font-size: 14px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: toast-slide-in 0.3s ease-out;
-            transform-origin: right center;
-        `;
+                    'linear-gradient(135deg, #3b82f6, #2563eb)'
+            };
+color: white;
+padding: 12px 20px;
+border - radius: 12px;
+font - family: 'Segoe UI', sans - serif;
+font - weight: 600;
+font - size: 14px;
+box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+display: flex;
+align - items: center;
+gap: 10px;
+animation: toast - slide -in 0.3s ease - out;
+transform - origin: right center;
+`;
 
         // Add animation keyframes if not already added
         if (!document.getElementById('toast-styles')) {
             const style = document.createElement('style');
             style.id = 'toast-styles';
             style.textContent = `
-                @keyframes toast-slide-in {
-                    from { opacity: 0; transform: translateX(100%); }
+@keyframes toast - slide -in {
+    from { opacity: 0; transform: translateX(100 %); }
                     to { opacity: 1; transform: translateX(0); }
                 }
-                @keyframes toast-slide-out {
+@keyframes toast - slide - out {
                     from { opacity: 1; transform: translateX(0); }
-                    to { opacity: 0; transform: translateX(100%); }
-                }
-            `;
+                    to { opacity: 0; transform: translateX(100 %); }
+}
+`;
             document.head.appendChild(style);
         }
 
@@ -1998,8 +1594,18 @@ export class World {
         if (now - this.lastFpsUpdate > 1000) {
             const fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
             if (this.fpsCounter) {
-                this.fpsCounter.textContent = `FPS: ${fps}`;
-                this.fpsCounter.style.display = Config.showFPS ? 'block' : 'none';
+                const rendererName = this.renderer && this.renderer.isWebGPURenderer ? 'WebGPU' : 'WebGL';
+                // Try to get GPU name if available in the renderer (WebGPU provides adapter info)
+                const gpuName = this.renderer && this.renderer.adapter ? this.renderer.adapter.name : '';
+
+                this.fpsCounter.style.display = Config.showFPS ? 'flex' : 'none';
+                this.fpsCounter.style.flexDirection = 'column';
+                this.fpsCounter.style.alignItems = 'flex-end';
+                this.fpsCounter.innerHTML = `
+                    <div style="font-weight: 900; color: #4ade80;">FPS: ${fps}</div>
+                    <div style="font-size: 10px; opacity: 0.8; color: #60a5fa;">🚀 ${rendererName}</div>
+                    ${gpuName ? `<div style="font-size: 9px; opacity: 0.6; color: #94a3b8;">📟 ${gpuName}</div>` : ''}
+                `;
             }
             this.frameCount = 0;
             this.lastFpsUpdate = now;
@@ -2010,67 +1616,9 @@ export class World {
             this.checkFrogClick(input);
         }
 
-        if (Config.useShader && this.composer) {
-            const u = this.customPass.uniforms;
-
-            // Time
-            u.uTime.value = performance.now() / 1000;
-
-            // Low Health amount calculation (start at 50% HP)
-            let lowHealthAmount = 0;
-            if (this.localFrog) {
-                const hpPercent = this.localFrog.health / Config.maxHealth;
-                lowHealthAmount = Math.max(0, Math.min(1.0, (0.5 - hpPercent) / 0.5));
-            }
-            u.uLowHealth.value = lowHealthAmount;
-
-            // Color Grading
-            u.uSaturation.value = Config.shaderSaturation;
-            u.uBrightness.value = Config.shaderBrightness;
-            u.uContrast.value = Config.shaderContrast;
-            u.uGamma.value = Config.shaderGamma;
-
-            // Color Tint / Temperature
-            u.uTint.value.set(Config.shaderTintR, Config.shaderTintG, Config.shaderTintB);
-            u.uTemperature.value = Config.shaderTemperature;
-
-            // Vignette
-            u.uVignetteEnabled.value = Config.vignetteEnabled ? 1.0 : 0.0;
-            u.uVignetteIntensity.value = Config.vignetteIntensity;
-            u.uVignetteRadius.value = Config.vignetteRadius;
-            u.uVignetteSoftness.value = Config.vignetteSoftness;
-
-            // Chromatic Aberration
-            u.uChromaticEnabled.value = Config.chromaticEnabled ? 1.0 : 0.0;
-            u.uChromaticIntensity.value = Config.chromaticIntensity;
-            u.uChromaticRadial.value = Config.chromaticRadial ? 1.0 : 0.0;
-
-            // Film Grain
-            u.uGrainEnabled.value = Config.grainEnabled ? 1.0 : 0.0;
-            u.uGrainIntensity.value = Config.grainIntensity;
-            u.uGrainSpeed.value = Config.grainSpeed;
-            u.uGrainSize.value = Config.grainSize;
-
-            // Sharpen
-            u.uSharpenEnabled.value = Config.sharpenEnabled ? 1.0 : 0.0;
-            u.uSharpenIntensity.value = Config.sharpenIntensity;
-
-            // Bloom
-            u.uBloomEnabled.value = Config.bloomEnabled ? 1.0 : 0.0;
-            u.uBloomIntensity.value = Config.bloomIntensity;
-            u.uBloomThreshold.value = Config.bloomThreshold;
-            u.uBloomRadius.value = Config.bloomRadius;
-
-            // Toon / Outline
-            u.uToonEnabled.value = Config.toonEnabled ? 1.0 : 0.0;
-            u.uOutlineEnabled.value = Config.outlineEnabled ? 1.0 : 0.0;
-            u.uOutlineIntensity.value = Config.outlineIntensity;
-
-            // SAO Toggle
-            if (this.saoPass) this.saoPass.enabled = Config.saonEnabled;
-
-            this.composer.render();
-        } else {
+        // WebGPU: Render directly (EffectComposer is WebGL-only)
+        // TODO: Implement WebGPU-native post-processing using three/webgpu Postprocessing class
+        if (this.renderer) {
             this.renderer.render(this.scene, this.camera);
         }
 
@@ -2086,7 +1634,9 @@ export class World {
     onWindowResize() {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        if (this.renderer) {
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
         this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
         if (this.composer) {
             this.composer.setSize(window.innerWidth, window.innerHeight);
@@ -2141,7 +1691,7 @@ export class World {
         const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 
         const scooter = new Scooter(
-            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            `scooter_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
             randomColor,
             this.scene,
             this.physics
@@ -2176,21 +1726,21 @@ export class World {
             toast = document.createElement('div');
             toast.id = 'game-toast';
             toast.style.cssText = `
-        position: fixed;
-        top: 20 %;
-        left: 50 %;
-        transform: translateX(-50 %);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 15px 25px;
-        border - radius: 10px;
-        font - size: 18px;
-        font - weight: bold;
-        z - index: 9999;
-        pointer - events: none;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        `;
+position: fixed;
+top: 20 %;
+left: 50 %;
+transform: translateX(-50 %);
+background: rgba(0, 0, 0, 0.8);
+color: white;
+padding: 15px 25px;
+border - radius: 10px;
+font - size: 18px;
+font - weight: bold;
+z - index: 9999;
+pointer - events: none;
+opacity: 0;
+transition: opacity 0.3s ease;
+`;
             document.body.appendChild(toast);
         }
 
@@ -2312,8 +1862,8 @@ export class World {
 
         // populate content
         const idStr = String(data.id || '');
-        nameEl.textContent = data.name || `Frog ${idStr.substring(0, 4)}`;
-        levelEl.textContent = `LEVEL ${data.level || 1}`;
+        nameEl.textContent = data.name || `Frog ${idStr.substring(0, 4)} `;
+        levelEl.textContent = `LEVEL ${data.level || 1} `;
         bioEl.textContent = data.bio || 'No bio set.';
 
         if (killsEl) killsEl.textContent = data.kills || 0;
@@ -2398,7 +1948,7 @@ export class World {
                 if (this.network && this.network.socket) {
                     this.network.socket.emit('sendFriendRequest', data.name, (result) => {
                         if (result.success) {
-                            this.showToast(`Friend request sent to ${data.name}!`);
+                            this.showToast(`Friend request sent to ${data.name} !`);
                             actionBtn.innerHTML = '<span>🕒</span> Sent';
                         } else {
                             this.showToast(result.error || 'Failed to send');

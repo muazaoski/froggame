@@ -17,22 +17,56 @@ import { Config } from './Config.js';
 // Store default config values for comparison
 const DefaultConfig = JSON.parse(JSON.stringify(Config));
 
-// Initialize Game Systems
-const world = new World();
-const input = new Input();
-const network = new Network(world);
-world.network = network; // Link network to world for combat sync
+// Game systems - initialized async for WebGPU
+let world, input, network, drawingSystem, noteSystem;
+let gameReady = false;
 
-// Initialize Drawing System
-const drawingSystem = new DrawingSystem(world, network);
-world.drawingSystem = drawingSystem;
+// Async initialization for WebGPU support
+(async () => {
+    try {
+        // Initialize core systems
+        world = new World();
+        input = new Input();
 
-// Initialize Note System
-const noteSystem = new NoteSystem(world, network);
-world.noteSystem = noteSystem;
+        // Wait for WebGPU renderer to initialize
+        await world.init();
 
-// Expose for debugging
-window.world = world;
+        // Initialize network after renderer is ready
+        network = new Network(world);
+        world.network = network;
+
+        // Initialize Drawing System
+        drawingSystem = new DrawingSystem(world, network);
+        world.drawingSystem = drawingSystem;
+
+        // Initialize Note System
+        noteSystem = new NoteSystem(world, network);
+        world.noteSystem = noteSystem;
+
+        // Expose for debugging
+        window.world = world;
+        window.game = { world, input, network };
+
+        gameReady = true;
+        console.log('🐸 Frog Game initialized with WebGPU!');
+
+        // Start game loop
+        animate(0);
+    } catch (error) {
+        console.error('❌ Failed to initialize game:', error);
+        // Show error to user
+        const container = document.getElementById('canvas-container');
+        if (container) {
+            container.innerHTML = `
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#fff;font-family:sans-serif;background:rgba(0,0,0,0.8);padding:40px;border-radius:16px;">
+                    <h1 style="color:#ff4444;">⚠️ WebGPU Not Supported</h1>
+                    <p style="font-size:18px;">${error.message}</p>
+                    <p style="opacity:0.7;">Please use a modern browser with WebGPU support.</p>
+                </div>
+            `;
+        }
+    }
+})();
 
 // PWA Installation Logic
 let deferredPrompt;
@@ -44,7 +78,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
     // Stash the event so it can be triggered later.
     deferredPrompt = e;
     // Update UI notify the user they can install the PWA
-    if (input.isMobile && btnInstall) {
+    if (input && input.isMobile && btnInstall) {
         btnInstall.style.display = 'block';
     }
 });
@@ -177,11 +211,13 @@ envFolder.add(Config, 'ambientIntensity', 0, 2).onChange(v => {
         if (obj.isAmbientLight) obj.intensity = v;
     });
 });
-// Update light immediately to sync with initial Config
-world.scene.traverse(obj => {
-    if (obj.isDirectionalLight) obj.intensity = Config.sunIntensity;
-    if (obj.isAmbientLight) obj.intensity = Config.ambientIntensity;
-});
+// Update light immediately to sync with initial Config (only if world is ready)
+if (world && world.scene) {
+    world.scene.traverse(obj => {
+        if (obj.isDirectionalLight) obj.intensity = Config.sunIntensity;
+        if (obj.isAmbientLight) obj.intensity = Config.ambientIntensity;
+    });
+}
 
 // Hemisphere Light Folder
 const hemiFolder = gui.addFolder('Hemisphere Light 🌓');
@@ -629,6 +665,10 @@ let spectatorOrbitAngle = 0; // For auto-orbiting camera in spectator mode
 
 function animate(time) {
     requestAnimationFrame(animate);
+
+    // Don't run until WebGPU is initialized
+    if (!gameReady || !world || !world.rendererReady) return;
+
     let dt = (time - lastTime) / 1000;
     lastTime = time;
 
@@ -750,11 +790,6 @@ function animate(time) {
         }
     });
 }
-
-animate(0);
-
-// Expose for debugging
-window.game = { world, input, network };
 
 // --- LOGIN / AUTH LOGIC ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -1365,18 +1400,27 @@ window.addEventListener('keydown', (e) => {
 });
 
 // Start music when joining game (after user interaction)
-const originalJoin = network.join.bind(network);
-network.join = function (name, color) {
-    const result = originalJoin(name, color);
-
-    // Start music after join (user has interacted)
-    if (!musicStarted) {
-        bgMusic.play().catch(e => console.warn('Music autoplay blocked:', e));
-        musicStarted = true;
+// Note: network may not be initialized yet due to async WebGPU init
+function patchNetworkJoin() {
+    if (!network) {
+        // Retry after a short delay if network isn't ready
+        setTimeout(patchNetworkJoin, 100);
+        return;
     }
+    const originalJoin = network.join.bind(network);
+    network.join = function (name, color) {
+        const result = originalJoin(name, color);
 
-    return result;
-};
+        // Start music after join (user has interacted)
+        if (!musicStarted) {
+            bgMusic.play().catch(e => console.warn('Music autoplay blocked:', e));
+            musicStarted = true;
+        }
+
+        return result;
+    };
+}
+patchNetworkJoin();
 
 // Initialize volume display
 updateVolumeIcon();
