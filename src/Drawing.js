@@ -82,10 +82,10 @@ export class DrawingSystem {
         this.setupCanvasListeners();
         this.setupToolListeners();
 
-        // Stop propagation to game
+        // Stop propagation to game for critical actions
         [this.modal, this.editUI].forEach(el => {
             if (el) {
-                ['mousedown', 'mouseup', 'mousemove', 'click', 'touchstart', 'touchend'].forEach(evt => {
+                ['mousedown', 'click', 'touchstart'].forEach(evt => {
                     el.addEventListener(evt, (e) => e.stopPropagation());
                 });
             }
@@ -126,13 +126,13 @@ export class DrawingSystem {
         };
         const move = (e) => {
             if (!this.isDrawing) return;
-            e.stopPropagation();
             this.draw(e.touches ? e.touches[0] : e);
-            if (e.touches) e.preventDefault();
+            if (e.touches) {
+                try { e.preventDefault(); } catch (err) { }
+            }
         };
         const stop = (e) => {
             if (this.isDrawing) {
-                e.stopPropagation();
                 this.stopDrawing();
             }
         };
@@ -141,7 +141,7 @@ export class DrawingSystem {
         window.addEventListener('mousemove', move);
         window.addEventListener('mouseup', stop);
 
-        this.displayCanvas.addEventListener('touchstart', start);
+        this.displayCanvas.addEventListener('touchstart', start, { passive: false });
         window.addEventListener('touchmove', move, { passive: false });
         window.addEventListener('touchend', stop);
     }
@@ -362,6 +362,7 @@ export class DrawingSystem {
     close() {
         if (!this.modal) return;
         this.modal.classList.remove('visible');
+        this.isDrawing = false; // Reset drawing state
         if (this.world.localFrog) {
             this.world.localFrog.controlsDisabled = false;
             this.world.localFrog.setDrawingMode(false);
