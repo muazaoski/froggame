@@ -565,8 +565,8 @@ export class Frog {
         // Update Jiggle Physics (Ass)
         this.updateJiggle(dt, isMoving);
 
-        // Update Punch/Kick Animation
-        this.updatePunch(dt, input);
+        // Update Punch/Kick Animation is handled earlier in the function with isPlacing param
+        // (Do not call updatePunch here again)
 
         // Update Tongue - pass input for swing mechanics
         this.updateTongue(dt, input);
