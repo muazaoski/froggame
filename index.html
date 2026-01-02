@@ -45,152 +45,110 @@
             display: flex;
         }
 
-        .note-container {
-            background: #fff;
-            width: 380px;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            font-family: 'Outfit', sans-serif;
+        /* Updated Note Creator Styles */
+        .note-creator-layout {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+        }
+
+        .note-creator-paper {
+            background: #fffceb;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.05);
             position: relative;
-            transform-origin: center;
-            animation: note-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        @keyframes note-pop {
-            0% {
-                transform: scale(0.8);
-                opacity: 0;
-            }
-
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .note-header {
+            transform: rotate(-0.5deg);
+            width: 380px;
+            min-height: 480px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+            flex-direction: column;
+            transition: background 0.3s;
         }
 
-        .note-title-ui {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #333;
-        }
-
-        .note-close {
-            background: #eee;
+        .note-paper-input-title {
+            background: transparent;
             border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
+            font-size: 2rem;
+            font-weight: 900;
+            text-align: center;
+            outline: none;
+            width: 100%;
+            margin-bottom: 20px;
+            font-family: 'Outfit';
+        }
+
+        .note-paper-input-content {
+            background: transparent;
+            border: none;
+            font-size: 1.15rem;
+            line-height: 1.7;
+            width: 100%;
+            flex: 1;
+            outline: none;
+            resize: none;
+            text-align: center;
+            font-family: 'Outfit';
+            padding-bottom: 20px;
+        }
+
+        .note-paper-footer-preview {
+            border-top: 1px dashed rgba(0, 0, 0, 0.15);
+            padding-top: 15px;
+            text-align: center;
+            font-size: 13px;
+            opacity: 0.6;
+            margin-top: auto;
+        }
+
+        .note-sidebar-tools {
+            width: 220px;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
+            flex-direction: column;
+            gap: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .note-close:hover {
-            background: #ff4757;
-            color: white;
-            transform: rotate(90deg);
+        .note-tool-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
-        .note-form-group {
-            margin-bottom: 15px;
-        }
-
-        .note-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 800;
-            color: #888;
-            margin-bottom: 6px;
+        .note-tool-label {
+            font-size: 11px;
+            font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.6);
         }
 
-        .note-input,
-        .note-textarea {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: 12px;
-            border: 2px solid #f0f0f0;
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: 600;
-            box-sizing: border-box;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .note-input:focus,
-        .note-textarea:focus {
-            border-color: #4CAF50;
-        }
-
-        .note-textarea {
-            height: 100px;
-            resize: none;
-        }
-
-        .note-color-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .note-color-presets {
-            display: flex;
-            gap: 8px;
-        }
-
-        .note-color-circle {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 3px solid transparent;
-            transition: transform 0.2s;
-        }
-
-        .note-color-circle:hover {
-            transform: scale(1.15);
-        }
-
-        .note-color-circle.selected {
-            border-color: rgba(0, 0, 0, 0.1);
-            transform: scale(1.2);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .note-btn-place {
+        .note-sidebar-btn {
             width: 100%;
             padding: 16px;
             background: #4CAF50;
             color: white;
             border: none;
-            border-radius: 16px;
-            font-size: 1.2rem;
-            font-weight: 800;
+            border-radius: 14px;
+            font-weight: 900;
             cursor: pointer;
+            box-shadow: 0 4px 0 #3d8b40;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            font-size: 14px;
             margin-top: 10px;
-            box-shadow: 0 6px 0 #3d8b40;
-            transition: all 0.2s;
         }
 
-        .note-btn-place:hover {
+        .note-sidebar-btn:hover {
             transform: translateY(-2px);
-            filter: brightness(1.1);
+            box-shadow: 0 6px 0 #3d8b40;
         }
 
-        .note-btn-place:active {
+        .note-sidebar-btn:active {
             transform: translateY(2px);
             box-shadow: 0 0 0 #3d8b40;
         }
@@ -4060,47 +4018,51 @@
 
     <!-- Note Creator Modal -->
     <div id="note-creator-modal" class="note-modal">
-        <div class="note-container">
-            <div class="note-header">
-                <div class="note-title-ui">📝 Leave a Note</div>
-                <button class="note-close" id="note-close">✕</button>
-            </div>
+        <div class="note-creator-layout">
+            <!-- Central Paper -->
+            <div class="note-creator-paper" id="note-paper-target">
+                <button class="note-close" id="note-close"
+                    style="position: absolute; top: 15px; right: 15px;">✕</button>
 
-            <div class="note-form-group">
-                <label class="note-label">Title</label>
-                <input type="text" id="note-title-input" class="note-input" placeholder="Note heading..."
-                    maxlength="30">
-            </div>
+                <input type="text" id="note-title-input" class="note-paper-input-title" placeholder="Note Title"
+                    maxlength="25">
+                <textarea id="note-content-input" class="note-paper-input-content" placeholder="Write something..."
+                    maxlength="180"></textarea>
 
-            <div class="note-form-group">
-                <label class="note-label">Message</label>
-                <textarea id="note-content-input" class="note-textarea" placeholder="Write your message here..."
-                    maxlength="200"></textarea>
-            </div>
-
-            <div class="note-form-group">
-                <label class="note-label">Paper Color</label>
-                <div class="note-color-presets" id="note-paper-colors">
-                    <div class="note-color-circle selected" data-color="#FFFCEB" style="background: #FFFCEB;"></div>
-                    <div class="note-color-circle" data-color="#E3F2FD" style="background: #E3F2FD;"></div>
-                    <div class="note-color-circle" data-color="#F1F8E9" style="background: #F1F8E9;"></div>
-                    <div class="note-color-circle" data-color="#FCE4EC" style="background: #FCE4EC;"></div>
-                    <div class="note-color-circle" data-color="#FFF3E0" style="background: #FFF3E0;"></div>
+                <div class="note-paper-footer-preview" id="note-footer-preview">
+                    By muaz • 1 Jan 2026
                 </div>
             </div>
 
-            <div class="note-form-group">
-                <label class="note-label">Text Color</label>
-                <div class="note-color-presets" id="note-text-colors">
-                    <div class="note-color-circle selected" data-color="#333333" style="background: #333333;"></div>
-                    <div class="note-color-circle" data-color="#1A237E" style="background: #1A237E;"></div>
-                    <div class="note-color-circle" data-color="#1B5E20" style="background: #1B5E20;"></div>
-                    <div class="note-color-circle" data-color="#880E4F" style="background: #880E4F;"></div>
-                    <div class="note-color-circle" data-color="#E65100" style="background: #E65100;"></div>
+            <!-- Side Toolbar -->
+            <div class="note-sidebar-tools">
+                <div class="note-tool-group">
+                    <label class="note-tool-label">Paper Color</label>
+                    <div class="note-color-presets" id="note-paper-colors">
+                        <div class="note-color-circle selected" data-color="#FFFCEB" style="background: #FFFCEB;"></div>
+                        <div class="note-color-circle" data-color="#E3F2FD" style="background: #E3F2FD;"></div>
+                        <div class="note-color-circle" data-color="#F1F8E9" style="background: #F1F8E9;"></div>
+                        <div class="note-color-circle" data-color="#FCE4EC" style="background: #FCE4EC;"></div>
+                        <div class="note-color-circle" data-color="#FFF3E0" style="background: #FFF3E0;"></div>
+                    </div>
+                </div>
+
+                <div class="note-tool-group">
+                    <label class="note-tool-label">Text Color</label>
+                    <div class="note-color-presets" id="note-text-colors">
+                        <div class="note-color-circle selected" data-color="#333333" style="background: #333333;"></div>
+                        <div class="note-color-circle" data-color="#1A237E" style="background: #1A237E;"></div>
+                        <div class="note-color-circle" data-color="#1B5E20" style="background: #1B5E20;"></div>
+                        <div class="note-color-circle" data-color="#880E4F" style="background: #880E4F;"></div>
+                        <div class="note-color-circle" data-color="#E65100" style="background: #E65100;"></div>
+                    </div>
+                </div>
+
+                <button class="note-sidebar-btn" id="place-note-btn">📌 Place Note</button>
+                <div style="font-size: 10px; opacity: 0.5; color: white; text-align: center; margin-top: 5px;">
+                    Your note will be visible to everyone!
                 </div>
             </div>
-
-            <button class="note-btn-place" id="place-note-btn">📌 Place Note</button>
         </div>
     </div>
 

@@ -37,6 +37,8 @@ export class NoteSystem {
         this.contentInput = document.getElementById('note-content-input');
         this.placeBtn = document.getElementById('place-note-btn');
         this.closeBtn = document.getElementById('note-close');
+        this.paperTarget = document.getElementById('note-paper-target');
+        this.footerPreview = document.getElementById('note-footer-preview');
 
         // Viewer elements
         this.viewTitle = document.getElementById('note-view-title');
@@ -52,13 +54,26 @@ export class NoteSystem {
         if (!this.creatorModal) return;
 
         // Color picking logic
-        const setupColors = (containerId, property) => {
-            const circles = document.getElementById(containerId).querySelectorAll('.note-color-circle');
+        const setupColors = (containerId, property, elementToUpdate) => {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const circles = container.querySelectorAll('.note-color-circle');
             circles.forEach(c => {
                 c.addEventListener('click', () => {
                     circles.forEach(node => node.classList.remove('selected'));
                     c.classList.add('selected');
                     this[property] = c.dataset.color;
+
+                    // Real-time preview update
+                    if (this.paperTarget) {
+                        if (property === 'selectedPaperColor') {
+                            this.paperTarget.style.backgroundColor = this[property];
+                        } else {
+                            this.paperTarget.style.color = this[property];
+                            if (this.titleInput) this.titleInput.style.color = this[property];
+                            if (this.contentInput) this.contentInput.style.color = this[property];
+                        }
+                    }
                 });
             });
         };
@@ -115,7 +130,30 @@ export class NoteSystem {
 
     openCreator() {
         this.creatorModal.classList.add('visible');
-        if (this.world.localFrog) this.world.localFrog.controlsDisabled = true;
+        if (this.world.localFrog) {
+            this.world.localFrog.controlsDisabled = true;
+
+            // Update preview info
+            if (this.footerPreview) {
+                const name = this.world.localFrog.username || 'muaz';
+                const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+                this.footerPreview.textContent = `By ${name} • ${date}`;
+            }
+        }
+
+        // Reset colors to default in UI
+        if (this.paperTarget) {
+            this.paperTarget.style.backgroundColor = this.selectedPaperColor;
+            this.paperTarget.style.color = this.selectedTextColor;
+            if (this.titleInput) {
+                this.titleInput.style.color = this.selectedTextColor;
+                this.titleInput.value = '';
+            }
+            if (this.contentInput) {
+                this.contentInput.style.color = this.selectedTextColor;
+                this.contentInput.value = '';
+            }
+        }
     }
 
     closeCreator() {
