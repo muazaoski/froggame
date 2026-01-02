@@ -668,6 +668,18 @@ function animate(time) {
     }
 
     // Send local updates if player exists
+    // DEBUG: Log every frame if in placement mode
+    if (noteSystem && noteSystem.isPlacing) {
+        if (!window._lastPlacingLog || Date.now() - window._lastPlacingLog > 1000) {
+            console.log('[FRAME DEBUG] Placing mode active', {
+                hasLocalFrog: !!world.localFrog,
+                leftClickPunch: input.leftClickPunch,
+                noteIsPlacing: noteSystem.isPlacing
+            });
+            window._lastPlacingLog = Date.now();
+        }
+    }
+
     if (world.localFrog) {
         const lookTarget = world.getMouseIntersection(input);
 
