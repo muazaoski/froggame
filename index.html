@@ -2756,6 +2756,109 @@
             visibility: visible;
         }
 
+        /* Confirmation Modal for Placing Art */
+        #drawing-confirm-modal {
+            z-index: 7000;
+            /* Must be above drawing modal (6000) */
+        }
+
+        .confirm-panel {
+            background-color: #f0ede1;
+            /* Same beige as drawing paper */
+            border-radius: 30px;
+            padding: 40px 30px;
+            width: 420px;
+            text-align: center;
+            border: 8px solid #f0ede1;
+            /* Consistent border */
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+            font-family: 'Outfit', sans-serif;
+            position: relative;
+        }
+
+        .confirm-icon-ring {
+            width: 80px;
+            height: 80px;
+            background: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            font-size: 40px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            border: 4px solid #fff;
+        }
+
+        .confirm-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .confirm-text {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+
+        .confirm-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .confirm-btn {
+            flex: 1;
+            padding: 15px 20px;
+            border-radius: 16px;
+            font-weight: 900;
+            font-family: 'Outfit';
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.1s;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .confirm-btn-primary {
+            background: #ffbc00;
+            color: #333;
+            box-shadow: 0 6px 0 #d9a000;
+        }
+
+        .confirm-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 #d9a000;
+        }
+
+        .confirm-btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #d9a000;
+        }
+
+        .confirm-btn-secondary {
+            background: #e2e2e2;
+            color: #888;
+            box-shadow: 0 6px 0 #bbb;
+        }
+
+        .confirm-btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 #bbb;
+        }
+
+        .confirm-btn-secondary:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #bbb;
+        }
+
         .drawing-container-new {
             background-color: #f0ede1;
             /* Nice paper-like beige */
@@ -3751,14 +3854,14 @@
 
     <!-- Confirmation Modal for Placing Art -->
     <div id="drawing-confirm-modal" class="panel-overlay">
-        <div class="panel" style="max-width: 400px; padding: 30px; text-align: center;">
-            <div style="font-size: 40px; margin-bottom: 20px;">🖼️</div>
-            <h2 style="margin-bottom: 15px; font-weight: 800; color: #333;">Ready to place?</h2>
-            <p style="margin-bottom: 25px; color: #666; font-size: 15px; line-height: 1.5;">This will finish your
-                drawing session and start placement mode. You can't edit it after placement!</p>
-            <div style="display: flex; gap: 15px; justify-content: center;">
-                <button class="drawing-btn secondary" id="btn-cancel-place" style="flex: 1;">Not yet</button>
-                <button class="drawing-btn primary" id="btn-confirm-place" style="flex: 1;">Yes, Place it!</button>
+        <div class="confirm-panel">
+            <div class="confirm-icon-ring">🖼️</div>
+            <div class="confirm-title">Ready to place?</div>
+            <p class="confirm-text">This will finish your drawing session and start placement mode. You can't edit it
+                after placement!</p>
+            <div class="confirm-actions">
+                <button class="confirm-btn confirm-btn-secondary" id="btn-cancel-place">Not yet</button>
+                <button class="confirm-btn confirm-btn-primary" id="btn-confirm-place">Yes, Place it!</button>
             </div>
         </div>
     </div>
