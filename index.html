@@ -2765,13 +2765,13 @@
         .confirm-panel {
             background-color: #f0ede1;
             /* Same beige as drawing paper */
-            border-radius: 30px;
-            padding: 40px 30px;
-            width: 440px;
+            border-radius: 24px;
+            padding: 25px 20px;
+            width: 320px;
             text-align: center;
-            border: 8px solid #f0ede1;
+            border: 6px solid #f0ede1;
             /* Consistent border */
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
             font-family: 'Outfit', sans-serif;
             position: relative;
             display: flex;
@@ -2782,61 +2782,61 @@
         }
 
         .confirm-icon-ring {
-            width: 70px;
-            height: 70px;
-            min-width: 70px;
-            min-height: 70px;
+            width: 50px;
+            height: 50px;
+            min-width: 50px;
+            min-height: 50px;
             background: #fff;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 36px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-            border: 4px solid #fff;
+            margin: 0 auto 15px;
+            font-size: 24px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border: 3px solid #fff;
             flex-shrink: 0;
         }
 
         .confirm-title {
-            font-size: 26px;
+            font-size: 20px;
             font-weight: 900;
             color: #333;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             line-height: 1.2;
         }
 
         .confirm-text {
-            font-size: 15px;
+            font-size: 13px;
             color: #666;
-            line-height: 1.5;
-            margin-bottom: 25px;
+            line-height: 1.4;
+            margin-bottom: 20px;
             font-weight: 500;
             max-width: 90%;
         }
 
         .confirm-actions {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             justify-content: center;
             width: 100%;
         }
 
         .confirm-btn {
             flex: 1;
-            padding: 14px 15px;
-            border-radius: 14px;
+            padding: 10px 12px;
+            border-radius: 12px;
             font-weight: 900;
             font-family: 'Outfit';
-            font-size: 15px;
+            font-size: 13px;
             cursor: pointer;
             transition: all 0.1s;
             border: none;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            min-width: 100px;
+            gap: 6px;
+            min-width: 80px;
         }
 
         .confirm-btn-primary {
@@ -3879,32 +3879,32 @@
     </div>
     <!-- Art Edit UI (appears when selecting your own art) -->
     <div id="art-edit-ui" class="confirm-panel"
-        style="display: none; position: fixed; top: 120px; left: 50%; transform: translateX(-50%); z-index: 5000; width: 440px;">
-        <div class="confirm-icon-ring">🎨</div>
-        <div class="confirm-title">Manage Your Art</div>
-        <div id="art-edit-name" class="confirm-text" style="font-size: 14px; margin-top: -5px; opacity: 0.8;">Untitled
-            Work</div>
+        style="display: none; position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 5000;">
+        <div class="confirm-icon-ring" style="margin-top: -5px;">🎨</div>
+        <div class="confirm-title" style="font-size: 18px;">Manage Your Art</div>
+        <div id="art-edit-name" class="confirm-text"
+            style="font-size: 12px; margin-top: -2px; opacity: 0.6; margin-bottom: 15px;">Untitled</div>
 
         <div class="confirm-actions">
             <button class="confirm-btn confirm-btn-primary" id="art-move-btn"
-                style="background: #4caf50; color: white; box-shadow: 0 6px 0 #3d8b40;">
+                style="background: #4caf50; color: white; box-shadow: 0 4px 0 #3d8b40;">
                 <span
-                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 2px 8px; border-radius: 6px; font-size: 0.8em;">M</span>
+                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 1px 6px; border-radius: 4px; font-size: 0.8em;">M</span>
                 Move
             </button>
             <button class="confirm-btn confirm-btn-primary" id="art-trash-btn"
-                style="background: #ff4757; color: white; box-shadow: 0 6px 0 #d63031;">
+                style="background: #ff4757; color: white; box-shadow: 0 4px 0 #d63031;">
                 <span
-                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 2px 8px; border-radius: 6px; font-size: 0.8em;">G</span>
+                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 1px 6px; border-radius: 4px; font-size: 0.8em;">G</span>
                 Trash
             </button>
-            <button class="confirm-btn confirm-btn-secondary" id="art-cancel-btn" style="flex: 0.5;">
+            <button class="confirm-btn confirm-btn-secondary" id="art-cancel-btn" style="flex: 0.4;">
                 Close
             </button>
         </div>
         <div
-            style="font-size: 11px; opacity: 0.4; margin-top: 15px; font-family: 'Outfit'; color: #666; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">
-            [M] Move • [G] Trash • [ESC] Close
+            style="font-size: 9px; opacity: 0.4; margin-top: 10px; font-family: 'Outfit'; color: #666; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">
+            [M] • [G] • [ESC]
         </div>
     </div>
 
