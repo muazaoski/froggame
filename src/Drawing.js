@@ -724,26 +724,22 @@ export class DrawingSystem {
 
     executePlacement() {
         const nameInput = document.getElementById('drawing-name-input');
-        this.artName = nameInput ? nameInput.value.trim() : 'Untitled';
-
-        if (!this.artName || this.artName === 'Untitled') {
-            this.world.showToast?.('Please name your art first! 🎨', 'error');
-            return;
-        }
+        this.artName = (nameInput && nameInput.value.trim()) || 'Untitled';
 
         this.currentDrawingData = this.composeLayersToDataURL();
 
-        // Simple empty check on composed data (check if anything was drawn beyond the white bg)
+        // Check if anything was drawn beyond the default white background
         const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
         tempCanvas.width = this.displayCanvas.width;
         tempCanvas.height = this.displayCanvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
         tempCtx.drawImage(this.displayCanvas, 0, 0);
         const pixels = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
 
         let empty = true;
         for (let i = 0; i < pixels.length; i += 4) {
-            // Check if pixel is not fully transparent and not pure white
+            // A pixel is non-empty if it's not the default white background
+            // White is (255, 255, 255). We check if it deviates significantly or has alpha changes.
             if (pixels[i + 3] > 0 && (pixels[i] < 250 || pixels[i + 1] < 250 || pixels[i + 2] < 250)) {
                 empty = false;
                 break;
@@ -755,8 +751,12 @@ export class DrawingSystem {
             return;
         }
 
-        // Hide modal (but DON'T call close() as it cancels placement!)
+        console.log('🚀 Entering placement mode for:', this.artName);
+
+        // Hide both modals
         if (this.modal) this.modal.classList.remove('visible');
+        if (this.confirmModal) this.confirmModal.style.display = 'none';
+
         if (this.world.localFrog) {
             this.world.localFrog.controlsDisabled = false;
             this.world.localFrog.setDrawingMode(false);

@@ -3474,7 +3474,7 @@
             display: none;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-CIezfplV.js"></script>
+  <script type="module" crossorigin src="/assets/index-CSsDRXKr.js"></script>
 </head>
 
 <body class="spectator-mode">
@@ -3866,28 +3866,35 @@
             </div>
         </div>
     </div>
-    <div id="art-edit-ui"
-        style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); color: white; padding: 15px 25px; border-radius: 15px; border: 2px solid rgba(255,255,255,0.1); display: none; flex-direction: column; align-items: center; gap: 10px; z-index: 5000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: 'Outfit';">
-        <div style="font-weight: 800; font-size: 1.1rem; color: #ffbc00;">🎨 Editing Your Art</div>
-        <div id="art-edit-name" style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 5px;">Untitled</div>
-        <div style="display: flex; gap: 10px;">
-            <button class="drawing-btn secondary" id="art-move-btn"
-                style="background: #4CAF50; color: white; box-shadow: 0 4px 0 #3d8b40;">
+    <!-- Art Edit UI (appears when selecting your own art) -->
+    <div id="art-edit-ui" class="confirm-panel"
+        style="display: none; position: fixed; top: 120px; left: 50%; transform: translateX(-50%); z-index: 5000; width: 400px;">
+        <div class="confirm-icon-ring">🎨</div>
+        <div class="confirm-title">Manage Your Art</div>
+        <div id="art-edit-name" class="confirm-text" style="font-size: 15px; margin-top: -5px; color: #888;">Untitled
+            Work</div>
+
+        <div class="confirm-actions">
+            <button class="confirm-btn confirm-btn-primary" id="art-move-btn"
+                style="background: #4CAF50; color: white; box-shadow: 0 6px 0 #3d8b40;">
                 <span
-                    style="font-weight: 900; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; margin-right: 5px;">M</span>
+                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 2px 8px; border-radius: 6px;">M</span>
                 Move
             </button>
-            <button class="drawing-btn secondary" id="art-trash-btn"
-                style="background: #ff4757; color: white; box-shadow: 0 4px 0 #d63031;">
+            <button class="confirm-btn confirm-btn-primary" id="art-trash-btn"
+                style="background: #ff4757; color: white; box-shadow: 0 6px 0 #d63031;">
                 <span
-                    style="font-weight: 900; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; margin-right: 5px;">G</span>
+                    style="font-weight: 900; background: rgba(0,0,0,0.15); padding: 2px 8px; border-radius: 6px;">G</span>
                 Trash
             </button>
-            <button class="drawing-btn secondary" id="art-cancel-btn">
-                Cancel
+            <button class="confirm-btn confirm-btn-secondary" id="art-cancel-btn">
+                Close
             </button>
         </div>
-        <div style="font-size: 0.75rem; opacity: 0.5;">Press keys on keyboard or click buttons</div>
+        <div
+            style="font-size: 11px; opacity: 0.5; margin-top: 15px; font-family: 'Outfit'; color: #666; font-weight: 600;">
+            [M] Move • [G] Trash • [ESC] Close
+        </div>
     </div>
 
     <!-- Profile Editor Panel - Revamped -->
