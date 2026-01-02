@@ -674,18 +674,25 @@ function animate(time) {
         // Try placing art/notes (do this BEFORE frog update so it can consume the punch input)
         const isPlacing = drawingSystem.isPlacingArt || noteSystem.isPlacing;
 
+        // DEBUG: Log every click
         if (input.leftClickPunch) {
-            // Debug log
-            if (isPlacing) console.log('[DEBUG] Placing active');
-
+            console.log('[MAIN.JS] LEFT CLICK DETECTED!', {
+                isPlacing,
+                noteIsPlacing: noteSystem.isPlacing,
+                artIsPlacing: drawingSystem.isPlacingArt
+            });
 
             // If we are in placement mode, we ALWAYS consume the click so the frog doesn't punch.
             if (drawingSystem.isPlacingArt) {
+                console.log('[MAIN.JS] Calling drawingSystem.tryPlaceArt');
                 drawingSystem.tryPlaceArt(input);
                 input.consumePunch();
             } else if (noteSystem.isPlacing) {
+                console.log('[MAIN.JS] Calling noteSystem.tryPlace');
                 noteSystem.tryPlace(input);
                 input.consumePunch();
+            } else {
+                console.log('[MAIN.JS] Not in placement mode, allowing normal punch');
             }
         }
 
