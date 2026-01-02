@@ -2918,6 +2918,7 @@
 
         .brush-slider-wrapper input[type=range] {
             width: 100%;
+            appearance: none;
             -webkit-appearance: none;
             height: 10px;
             border-radius: 5px;
@@ -2926,6 +2927,7 @@
         }
 
         .brush-slider-wrapper input[type=range]::-webkit-slider-thumb {
+            appearance: none;
             -webkit-appearance: none;
             width: 25px;
             height: 25px;
@@ -2978,7 +2980,8 @@
 
         /* CANVAS */
         .draw-canvas-container-new {
-            flex: 1;
+            height: 100%;
+            aspect-ratio: 1 / 1;
             background: #fff;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
@@ -3044,6 +3047,27 @@
             flex-direction: column;
             gap: 10px;
             overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 5px;
+        }
+
+        /* Modern Scrollbar for Layers */
+        .layers-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .layers-list::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+
+        .layers-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .layers-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.2);
         }
 
         .layer-item {
