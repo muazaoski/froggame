@@ -2733,14 +2733,14 @@
             }
         }
 
-        /* ================= DRAWING MODAL ================= */
+        /* ================= REVAMPED DRAWING MODAL ================= */
         #drawing-modal {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(8px);
             display: flex;
             align-items: center;
@@ -2756,224 +2756,367 @@
             visibility: visible;
         }
 
-        .drawing-container {
-            background: linear-gradient(145deg, #fefcf3, #f5f0e1);
-            border-radius: 20px;
+        .drawing-container-new {
+            background-color: #f0ede1;
+            /* Nice paper-like beige */
+            border-radius: 30px;
             padding: 25px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.5);
-            max-width: 400px;
-            width: 90%;
-            position: relative;
-        }
-
-        .drawing-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .drawing-title {
-            font-size: 1.4rem;
-            font-weight: 900;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .drawing-close {
-            width: 35px;
-            height: 35px;
-            background: #ff6b6b;
-            border: none;
-            border-radius: 50%;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-
-        .drawing-close:hover {
-            background: #ee5a5a;
-            transform: scale(1.1);
-        }
-
-        .drawing-canvas-wrapper {
-            background: white;
-            border: 3px solid #e0d8c0;
-            border-radius: 10px;
-            padding: 10px;
-            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        #drawing-canvas {
-            display: block;
-            width: 100%;
-            height: auto;
-            cursor: crosshair;
-            border-radius: 5px;
-            touch-action: none;
-        }
-
-        .drawing-tools {
-            margin-top: 15px;
+            width: 950px;
+            max-width: 95vw;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
+            gap: 20px;
+            font-family: 'Outfit', sans-serif;
+            border: 8px solid #f0ede1;
+            /* Consistency */
+        }
+
+        /* HEADER */
+        .draw-header-new {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 10px;
+        }
+
+        .draw-title-section {
+            display: flex;
+            align-items: center;
             gap: 12px;
         }
 
-        .color-palette {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            justify-content: center;
+        .draw-emoji {
+            font-size: 24px;
         }
 
-        .draw-color {
-            width: 32px;
-            height: 32px;
+        .draw-title-text {
+            font-size: 24px;
+            font-weight: 900;
+            color: #333;
+        }
+
+        .draw-name-section {
+            flex: 1;
+            max-width: 300px;
+            margin: 0 20px;
+        }
+
+        .draw-name-section input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.05);
+            border: none;
+            border-radius: 12px;
+            padding: 10px 15px;
+            font-family: 'Outfit';
+            font-weight: 600;
+            color: #555;
+            outline: none;
+        }
+
+        .draw-close-new {
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            border: 3px solid transparent;
+            background: #ff5e5e;
+            color: white;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 10px rgba(255, 94, 94, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            font-size: 20px;
+            font-weight: 900;
+            transition: transform 0.2s;
         }
 
-        .draw-color:hover {
+        .draw-close-new:hover {
+            transform: scale(1.1) rotate(90deg);
+        }
+
+        /* LAYOUT */
+        .draw-main-layout {
+            display: flex;
+            gap: 25px;
+            height: 550px;
+        }
+
+        /* SIDEBAR LEFT */
+        .draw-sidebar-left {
+            width: 200px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border: 1px solid rgba(0, 0, 0, 0.03);
+        }
+
+        .color-grid-title {
+            font-weight: 800;
+            color: #888;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .color-palette-new {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .draw-color-new {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 4px solid #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.1s;
+        }
+
+        .draw-color-new:hover {
             transform: scale(1.15);
         }
 
-        .draw-color.active {
-            border-color: #4CAF50;
+        .draw-color-new.active {
             transform: scale(1.2);
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+            border-color: #333;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
 
-        .drawing-controls {
+        /* BRUSH SIZE */
+        .brush-size-section {
+            background: #fff;
+            border-radius: 15px;
+            padding: 12px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .brush-label-row {
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
+            margin-bottom: 8px;
         }
 
-        .drawing-btn {
-            padding: 10px 16px;
-            border: none;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 0.9rem;
+        .brush-label {
+            font-size: 12px;
+            font-weight: 800;
+            color: #333;
+        }
+
+        #brush-size-value {
+            font-weight: 800;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .brush-slider-wrapper input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 10px;
+            border-radius: 5px;
+            background: #eee;
+            outline: none;
+        }
+
+        .brush-slider-wrapper input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #ff5252;
             cursor: pointer;
-            transition: all 0.2s;
+            border: 4px solid #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* TOOL GRID */
+        .tool-grid-new {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .tool-btn-new {
+            height: 50px;
+            background: #d9d9d9;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
+            box-shadow: 0 4px 0 #bbb;
+            transition: all 0.1s;
         }
 
-        .drawing-btn.secondary {
-            background: #e0e0e0;
-            color: #555;
-        }
-
-        .drawing-btn.secondary:hover {
-            background: #d0d0d0;
-        }
-
-        .drawing-btn.secondary.active {
-            background: #ff9800;
-            color: white;
-        }
-
-        .drawing-btn.primary {
-            background: linear-gradient(135deg, #4CAF50, #45a049);
-            color: white;
-            box-shadow: 0 4px 0 #3d8b40;
-        }
-
-        .drawing-btn.primary:hover {
+        .tool-btn-new:hover {
+            background: #e2e2e2;
             transform: translateY(-2px);
-            box-shadow: 0 6px 0 #3d8b40;
+            box-shadow: 0 6px 0 #bbb;
         }
 
-        .drawing-btn.primary:active {
+        .tool-btn-new:active {
+            transform: translateY(2px);
+            box-shadow: 0 0 0 #bbb;
+        }
+
+        .tool-btn-new.active {
+            background: #ffbc00;
+            box-shadow: 0 4px 0 #d9a000;
+        }
+
+        .tool-icon {
+            font-size: 20px;
+        }
+
+        /* CANVAS */
+        .draw-canvas-container-new {
+            flex: 1;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: crosshair;
+        }
+
+        #drawing-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+
+        /* SIDEBAR RIGHT */
+        .draw-sidebar-right {
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .layers-panel {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .layers-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 800;
+            color: #333;
+        }
+
+        .layers-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .layer-action-btn {
+            padding: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            background: #d9d9d9;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #bbb;
+        }
+
+        .layers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .layer-item {
+            background: #fff;
+            border-radius: 10px;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+        }
+
+        .layer-item.active {
+            background: #f0f0f0;
+            outline: 2px solid #ffbc00;
+        }
+
+        .layer-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #444;
+        }
+
+        .place-on-wall-btn {
+            height: 60px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #3d8b40;
+            transition: all 0.1s;
+        }
+
+        .place-on-wall-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 #3d8b40;
+            filter: brightness(1.1);
+        }
+
+        .place-on-wall-btn:active {
             transform: translateY(2px);
             box-shadow: 0 0 0 #3d8b40;
         }
 
-        .brush-size-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            background: #f5f5f5;
-            border-radius: 10px;
-        }
-
-        .brush-size-control label {
-            font-weight: 600;
-            color: #666;
-            font-size: 0.85rem;
-        }
-
-        #brush-size {
-            width: 80px;
-            cursor: pointer;
-        }
-
-        #brush-size-label {
-            font-weight: 700;
-            color: #333;
-            min-width: 20px;
-            text-align: center;
-        }
-
-        /* Drawing button in bottom left */
-        #drawing-btn {
-            background: linear-gradient(135deg, #ff9800, #f57c00);
-        }
-
-        #drawing-btn:hover {
-            background: linear-gradient(135deg, #ffb74d, #ff9800);
-        }
-
-        /* Placement mode indicator */
+        /* Placement Hint Redesign */
         .placement-hint {
             position: fixed;
-            bottom: 100px;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.95), rgba(56, 142, 60, 0.95));
-            color: white;
-            padding: 18px 35px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 1.2rem;
-            z-index: 5000;
+            background: #fff;
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            font-weight: 800;
+            color: #333;
+            z-index: 7000;
             display: none;
-            box-shadow: 0 8px 32px rgba(76, 175, 80, 0.4), 0 0 0 3px rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            animation: pulseHint 1.5s ease-in-out infinite;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            border: 4px solid #4CAF50;
+            animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        .placement-hint.visible {
-            display: block;
-        }
-
-        @keyframes pulseHint {
-
-            0%,
-            100% {
-                opacity: 1;
+        @keyframes bounceIn {
+            0% {
+                transform: translate(-50%, 100px);
             }
 
-            50% {
-                opacity: 0.7;
+            100% {
+                transform: translate(-50%, 0);
             }
         }
 
@@ -3442,58 +3585,105 @@
 
     <!-- Drawing Modal -->
     <div id="drawing-modal">
-        <div class="drawing-container">
-            <div class="drawing-header">
-                <div class="drawing-title">🎨 Draw on Paper</div>
-                <button class="drawing-close" id="drawing-close">✕</button>
+        <div class="drawing-container-new">
+            <!-- Top Header -->
+            <div class="draw-header-new">
+                <div class="draw-title-section">
+                    <span class="draw-emoji">🎨</span>
+                    <span class="draw-title-text">Draw on Paper</span>
+                </div>
+                <div class="draw-name-section">
+                    <input type="text" id="drawing-name-input" placeholder="Name your art..." maxlength="20">
+                </div>
+                <button class="draw-close-new" id="drawing-close">✕</button>
             </div>
 
-            <div class="drawing-canvas-wrapper">
-                <canvas id="drawing-canvas" width="256" height="256"></canvas>
-            </div>
-
-            <div class="drawing-tools">
-                <!-- Name Input -->
-                <input type="text" id="drawing-name-input" placeholder="Name your art..." maxlength="20"
-                    style="width: 100%; padding: 8px; border-radius: 8px; border: none; background: rgba(0,0,0,0.3); color: white; margin-bottom: 15px; font-family: 'Outfit'; font-size: 16px;">
-
-                <!-- Color Palette -->
-                <div class="color-palette">
-                    <div class="draw-color active" data-color="#000000" style="background: #000000;"></div>
-                    <div class="draw-color" data-color="#FFFFFF" style="background: #FFFFFF; border: 1px solid #ddd;">
+            <div class="draw-main-layout">
+                <!-- Left Sidebar: Colors & Tools -->
+                <div class="draw-sidebar-left">
+                    <div class="color-grid-title">Colors</div>
+                    <div class="color-palette-new">
+                        <!-- Row 1 -->
+                        <div class="draw-color-new active" data-color="#000000" style="background: #000000;"></div>
+                        <div class="draw-color-new" data-color="#FFFFFF" style="background: #FFFFFF;"></div>
+                        <div class="draw-color-new" data-color="#FF0000" style="background: #FF0000;"></div>
+                        <div class="draw-color-new" data-color="#FF5252" style="background: #FF5252;"></div>
+                        <!-- Row 2 -->
+                        <div class="draw-color-new" data-color="#FF9800" style="background: #FF9800;"></div>
+                        <div class="draw-color-new" data-color="#FFC107" style="background: #FFC107;"></div>
+                        <div class="draw-color-new" data-color="#FFEB3B" style="background: #FFEB3B;"></div>
+                        <div class="draw-color-new" data-color="#CDDC39" style="background: #CDDC39;"></div>
+                        <!-- Row 3 -->
+                        <div class="draw-color-new" data-color="#4CAF50" style="background: #4CAF50;"></div>
+                        <div class="draw-color-new" data-color="#009688" style="background: #009688;"></div>
+                        <div class="draw-color-new" data-color="#2196F3" style="background: #2196F3;"></div>
+                        <div class="draw-color-new" data-color="#3F51B5" style="background: #3F51B5;"></div>
+                        <!-- Row 4 -->
+                        <div class="draw-color-new" data-color="#673AB7" style="background: #673AB7;"></div>
+                        <div class="draw-color-new" data-color="#9C27B0" style="background: #9C27B0;"></div>
+                        <div class="draw-color-new" data-color="#E91E63" style="background: #E91E63;"></div>
+                        <div class="draw-color-new" data-color="#795548" style="background: #795548;"></div>
+                        <!-- Row 5 (Big one) -->
+                        <div class="draw-color-new" data-color="#333333"
+                            style="background: #333333; width: 40px; height: 40px; grid-column: span 1;"></div>
                     </div>
-                    <div class="draw-color" data-color="#FF0000" style="background: #FF0000;"></div>
-                    <div class="draw-color" data-color="#FF9800" style="background: #FF9800;"></div>
-                    <div class="draw-color" data-color="#FFEB3B" style="background: #FFEB3B;"></div>
-                    <div class="draw-color" data-color="#8BC34A" style="background: #8BC34A;"></div>
-                    <div class="draw-color" data-color="#4CAF50" style="background: #4CAF50;"></div>
-                    <div class="draw-color" data-color="#00BCD4" style="background: #00BCD4;"></div>
-                    <div class="draw-color" data-color="#2196F3" style="background: #2196F3;"></div>
-                    <div class="draw-color" data-color="#3F51B5" style="background: #3F51B5;"></div>
-                    <div class="draw-color" data-color="#9C27B0" style="background: #9C27B0;"></div>
-                    <div class="draw-color" data-color="#E91E63" style="background: #E91E63;"></div>
-                    <div class="draw-color" data-color="#795548" style="background: #795548;"></div>
-                    <div class="draw-color" data-color="#9E9E9E" style="background: #9E9E9E;"></div>
+
+                    <div class="brush-size-section">
+                        <div class="brush-label-row">
+                            <span class="brush-label">Brush Size</span>
+                            <span id="brush-size-value">4</span>
+                        </div>
+                        <div class="brush-slider-wrapper">
+                            <input type="range" id="brush-size" min="1" max="50" value="4">
+                        </div>
+                    </div>
+
+                    <div class="tool-grid-new">
+                        <button class="tool-btn-new" id="eraser-btn" title="Eraser">
+                            <span class="tool-icon">🧼</span>
+                        </button>
+                        <button class="tool-btn-new" id="clear-canvas-btn" title="Clear All">
+                            <span class="tool-icon">🗑️</span>
+                        </button>
+                        <button class="tool-btn-new" id="undo-btn" title="Undo">
+                            <span class="tool-icon">↩️</span>
+                        </button>
+                        <button class="tool-btn-new" id="redo-btn" title="Redo">
+                            <span class="tool-icon">↪️</span>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Controls -->
-                <div class="drawing-controls">
-                    <div class="brush-size-control">
-                        <label>Size:</label>
-                        <input type="range" id="brush-size" min="1" max="20" value="4">
-                        <span id="brush-size-label">4</span>
-                    </div>
-                    <div style="display: flex; gap: 5px;">
-                        <button class="drawing-btn secondary" id="fill-btn" title="Fill (Bucket)">🪣</button>
-                        <button class="drawing-btn secondary" id="eraser-btn">🧽</button>
-                        <button class="drawing-btn secondary" id="clear-canvas-btn">🗑️</button>
-                    </div>
+                <!-- Center Canvas -->
+                <div class="draw-canvas-container-new">
+                    <canvas id="drawing-canvas" width="512" height="512"></canvas>
                 </div>
 
-                <!-- Place Button -->
-                <button class="drawing-btn primary" id="place-drawing-btn">
-                    📌 Place on Wall
-                </button>
+                <!-- Right Sidebar: Layers & Place -->
+                <div class="draw-sidebar-right">
+                    <div class="layers-panel">
+                        <div class="layers-header">
+                            <span>Layers</span>
+                            <span class="layers-arrow">▴</span>
+                        </div>
+                        <div class="layers-actions">
+                            <button class="layer-action-btn" id="add-layer-btn">+ Add</button>
+                            <button class="layer-action-btn" id="delete-layer-btn">🗑️ Delete</button>
+                        </div>
+                        <div class="layers-list" id="layers-list">
+                            <div class="layer-item active">
+                                <span class="layer-name">Layer 1</span>
+                                <div class="layer-icons">
+                                    <span class="layer-visibility-icon">👁️</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="place-on-wall-btn" id="place-drawing-btn">
+                        📌 Place on Wall
+                    </button>
+                </div>
             </div>
         </div>
     </div>

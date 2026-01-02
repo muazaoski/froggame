@@ -34,6 +34,15 @@ export class DrawingSystem {
         this.isFilling = false;
         this.lastDrawSyncTime = 0;
 
+        // Undo/Redo history
+        this.history = [];
+        this.historyIndex = -1;
+        this.maxHistory = 30;
+
+        // Layers state
+        this.layers = [];
+        this.activeLayerIndex = 0;
+
         // Initialize
         this.initUI();
         this.initNetworkHandlers();
@@ -41,12 +50,18 @@ export class DrawingSystem {
 
     initUI() {
         this.modal = document.getElementById('drawing-modal');
-        this.canvas = document.getElementById('drawing-canvas');
-        this.ctx = this.canvas ? this.canvas.getContext('2d', { willReadFrequently: true }) : null;
+        this.displayCanvas = document.getElementById('drawing-canvas');
+        this.displayCtx = this.displayCanvas ? this.displayCanvas.getContext('2d', { alpha: true }) : null;
+
+        // We still need this.canvas and this.ctx for backward compatibility with the rest of the code
+        // but we'll redirect them to the active layer's canvas/ctx
+        this.canvas = null;
+        this.ctx = null;
+
         this.editUI = document.getElementById('art-edit-ui');
         this.editNameLabel = document.getElementById('art-edit-name');
 
-        if (!this.modal || !this.canvas || !this.ctx) return;
+        if (!this.modal || !this.displayCanvas) return;
 
         // Create tooltip
         this.tooltip = document.createElement('div');
@@ -120,7 +135,7 @@ export class DrawingSystem {
     }
 
     setupToolListeners() {
-        const colorBtns = document.querySelectorAll('.draw-color');
+        const colorBtns = document.querySelectorAll('.draw-color-new');
         colorBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 colorBtns.forEach(b => b.classList.remove('active'));
@@ -136,24 +151,38 @@ export class DrawingSystem {
         if (brushSlider) {
             brushSlider.addEventListener('input', (e) => {
                 this.brushSize = parseInt(e.target.value);
-                const label = document.getElementById('brush-size-label');
+                const label = document.getElementById('brush-size-value');
                 if (label) label.textContent = this.brushSize;
             });
         }
 
         document.getElementById('fill-btn')?.addEventListener('click', (e) => {
-            this.isFilling = true; this.isEraser = false;
-            e.target.classList.add('active');
+            this.isFilling = !this.isFilling;
+            this.isEraser = false;
+            e.target.classList.toggle('active', this.isFilling);
             document.getElementById('eraser-btn')?.classList.remove('active');
         });
 
         document.getElementById('eraser-btn')?.addEventListener('click', (e) => {
-            this.isEraser = !this.isEraser; this.isFilling = false;
+            this.isEraser = !this.isEraser;
+            this.isFilling = false;
             e.target.classList.toggle('active', this.isEraser);
             document.getElementById('fill-btn')?.classList.remove('active');
         });
 
-        document.getElementById('clear-canvas-btn')?.addEventListener('click', () => this.clearCanvas());
+        document.getElementById('clear-canvas-btn')?.addEventListener('click', () => {
+            this.clearActiveLayer();
+            this.saveHistory();
+            this.renderDisplay();
+        });
+
+        document.getElementById('undo-btn')?.addEventListener('click', () => { this.undo(); this.renderDisplay(); });
+        document.getElementById('redo-btn')?.addEventListener('click', () => { this.redo(); this.renderDisplay(); });
+
+        // Layer Management UI
+        document.getElementById('add-layer-btn')?.addEventListener('click', () => this.addLayer());
+        document.getElementById('delete-layer-btn')?.addEventListener('click', () => this.deleteActiveLayer());
+
         document.getElementById('place-drawing-btn')?.addEventListener('click', () => this.startPlacement());
         document.getElementById('drawing-close')?.addEventListener('click', () => this.close());
         this.modal?.addEventListener('click', (e) => { if (e.target === this.modal) this.close(); });
@@ -162,12 +191,133 @@ export class DrawingSystem {
     open() {
         if (!this.modal) return;
         this.modal.classList.add('visible');
-        this.clearCanvas();
+
+        // Reset layers on open
+        this.layers = [];
+        this.addLayer("Background", false); // Background layer with white base
+        this.addLayer("Layer 1");
+
+        // Clear history on open
+        this.history = [];
+        this.historyIndex = -1;
+        this.saveHistory();
+
         if (this.world.localFrog) {
             this.world.localFrog.controlsDisabled = true;
             this.world.localFrog.setDrawingMode(true);
-            this.network?.sendDrawingStatus(true, this.canvas.toDataURL('image/png'));
+            this.network?.sendDrawingStatus(true, this.composeLayersToDataURL());
         }
+    }
+
+    addLayer(name = null, transparent = true) {
+        const layerName = name || `Layer ${this.layers.length + 1}`;
+        const canvas = document.createElement('canvas');
+        canvas.width = this.displayCanvas.width;
+        canvas.height = this.displayCanvas.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        if (!transparent) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        const layer = {
+            name: layerName,
+            visible: true,
+            canvas: canvas,
+            ctx: ctx,
+            id: Math.random().toString(36).substr(2, 9)
+        };
+
+        this.layers.push(layer);
+        this.selectLayer(this.layers.length - 1);
+        this.updateLayersUI();
+    }
+
+    selectLayer(index) {
+        if (index < 0 || index >= this.layers.length) return;
+        this.activeLayerIndex = index;
+        const activeLayer = this.layers[this.activeLayerIndex];
+        this.canvas = activeLayer.canvas;
+        this.ctx = activeLayer.ctx;
+        this.updateLayersUI();
+    }
+
+    deleteActiveLayer() {
+        if (this.layers.length <= 1) {
+            this.world.showToast?.('Cannot delete the last layer!', 'error');
+            return;
+        }
+        this.layers.splice(this.activeLayerIndex, 1);
+        this.selectLayer(Math.max(0, this.activeLayerIndex - 1));
+        this.saveHistory();
+        this.renderDisplay();
+    }
+
+    toggleLayerVisibility(index) {
+        if (index < 0 || index >= this.layers.length) return;
+        this.layers[index].visible = !this.layers[index].visible;
+        this.updateLayersUI();
+        this.renderDisplay();
+    }
+
+    updateLayersUI() {
+        const list = document.getElementById('layers-list');
+        if (!list) return;
+
+        list.innerHTML = '';
+        // Display layers in reverse order (top to bottom)
+        for (let i = this.layers.length - 1; i >= 0; i--) {
+            const layer = this.layers[i];
+            const item = document.createElement('div');
+            item.className = `layer-item ${i === this.activeLayerIndex ? 'active' : ''}`;
+
+            item.innerHTML = `
+                <span class="layer-name">${layer.name}</span>
+                <div class="layer-icons">
+                    <span class="layer-visibility-icon" style="opacity: ${layer.visible ? 1 : 0.3}">${layer.visible ? '👁️' : '🕶️'}</span>
+                </div>
+            `;
+
+            item.querySelector('.layer-name').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectLayer(i);
+            });
+
+            item.querySelector('.layer-visibility-icon').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleLayerVisibility(i);
+            });
+
+            list.appendChild(item);
+        }
+    }
+
+    renderDisplay() {
+        if (!this.displayCtx) return;
+        this.displayCtx.clearRect(0, 0, this.displayCanvas.width, this.displayCanvas.height);
+
+        this.layers.forEach(layer => {
+            if (layer.visible) {
+                this.displayCtx.drawImage(layer.canvas, 0, 0);
+            }
+        });
+    }
+
+    composeLayersToDataURL() {
+        // Create a temporary canvas to compose everything
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.displayCanvas.width;
+        tempCanvas.height = this.displayCanvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        this.layers.forEach(layer => {
+            if (layer.visible) {
+                tempCtx.drawImage(layer.canvas, 0, 0);
+            }
+        });
+
+        return tempCanvas.toDataURL('image/png');
     }
 
     close() {
@@ -182,10 +332,10 @@ export class DrawingSystem {
     }
 
     getCanvasPos(e) {
-        const rect = this.canvas.getBoundingClientRect();
+        const rect = this.displayCanvas.getBoundingClientRect();
         return {
-            x: (e.clientX - rect.left) * (this.canvas.width / rect.width),
-            y: (e.clientY - rect.top) * (this.canvas.height / rect.height)
+            x: (e.clientX - rect.left) * (this.displayCanvas.width / rect.width),
+            y: (e.clientY - rect.top) * (this.displayCanvas.height / rect.height)
         };
     }
 
@@ -205,19 +355,106 @@ export class DrawingSystem {
         this.ctx.beginPath();
         this.ctx.moveTo(this.lastPos.x, this.lastPos.y);
         this.ctx.lineTo(pos.x, pos.y);
-        this.ctx.strokeStyle = this.isEraser ? '#FFFFFF' : this.currentColor;
+
+        // If eraser, use destination-out to actually erase pixels on the layer
+        if (this.isEraser) {
+            this.ctx.globalCompositeOperation = 'destination-out';
+            this.ctx.strokeStyle = 'rgba(0,0,0,1)';
+        } else {
+            this.ctx.globalCompositeOperation = 'source-over';
+            this.ctx.strokeStyle = this.currentColor;
+        }
+
         this.ctx.lineWidth = this.brushSize;
         this.ctx.lineCap = this.ctx.lineJoin = 'round';
         this.ctx.stroke();
         this.lastPos = pos;
+        this.renderDisplay();
     }
 
-    stopDrawing() { this.isDrawing = false; this.lastPos = null; }
+    stopDrawing() {
+        if (this.isDrawing) {
+            this.saveHistory();
+        }
+        this.isDrawing = false;
+        this.lastPos = null;
+    }
 
-    clearCanvas() {
+    saveHistory() {
         if (!this.ctx) return;
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // History for multi-layer: Save all layers state
+        if (this.historyIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.historyIndex + 1);
+        }
+
+        // Deep copy of layer contents
+        const layerStates = this.layers.map(l => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = l.canvas.width;
+            tempCanvas.height = l.canvas.height;
+            tempCanvas.getContext('2d').drawImage(l.canvas, 0, 0);
+            return {
+                id: l.id,
+                name: l.name,
+                visible: l.visible,
+                data: tempCanvas
+            };
+        });
+
+        this.history.push({
+            layers: layerStates,
+            activeIndex: this.activeLayerIndex
+        });
+
+        if (this.history.length > this.maxHistory) {
+            this.history.shift();
+        } else {
+            this.historyIndex++;
+        }
+    }
+
+    undo() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            this.restoreHistoryState(this.history[this.historyIndex]);
+        }
+    }
+
+    redo() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.historyIndex++;
+            this.restoreHistoryState(this.history[this.historyIndex]);
+        }
+    }
+
+    restoreHistoryState(state) {
+        // Restore layers from saved canvases
+        this.layers = state.layers.map(ls => {
+            const canvas = document.createElement('canvas');
+            canvas.width = ls.data.width;
+            canvas.height = ls.data.height;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(ls.data, 0, 0);
+            return {
+                id: ls.id,
+                name: ls.name,
+                visible: ls.visible,
+                canvas: canvas,
+                ctx: ctx
+            };
+        });
+        this.selectLayer(state.activeIndex);
+        this.updateLayersUI();
+    }
+
+    clearActiveLayer() {
+        if (!this.ctx) return;
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        // If it's the bottom layer (index 0), fill with white after clearing
+        if (this.activeLayerIndex === 0) {
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
     }
 
     floodFill(startX, startY, colorHex) {
@@ -228,29 +465,51 @@ export class DrawingSystem {
         const r = parseInt(colorHex.slice(1, 3), 16), g = parseInt(colorHex.slice(3, 5), 16), b = parseInt(colorHex.slice(5, 7), 16);
         const startPos = (startY * width + startX) * 4;
         const sR = data[startPos], sG = data[startPos + 1], sB = data[startPos + 2], sA = data[startPos + 3];
-        if (sR === r && sG === g && sB === b && sA === 255) return;
+
+        // If eraser, we want to fill with transparency
+        const targetR = this.isEraser ? 0 : r;
+        const targetG = this.isEraser ? 0 : g;
+        const targetB = this.isEraser ? 0 : b;
+        const targetA = this.isEraser ? 0 : 255;
+
+        if (sR === targetR && sG === targetG && sB === targetB && sA === targetA) return;
+
         const stack = [[startX, startY]];
         while (stack.length) {
             const [x, y] = stack.pop();
             if (x < 0 || x >= width || y < 0 || y >= height) continue;
             const pos = (y * width + x) * 4;
             if (data[pos] === sR && data[pos + 1] === sG && data[pos + 2] === sB && data[pos + 3] === sA) {
-                data[pos] = r; data[pos + 1] = g; data[pos + 2] = b; data[pos + 3] = 255;
+                data[pos] = targetR; data[pos + 1] = targetG; data[pos + 2] = targetB; data[pos + 3] = targetA;
                 stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
             }
         }
         this.ctx.putImageData(imgData, 0, 0);
+        this.renderDisplay();
+        this.saveHistory();
     }
 
     startPlacement() {
         const nameInput = document.getElementById('drawing-name-input');
         this.artName = nameInput ? nameInput.value.trim() : 'Untitled';
-        this.currentDrawingData = this.canvas.toDataURL('image/png');
+        this.currentDrawingData = this.composeLayersToDataURL();
 
-        // Simple empty check
-        const pixels = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
+        // Simple empty check on composed data
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = this.displayCanvas.width;
+        tempCanvas.height = this.displayCanvas.height;
+        tempCtx.drawImage(this.displayCanvas, 0, 0);
+        const pixels = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
         let empty = true;
-        for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 250) { empty = false; break; }
+        for (let i = 0; i < pixels.length; i += 4) {
+            // Check if pixel is not fully transparent and not pure white (on bg layer)
+            if (pixels[i + 3] > 0 && (pixels[i] < 250 || pixels[i + 1] < 250 || pixels[i + 2] < 250)) {
+                empty = false;
+                break;
+            }
+        }
         if (empty) { this.world.showToast?.('Draw something first! 🎨', 'error'); return; }
 
         // Hide modal (but DON'T call close() as it cancels placement!)
@@ -392,10 +651,10 @@ export class DrawingSystem {
                 if (input.keys?.Escape) this.deselectArt();
             }
             if (this.modal?.classList.contains('visible') && this.world.localFrog) {
-                this.world.localFrog.updateDrawingTexture(this.canvas);
+                this.world.localFrog.updateDrawingTexture(this.displayCanvas);
                 const now = Date.now();
                 if (now - this.lastDrawSyncTime > 200) {
-                    if (this.isDrawing) this.network?.sendDrawingUpdate(this.canvas.toDataURL('image/png'));
+                    if (this.isDrawing) this.network?.sendDrawingUpdate(this.composeLayersToDataURL());
                     this.lastDrawSyncTime = now;
                 }
             }
