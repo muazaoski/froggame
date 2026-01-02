@@ -159,15 +159,13 @@ export class DrawingSystem {
         document.getElementById('fill-btn')?.addEventListener('click', (e) => {
             this.isFilling = !this.isFilling;
             this.isEraser = false;
-            e.target.classList.toggle('active', this.isFilling);
-            document.getElementById('eraser-btn')?.classList.remove('active');
+            this.updateToolUI();
         });
 
         document.getElementById('eraser-btn')?.addEventListener('click', (e) => {
             this.isEraser = !this.isEraser;
             this.isFilling = false;
-            e.target.classList.toggle('active', this.isEraser);
-            document.getElementById('fill-btn')?.classList.remove('active');
+            this.updateToolUI();
         });
 
         document.getElementById('clear-canvas-btn')?.addEventListener('click', () => {
@@ -186,6 +184,32 @@ export class DrawingSystem {
         document.getElementById('place-drawing-btn')?.addEventListener('click', () => this.startPlacement());
         document.getElementById('drawing-close')?.addEventListener('click', () => this.close());
         this.modal?.addEventListener('click', (e) => { if (e.target === this.modal) this.close(); });
+
+        // Initial tool update
+        this.updateToolUI();
+    }
+
+    updateToolUI() {
+        const fillBtn = document.getElementById('fill-btn');
+        const eraserBtn = document.getElementById('eraser-btn');
+        const brushLabel = document.querySelector('.brush-label');
+
+        fillBtn?.classList.toggle('active', this.isFilling);
+        eraserBtn?.classList.toggle('active', this.isEraser);
+
+        if (brushLabel) {
+            brushLabel.textContent = this.isEraser ? 'Eraser Size' : 'Brush Size';
+        }
+
+        if (this.displayCanvas) {
+            if (this.isEraser) {
+                this.displayCanvas.style.cursor = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'><rect x=\'4\' y=\'4\' width=\'16\' height=\'16\' fill=\'white\' stroke=\'black\' stroke-width=\'2\'/></svg>") 12 12, auto';
+            } else if (this.isFilling) {
+                this.displayCanvas.style.cursor = 'crosshair';
+            } else {
+                this.displayCanvas.style.cursor = 'crosshair';
+            }
+        }
     }
 
     open() {
@@ -273,14 +297,13 @@ export class DrawingSystem {
             item.className = `layer-item ${i === this.activeLayerIndex ? 'active' : ''}`;
 
             item.innerHTML = `
-                <span class="layer-name">${layer.name}</span>
+                <span class="layer-name" style="pointer-events: none;">${layer.name}</span>
                 <div class="layer-icons">
-                    <span class="layer-visibility-icon" style="opacity: ${layer.visible ? 1 : 0.3}">${layer.visible ? '👁️' : '🕶️'}</span>
+                    <span class="layer-visibility-icon" style="opacity: ${layer.visible ? 1 : 0.3}; padding: 5px; cursor: pointer;">${layer.visible ? '👁️' : '🕶️'}</span>
                 </div>
             `;
 
-            item.querySelector('.layer-name').addEventListener('click', (e) => {
-                e.stopPropagation();
+            item.addEventListener('click', (e) => {
                 this.selectLayer(i);
             });
 
