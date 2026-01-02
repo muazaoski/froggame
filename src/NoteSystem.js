@@ -223,14 +223,38 @@ export class NoteSystem {
         const words = title.split(' ');
         let line = '';
         let lines = [];
+        const maxWidth = w - 40;
+
         for (let n = 0; n < words.length; n++) {
-            let testLine = line + words[n] + ' ';
-            let metrics = ctx.measureText(testLine);
-            if (metrics.width > w - 40 && n > 0) {
-                lines.push(line.trim());
-                line = words[n] + ' ';
+            let word = words[n];
+            // If the word itself is too long, break it up
+            if (ctx.measureText(word).width > maxWidth) {
+                // Add what we have in current line first
+                if (line) {
+                    lines.push(line.trim());
+                    line = '';
+                }
+
+                // Break up the long word
+                let tempWord = '';
+                for (let i = 0; i < word.length; i++) {
+                    let char = word[i];
+                    if (ctx.measureText(tempWord + char).width > maxWidth) {
+                        lines.push(tempWord);
+                        tempWord = char;
+                    } else {
+                        tempWord += char;
+                    }
+                }
+                line = tempWord + ' ';
             } else {
-                line = testLine;
+                let testLine = line + word + ' ';
+                if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+                    lines.push(line.trim());
+                    line = word + ' ';
+                } else {
+                    line = testLine;
+                }
             }
         }
         lines.push(line.trim());
