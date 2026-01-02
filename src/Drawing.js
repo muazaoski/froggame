@@ -120,18 +120,30 @@ export class DrawingSystem {
     }
 
     setupCanvasListeners() {
-        const start = (e) => { e.stopPropagation(); this.startDrawing(e.touches ? e.touches[0] : e); };
-        const move = (e) => { e.stopPropagation(); this.draw(e.touches ? e.touches[0] : e); if (e.touches) e.preventDefault(); };
-        const stop = (e) => { e.stopPropagation(); this.stopDrawing(); };
+        const start = (e) => {
+            e.stopPropagation();
+            this.startDrawing(e.touches ? e.touches[0] : e);
+        };
+        const move = (e) => {
+            if (!this.isDrawing) return;
+            e.stopPropagation();
+            this.draw(e.touches ? e.touches[0] : e);
+            if (e.touches) e.preventDefault();
+        };
+        const stop = (e) => {
+            if (this.isDrawing) {
+                e.stopPropagation();
+                this.stopDrawing();
+            }
+        };
 
         this.displayCanvas.addEventListener('mousedown', start);
-        this.displayCanvas.addEventListener('mousemove', move);
-        this.displayCanvas.addEventListener('mouseup', stop);
-        this.displayCanvas.addEventListener('mouseleave', stop);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
 
         this.displayCanvas.addEventListener('touchstart', start);
-        this.displayCanvas.addEventListener('touchmove', move);
-        this.displayCanvas.addEventListener('touchend', stop);
+        window.addEventListener('touchmove', move, { passive: false });
+        window.addEventListener('touchend', stop);
     }
 
     setupToolListeners() {
@@ -182,7 +194,6 @@ export class DrawingSystem {
 
         document.getElementById('place-drawing-btn')?.addEventListener('click', () => this.startPlacement());
         document.getElementById('drawing-close')?.addEventListener('click', () => this.close());
-        this.modal?.addEventListener('click', (e) => { if (e.target === this.modal) this.close(); });
 
         // Initial tool update
         this.updateToolUI();
@@ -233,8 +244,8 @@ export class DrawingSystem {
     }
 
     addLayer(name = null, transparent = true) {
-        if (this.layers.length >= 7) {
-            this.world.showToast?.('Maximum 7 layers allowed!', 'error');
+        if (this.layers.length >= 6) {
+            this.world.showToast?.('Maximum 6 layers allowed!', 'error');
             return;
         }
 
