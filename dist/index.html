@@ -196,6 +196,12 @@
         }
 
         /* View Modal Styles */
+        .note-viewer-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
         .note-view-paper {
             background: #fffceb;
             padding: 40px;
@@ -3732,17 +3738,19 @@
 
     <!-- Note Viewer Modal -->
     <div id="note-viewer-modal" class="note-modal">
-        <div class="note-view-paper" id="note-view-paper">
-            <button class="note-close" id="note-view-close"
-                style="position: absolute; top: 10px; right: 10px;">✕</button>
-            <div class="note-view-title" id="note-view-title">Title</div>
-            <div class="note-view-content" id="note-view-content">Message goes here...</div>
-            <div class="note-view-meta" id="note-view-meta">By Muaz • Jan 1, 2026</div>
-        </div>
+        <div class="note-viewer-container">
+            <div class="note-view-paper" id="note-view-paper">
+                <button class="note-close" id="note-view-close"
+                    style="position: absolute; top: 10px; right: 10px;">✕</button>
+                <div class="note-view-title" id="note-view-title">Title</div>
+                <div class="note-view-content" id="note-view-content">Message goes here...</div>
+                <div class="note-view-meta" id="note-view-meta">By Muaz • Jan 1, 2026</div>
+            </div>
 
-        <!-- Author-only actions (below the note) -->
-        <div id="note-author-actions" class="note-author-actions" style="display: none;">
-            <button id="note-delete-btn" class="note-action-btn note-delete-btn">🗑️ Delete Note</button>
+            <!-- Author-only actions (below the note) -->
+            <div id="note-author-actions" class="note-author-actions" style="display: none;">
+                <button id="note-delete-btn" class="note-action-btn note-delete-btn">🗑️ Delete Note</button>
+            </div>
         </div>
     </div>
 
