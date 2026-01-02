@@ -270,7 +270,15 @@ export class NoteSystem {
     }
 
     tryPlace(input) {
-        if (!this.isPlacing || !this._lastHit) return false;
+        console.log('[NoteSystem] tryPlace called', { isPlacing: this.isPlacing, hasLastHit: !!this._lastHit });
+
+        if (!this.isPlacing || !this._lastHit) {
+            console.log('[NoteSystem] Early return - isPlacing:', this.isPlacing, '_lastHit:', this._lastHit);
+            if (!this._lastHit) {
+                this.world.showToast?.('Point at a surface to place the note!', 'error');
+            }
+            return false;
+        }
 
         const playerPos = this.world.localFrog?.mesh?.position;
         if (playerPos && playerPos.distanceTo(this._lastHit.point) > 15) {
@@ -290,6 +298,7 @@ export class NoteSystem {
             rotation: this.placementRotation
         };
 
+        console.log('[NoteSystem] Emitting placeNote', noteData);
         this.network.socket.emit('placeNote', noteData);
         this.cancelPlacement();
         this.world.showToast?.('Note posted! 📌', 'success');
