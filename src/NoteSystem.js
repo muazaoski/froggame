@@ -149,7 +149,8 @@ export class NoteSystem {
         this.drawNoteToCanvas(canvas, this.titleInput.value, this.selectedPaperColor, this.selectedTextColor);
 
         const texture = new THREE.CanvasTexture(canvas);
-        const geometry = new THREE.PlaneGeometry(1.2, 1.2);
+        // 50% smaller size (0.6 instead of 1.2)
+        const geometry = new THREE.PlaneGeometry(0.6, 0.6);
         const material = new THREE.MeshBasicMaterial({
             map: texture,
             transparent: true,
@@ -163,8 +164,9 @@ export class NoteSystem {
         this.placementPreview.visible = false;
         this.world.scene.add(this.placementPreview);
 
+        // Smaller ring indicator to match
         this.placementIndicator = new THREE.Mesh(
-            new THREE.RingGeometry(0.7, 0.8, 32),
+            new THREE.RingGeometry(0.35, 0.4, 32),
             new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.5, depthTest: false })
         );
         this.placementIndicator.renderOrder = 998;
@@ -172,9 +174,9 @@ export class NoteSystem {
         this.world.scene.add(this.placementIndicator);
     }
 
-    drawNoteToCanvas(canvas, title, paperColor, textColor) {
+    drawNoteToCanvas(canvas, title, paperColor, textColor, authorName = null) {
         const ctx = canvas.getContext('2d');
-        // Paper background
+        // Paper background - fill the entire canvas with paper color
         ctx.fillStyle = paperColor;
         ctx.beginPath();
         const r = 20;
@@ -188,38 +190,54 @@ export class NoteSystem {
         ctx.quadraticCurveTo(0, h, 0, h - r);
         ctx.lineTo(0, r);
         ctx.quadraticCurveTo(0, 0, r, 0);
+        ctx.closePath();
         ctx.fill();
 
         // Shadow/Border (cute look)
-        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
         ctx.lineWidth = 4;
         ctx.stroke();
 
-        // Icon
-        ctx.font = '40px Outfit, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('📝', w / 2, 80);
-
-        // Title
+        // Title (no emoji, centered)
         ctx.fillStyle = textColor;
-        ctx.font = 'bold 24px Outfit, sans-serif';
+        ctx.font = 'bold 28px Outfit, sans-serif';
         ctx.textAlign = 'center';
-        // Wrap text if needed
+        ctx.textBaseline = 'middle';
+
+        // Wrap title text if needed
         const words = title.split(' ');
         let line = '';
-        let y = 140;
+        let lines = [];
         for (let n = 0; n < words.length; n++) {
             let testLine = line + words[n] + ' ';
             let metrics = ctx.measureText(testLine);
             if (metrics.width > w - 40 && n > 0) {
-                ctx.fillText(line, w / 2, y);
+                lines.push(line.trim());
                 line = words[n] + ' ';
-                y += 30;
             } else {
                 line = testLine;
             }
         }
-        ctx.fillText(line, w / 2, y);
+        lines.push(line.trim());
+
+        // Calculate vertical position (center title, author at bottom)
+        const lineHeight = 32;
+        const titleBlockHeight = lines.length * lineHeight;
+        let titleY = authorName ? (h / 2) - 20 : (h / 2);
+        titleY -= (titleBlockHeight / 2) - (lineHeight / 2);
+
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], w / 2, titleY + (i * lineHeight));
+        }
+
+        // Author name at bottom (if provided)
+        if (authorName) {
+            ctx.font = '18px Outfit, sans-serif';
+            ctx.fillStyle = textColor;
+            ctx.globalAlpha = 0.6;
+            ctx.fillText('- ' + authorName, w / 2, h - 30);
+            ctx.globalAlpha = 1;
+        }
     }
 
     update(input) {
@@ -316,11 +334,13 @@ export class NoteSystem {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 256;
-        this.drawNoteToCanvas(canvas, note.title, note.paperColor, note.textColor);
+        // Pass author name to draw on the note
+        this.drawNoteToCanvas(canvas, note.title, note.paperColor, note.textColor, note.authorName);
 
         const texture = new THREE.CanvasTexture(canvas);
+        // 50% smaller size (0.6 instead of 1.2)
         const mesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.2, 1.2),
+            new THREE.PlaneGeometry(0.6, 0.6),
             new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide })
         );
 
