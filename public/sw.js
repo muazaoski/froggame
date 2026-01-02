@@ -1,4 +1,5 @@
-const CACHE_NAME = 'frog-v3'; // Bump version to invalidate old cache - 2026-01-02
+// Service Worker - NO CACHING (Debug Mode)
+// All requests go directly to network
 
 self.addEventListener('install', (event) => {
     // Skip waiting - activate immediately
@@ -6,31 +7,16 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-    // Clear old caches
+    // Clear ALL caches
     event.waitUntil(
         caches.keys().then((keys) => {
-            return Promise.all(
-                keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-            );
+            return Promise.all(keys.map((key) => caches.delete(key)));
         })
     );
 });
 
 self.addEventListener('fetch', (event) => {
-    // Exclude Socket.IO requests from interception entirely
-    // This fixes the "Failed to convert value to 'Response'" error when polling fails
-    if (event.request.url.includes('socket.io')) {
-        return;
-    }
-
-    // For HTML - always fetch from network (never cache)
-    if (event.request.mode === 'navigate' || event.request.url.endsWith('.html')) {
-        event.respondWith(fetch(event.request));
-        return;
-    }
-
-    // For other assets - network first, fallback to cache
-    event.respondWith(
-        fetch(event.request).catch(() => caches.match(event.request))
-    );
+    // Do nothing - let all requests go to network
+    // This effectively disables the service worker caching
+    return;
 });
