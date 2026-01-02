@@ -124,14 +124,14 @@ export class DrawingSystem {
         const move = (e) => { e.stopPropagation(); this.draw(e.touches ? e.touches[0] : e); if (e.touches) e.preventDefault(); };
         const stop = (e) => { e.stopPropagation(); this.stopDrawing(); };
 
-        this.canvas.addEventListener('mousedown', start);
-        this.canvas.addEventListener('mousemove', move);
-        this.canvas.addEventListener('mouseup', stop);
-        this.canvas.addEventListener('mouseleave', stop);
+        this.displayCanvas.addEventListener('mousedown', start);
+        this.displayCanvas.addEventListener('mousemove', move);
+        this.displayCanvas.addEventListener('mouseup', stop);
+        this.displayCanvas.addEventListener('mouseleave', stop);
 
-        this.canvas.addEventListener('touchstart', start);
-        this.canvas.addEventListener('touchmove', move);
-        this.canvas.addEventListener('touchend', stop);
+        this.displayCanvas.addEventListener('touchstart', start);
+        this.displayCanvas.addEventListener('touchmove', move);
+        this.displayCanvas.addEventListener('touchend', stop);
     }
 
     setupToolListeners() {
