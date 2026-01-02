@@ -460,9 +460,21 @@ export class Input {
         // Check if clicking on UI elements - don't trigger game actions
         const isUIClick = e.target.closest('button, input, textarea, .panel, .panel-overlay, .bottom-left-buttons, #profile-modal, #dm-chat-panel, #emote-wheel, #friend-list-overlay, #profile-editor-overlay, #art-edit-ui, #drawing-modal, #note-creator-modal, #note-viewer-modal');
 
+        // DEBUG: Log every click
+        console.log('[INPUT] MouseDown', {
+            button: e.button,
+            chatOpen: this.chatOpen,
+            isUIClick: !!isUIClick,
+            targetElement: e.target.tagName,
+            targetId: e.target.id,
+            targetClasses: e.target.className,
+            willSetLeftClick: e.button === 0 && !this.chatOpen && !isUIClick
+        });
+
         // Left mouse button (button 0) for punch
         if (e.button === 0 && !this.chatOpen && !isUIClick) {
             this.leftClickPunch = true;
+            console.log('[INPUT] leftClickPunch SET TO TRUE');
         }
         // Right mouse button (button 2) for tongue
         if (e.button === 2 && !this.chatOpen && !isUIClick) {
