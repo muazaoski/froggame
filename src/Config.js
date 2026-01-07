@@ -192,7 +192,9 @@ export const Config = {
     tongueCooldown: 0.15,
 
 
+
     tongueColor: '#ff6b9d',         // Pink tongue color
+    tongueLineWidth: 4,             // Line thickness (works on some GPUs)
     tongueTipSize: 0.15,            // Size of tongue tip sphere
     tongueThicknessBase: 0.08,      // Base thickness near mouth
     tongueThicknessTip: 0.04,       // Tapered thickness at tip

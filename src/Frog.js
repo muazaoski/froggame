@@ -1929,24 +1929,28 @@ export class Frog {
     }
 
     /**
-     * Create tongue visual elements (line + tip)
+     * Create tongue visual elements (thick tube + tip)
      */
     createTongueVisual() {
         if (this.tongueLine) return; // Already created
 
-        // Create tongue line geometry with MULTIPLE SEGMENTS for sag/wobble
-        const segments = 16;
-        const tongueGeometry = new THREE.BufferGeometry();
-        const positions = new Float32Array((segments + 1) * 3);
-        tongueGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        // Store curve points for TubeGeometry updates
+        this.tongueSegmentCount = 16;
+        this.tongueCurvePoints = [];
+        for (let i = 0; i <= this.tongueSegmentCount; i++) {
+            this.tongueCurvePoints.push(new THREE.Vector3(0, 0, 0));
+        }
 
-        const tongueMaterial = new THREE.LineBasicMaterial({
-            color: Config.tongueColor,
-            linewidth: 4
+        // Create initial curve and tube geometry
+        const curve = new THREE.CatmullRomCurve3(this.tongueCurvePoints);
+        const tubeRadius = Config.tongueThicknessBase || 0.08;
+        const tongueGeometry = new THREE.TubeGeometry(curve, this.tongueSegmentCount, tubeRadius, 8, false);
+
+        const tongueMaterial = new THREE.MeshBasicMaterial({
+            color: Config.tongueColor
         });
 
-        this.tongueSegmentCount = segments;
-        this.tongueLine = new THREE.Line(tongueGeometry, tongueMaterial);
+        this.tongueLine = new THREE.Mesh(tongueGeometry, tongueMaterial);
         this.tongueLine.visible = false;
         this.tongueLine.frustumCulled = false;
 
@@ -2445,10 +2449,10 @@ export class Frog {
     }
 
     /**
-     * Update tongue visual (line + tip position)
+     * Update tongue visual (thick tube + tip position)
      */
     updateTongueVisual() {
-        if (!this.tongueLine || !this.tongueTip) return;
+        if (!this.tongueLine || !this.tongueTip || !this.tongueCurvePoints) return;
 
         // Calculate current tongue end based on progress
         const targetPos = this.tongue.lockedPoint;
@@ -2458,8 +2462,7 @@ export class Frog {
             this.tongue.progress
         );
 
-        const segments = this.tongueSegmentCount || 1;
-        const positions = this.tongueLine.geometry.attributes.position.array;
+        const segments = this.tongueSegmentCount || 16;
 
         const time = performance.now() / 1000;
         const isAttached = this.tongue.state === 'attached';
@@ -2482,7 +2485,6 @@ export class Frog {
         if (isAttached) {
             const maxSlackDist = 8.0;
             sagBase = Math.max(0, (maxSlackDist - dist) * 0.2);
-            // Reduce sag when swinging fast (tension)
             sagBase *= Math.max(0.2, 1 - swingSpeed * 0.05);
         }
 
@@ -2494,9 +2496,11 @@ export class Frog {
         const wobbleSpeed = isExtending ? 30 : 12;
         const wobble = Math.sin(time * wobbleSpeed) * wobbleIntensity;
 
+        // Update curve points
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
-            const p = new THREE.Vector3().lerpVectors(this.tongueStartPos, currentEnd, t);
+            const p = this.tongueCurvePoints[i];
+            p.lerpVectors(this.tongueStartPos, currentEnd, t);
 
             // Parabola factor (strongest in middle of tongue)
             const archFactor = Math.sin(t * Math.PI);
@@ -2518,13 +2522,15 @@ export class Frog {
                 p.z += waveOffset;
                 p.x += waveOffset * 0.5;
             }
-
-            positions[i * 3] = p.x;
-            positions[i * 3 + 1] = p.y;
-            positions[i * 3 + 2] = p.z;
         }
 
-        this.tongueLine.geometry.attributes.position.needsUpdate = true;
+        // Rebuild TubeGeometry with updated curve
+        const curve = new THREE.CatmullRomCurve3(this.tongueCurvePoints);
+        const tubeRadius = Config.tongueThicknessBase || 0.08;
+
+        // Dispose old geometry to prevent memory leak
+        this.tongueLine.geometry.dispose();
+        this.tongueLine.geometry = new THREE.TubeGeometry(curve, segments, tubeRadius, 8, false);
 
         // Update tip position
         this.tongueTip.position.copy(currentEnd);
@@ -2534,6 +2540,8 @@ export class Frog {
         const tipPulse = 1.0 + Math.sin(time * 15) * pulseIntensity;
         this.tongueTip.scale.setScalar(tipPulse);
     }
+
+
 
     /**
      * Visual feedback - HIT effect

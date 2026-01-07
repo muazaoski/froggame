@@ -432,6 +432,19 @@ function initDevGUI() {
     tongueFolder.add(Config, 'tongueCooldown', 0, 2).name('Cooldown');
     tongueFolder.add(Config, 'tongueAngleWeight', 0, 1).name('Target Angle Weight');
     tongueFolder.add(Config, 'tongueDistanceWeight', 0, 1).name('Target Dist Weight');
+    // Visual controls
+    tongueFolder.add(Config, 'tongueThicknessBase', 0.02, 0.3).name('Rope Thickness');
+    tongueFolder.add(Config, 'tongueTipSize', 0.5, 3).name('Tip Scale').onChange(v => {
+        if (world.localFrog && world.localFrog.tongueTip) {
+            world.localFrog.tongueTip.scale.setScalar(v);
+        }
+    });
+    tongueFolder.addColor(Config, 'tongueColor').name('Color').onChange(v => {
+        if (world.localFrog) {
+            if (world.localFrog.tongueLine) world.localFrog.tongueLine.material.color.set(v);
+            if (world.localFrog.tongueTip) world.localFrog.tongueTip.material.color.set(v);
+        }
+    });
     tongueFolder.close();
 
     // VFX Settings
