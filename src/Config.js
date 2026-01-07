@@ -1,6 +1,6 @@
 export const Config = {
     // Physics
-    gravity: -21.39,
+    gravity: -30,
     friction: 0.0,
     restitution: 0.336,
 
