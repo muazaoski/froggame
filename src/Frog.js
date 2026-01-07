@@ -299,7 +299,29 @@ export class Frog {
 
         // VISUAL ROTATION (Manually handle rotation)
         const axis = new THREE.Vector3(0, 1, 0);
-        this.mesh.quaternion.setFromAxisAngle(axis, this.facingAngle);
+
+        // When swinging: add body tilt toward anchor point (but keep horizontal facing unchanged)
+        if (this.tongue.state === 'attached' && this.tongue.lockedPoint && this.isLocal) {
+            const toAnchor = new THREE.Vector3().subVectors(this.tongue.lockedPoint, this.mesh.position);
+            const dist = toAnchor.length();
+
+            if (dist > 0.1) {
+                toAnchor.normalize();
+
+                // Calculate pitch (tilt up toward anchor)
+                const pitch = Math.atan2(toAnchor.y, Math.sqrt(toAnchor.x * toAnchor.x + toAnchor.z * toAnchor.z));
+                const clampedPitch = THREE.MathUtils.clamp(pitch, -Math.PI * 0.4, Math.PI * 0.6);
+
+                // Apply yaw (facingAngle stays as-is) + pitch (tilt toward anchor)
+                const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.facingAngle);
+                const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -clampedPitch);
+                this.mesh.quaternion.copy(yawQuat).multiply(pitchQuat);
+            } else {
+                this.mesh.quaternion.setFromAxisAngle(axis, this.facingAngle);
+            }
+        } else {
+            this.mesh.quaternion.setFromAxisAngle(axis, this.facingAngle);
+        }
 
         // Chat Fade Logic
         if (this.chatTimer > 0) {
@@ -479,25 +501,9 @@ export class Frog {
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-            // HYBRID ROTATION: 
-            // - Default: Face movement direction (natural walking)
-            // - When aiming (tongueHeld or tongue active): Face cursor
-            const isAiming = (input.tongueHeld || this.tongue.state !== 'idle');
+            // Just face movement direction (no special rotation for tongue)
+            this.facingAngle += angleDiff * Config.rotationSpeed * dt;
 
-            if (isAiming && lookTarget && !isPlacing) {
-                // Aiming mode: Smoothly rotate toward cursor
-                const toTarget = new THREE.Vector3().subVectors(lookTarget, this.mesh.position);
-                const lookAngle = Math.atan2(toTarget.x, toTarget.z);
-                let lookDiff = lookAngle - this.facingAngle;
-                while (lookDiff > Math.PI) lookDiff -= Math.PI * 2;
-                while (lookDiff < -Math.PI) lookDiff += Math.PI * 2;
-
-                // Smooth but responsive rotation toward aim
-                this.facingAngle += lookDiff * 15.0 * dt;
-            } else {
-                // Normal mode: Face movement direction
-                this.facingAngle += angleDiff * Config.rotationSpeed * dt;
-            }
 
             // Apply movement acceleration toward target velocity
             // This is MUCH snappier than raw force and prevents "speedster" teleportation
@@ -2314,10 +2320,80 @@ export class Frog {
     }
 
     /**
+     * Check if rope collides with walls and wrap around obstacles
+     */
+    checkRopeCollision() {
+        if (!this.tongue.lockedPoint || !this.world) return;
+
+        // Use current physics anchor (or lockedPoint if not wrapped yet)
+        const physicsAnchor = this.ropeCurrentAnchor || this.tongue.lockedPoint;
+
+        // Raycast from frog to current PHYSICS anchor point
+        const frogPos = this.mesh.position.clone();
+        const anchorPos = physicsAnchor.clone();
+        const direction = new THREE.Vector3().subVectors(anchorPos, frogPos);
+        const distance = direction.length();
+
+        if (distance < 0.5) return; // Too close to check
+
+        direction.normalize();
+
+        // Set up raycaster
+        _raycaster.set(frogPos, direction);
+        _raycaster.far = distance - 0.3; // Don't hit the anchor point itself
+
+        // Check against walls/terrain
+        const meshesToCheck = [];
+        if (this.world.wallMeshes) meshesToCheck.push(...this.world.wallMeshes);
+        if (this.world.terrainMeshes) meshesToCheck.push(...this.world.terrainMeshes);
+
+        const hits = _raycaster.intersectObjects(meshesToCheck, true);
+
+        if (hits.length > 0) {
+            const hit = hits[0];
+
+            // Don't wrap if too close to frog
+            if (hit.distance < 1.0) return;
+
+            // Create new wrap point at collision
+            const wrapPoint = hit.point.clone();
+
+            // Add small offset along normal to avoid clipping
+            if (hit.face && hit.face.normal) {
+                const worldNormal = hit.face.normal.clone();
+                if (hit.object.matrixWorld) {
+                    worldNormal.transformDirection(hit.object.matrixWorld);
+                }
+                wrapPoint.add(worldNormal.multiplyScalar(0.1));
+            }
+
+            // Store current physics anchor for rope wrap tracking
+            if (!this.ropeWrapPoints) this.ropeWrapPoints = [];
+            if (this.ropeCurrentAnchor) {
+                this.ropeWrapPoints.push(this.ropeCurrentAnchor.clone());
+            }
+
+            // Update PHYSICS anchor to wrap point (but NOT the visual target!)
+            this.ropeCurrentAnchor = wrapPoint.clone();
+            if (this.grappleAnchorBody) {
+                this.grappleAnchorBody.position.set(wrapPoint.x, wrapPoint.y, wrapPoint.z);
+            }
+
+            // tongue.lockedPoint stays at ORIGINAL target for visual/tilt
+            // DON'T change constraint distance - rope length stays the same
+
+            // The physics will naturally adjust since the anchor moved closer
+        }
+    }
+
+    /**
      * Physics Pendulum Swing Steer - Camera-Relative Directional Control
      */
     updateSwingSteer(dt, input) {
         if (!this.body || !this.grappleAnchorBody) return;
+
+        // Check for rope collision with walls (wrap around corners)
+        this.checkRopeCollision();
 
         // Lower damping so momentum builds
         this.body.linearDamping = 0.3;
@@ -2349,10 +2425,15 @@ export class Frog {
         this.body.applyForce(f, this.body.position);
     }
 
+
     startSwingGrapple(point) {
         if (!this.body || !this.world || !this.world.physics) return;
 
         this.stopSwingGrapple(); // Safety cleanup
+
+        // Initialize rope wrap tracking
+        this.ropeCurrentAnchor = point.clone();
+        this.ropeWrapPoints = [];
 
         // 1. Create static anchor at hit point
         this.grappleAnchorBody = new CANNON.Body({ mass: 0 });
@@ -2441,6 +2522,10 @@ export class Frog {
                     this.body.velocity.z += vel.z * boostFactor;
                 }
             }
+
+            // Clear wrap tracking
+            this.ropeWrapPoints = [];
+            this.ropeCurrentAnchor = null;
 
             this.stopSwingGrapple();
             this.tongue.state = 'retracting';
