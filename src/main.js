@@ -9,7 +9,7 @@ import { Input } from './Input.js';
 import { DrawingSystem } from './Drawing.js';
 import { NoteSystem } from './NoteSystem.js';
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import GUI from 'lil-gui';
 import { Config } from './Config.js';
@@ -18,55 +18,9 @@ import { Config } from './Config.js';
 const DefaultConfig = JSON.parse(JSON.stringify(Config));
 
 // Game systems - initialized async for WebGPU
-let world, input, network, drawingSystem, noteSystem;
+let world, input, network, drawingSystem, noteSystem, gui;
 let gameReady = false;
 
-// Async initialization for WebGPU support
-(async () => {
-    try {
-        // Initialize core systems
-        world = new World();
-        input = new Input();
-
-        // Wait for WebGPU renderer to initialize
-        await world.init();
-
-        // Initialize network after renderer is ready
-        network = new Network(world);
-        world.network = network;
-
-        // Initialize Drawing System
-        drawingSystem = new DrawingSystem(world, network);
-        world.drawingSystem = drawingSystem;
-
-        // Initialize Note System
-        noteSystem = new NoteSystem(world, network);
-        world.noteSystem = noteSystem;
-
-        // Expose for debugging
-        window.world = world;
-        window.game = { world, input, network };
-
-        gameReady = true;
-        console.log('🐸 Frog Game initialized with WebGPU!');
-
-        // Start game loop
-        animate(0);
-    } catch (error) {
-        console.error('❌ Failed to initialize game:', error);
-        // Show error to user
-        const container = document.getElementById('canvas-container');
-        if (container) {
-            container.innerHTML = `
-                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#fff;font-family:sans-serif;background:rgba(0,0,0,0.8);padding:40px;border-radius:16px;">
-                    <h1 style="color:#ff4444;">⚠️ WebGPU Not Supported</h1>
-                    <p style="font-size:18px;">${error.message}</p>
-                    <p style="opacity:0.7;">Please use a modern browser with WebGPU support.</p>
-                </div>
-            `;
-        }
-    }
-})();
 
 // PWA Installation Logic
 let deferredPrompt;
@@ -112,538 +66,587 @@ window.addEventListener('toggle-tongue-debug', () => {
 });
 
 // GUI Setup
-const gui = new GUI({ title: '🐸 Dev Config' });
-// Config starts hidden, toggle with Alt+V
-gui.hide();
+function initDevGUI() {
+    gui = new GUI({ title: '🐸 Dev Config' });
+    // Config starts hidden, toggle with Alt+V
+    gui.hide();
 
-// Helper function to add tooltip and double-click reset to controllers
-function addTooltip(controller, tooltip) {
-    // lil-gui controller structure: controller.domElement is the widget container
-    // controller.$name is the label, controller.$widget is the input area
+    // Helper function to add tooltip and double-click reset to controllers
+    function addTooltip(controller, tooltip) {
+        // lil-gui controller structure: controller.domElement is the widget container
+        // controller.$name is the label, controller.$widget is the input area
 
-    // Set tooltip on the name/label element
-    if (controller.$name) {
-        controller.$name.title = tooltip;
-        controller.$name.style.cursor = 'help';
-    }
+        // Set tooltip on the name/label element
+        if (controller.$name) {
+            controller.$name.title = tooltip;
+            controller.$name.style.cursor = 'help';
+        }
 
-    // Also set on the widget container
-    if (controller.domElement) {
-        controller.domElement.title = tooltip;
-    }
+        // Also set on the widget container
+        if (controller.domElement) {
+            controller.domElement.title = tooltip;
+        }
 
-    // Find the slider/input widget for double-click reset
-    const widget = controller.domElement.querySelector('input');
-    if (widget) {
-        widget.title = tooltip;
+        // Find the slider/input widget for double-click reset
+        const widget = controller.domElement.querySelector('input');
+        if (widget) {
+            widget.title = tooltip;
 
-        // Add double-click to reset on the widget
-        widget.addEventListener('dblclick', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const key = controller.property;
-            if (DefaultConfig[key] !== undefined) {
-                Config[key] = DefaultConfig[key];
-                controller.updateDisplay();
-                if (controller._onChange) {
-                    controller._onChange(Config[key]);
+            // Add double-click to reset on the widget
+            widget.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const key = controller.property;
+                if (DefaultConfig[key] !== undefined) {
+                    Config[key] = DefaultConfig[key];
+                    controller.updateDisplay();
+                    if (controller._onChange) {
+                        controller._onChange(Config[key]);
+                    }
+                    console.log(`Reset ${key} to default: ${DefaultConfig[key]}`);
                 }
-                console.log(`Reset ${key} to default: ${DefaultConfig[key]}`);
-            }
-        });
-    }
+            });
+        }
 
-    // Add double-click on the label too
-    if (controller.$name) {
-        controller.$name.addEventListener('dblclick', (e) => {
-            const key = controller.property;
-            if (DefaultConfig[key] !== undefined) {
-                Config[key] = DefaultConfig[key];
-                controller.updateDisplay();
-                if (controller._onChange) {
-                    controller._onChange(Config[key]);
+        // Add double-click on the label too
+        if (controller.$name) {
+            controller.$name.addEventListener('dblclick', (e) => {
+                const key = controller.property;
+                if (DefaultConfig[key] !== undefined) {
+                    Config[key] = DefaultConfig[key];
+                    controller.updateDisplay();
+                    if (controller._onChange) {
+                        controller._onChange(Config[key]);
+                    }
+                    console.log(`Reset ${key} to default: ${DefaultConfig[key]}`);
                 }
-                console.log(`Reset ${key} to default: ${DefaultConfig[key]}`);
+            });
+        }
+
+        return controller;
+    }
+
+
+
+    const physicsFolder = gui.addFolder('Physics');
+    physicsFolder.add(Config, 'gravity', -30, 0);
+    physicsFolder.add(Config, 'friction', 0, 1);
+    physicsFolder.add(Config, 'restitution', 0, 1);
+
+    const moveFolder = gui.addFolder('Movement');
+    moveFolder.add(Config, 'moveSpeed', 100, 5000);
+    moveFolder.add(Config, 'jumpVelocity', 0, 20);
+    moveFolder.add(Config, 'rotationSpeed', 1, 30);
+
+    const animFolder = gui.addFolder('Animation');
+    animFolder.add(Config, 'hopHeight', 0, 1);
+    animFolder.add(Config, 'hopSpeed', 1, 30);
+    animFolder.add(Config, 'talkSpeed', 1, 30);
+    animFolder.add(Config, 'legKickForce', 0, 1).name('Kick Force');
+    animFolder.add(Config, 'legKickDecay', 0.1, 10).name('Kick Decay');
+    animFolder.add(Config, 'walkLegSpeed', 0.1, 2).name('Walk Speed Mult');
+    animFolder.add(Config, 'walkLegHeight', 0, 1).name('Walk Height');
+
+    physicsFolder.add(Config, 'linearDamping', 0, 1).name('Sliding (Damping)').onChange(v => {
+        if (world.localFrog && world.localFrog.body) {
+            world.localFrog.body.linearDamping = v;
+        }
+    });
+
+    const envFolder = gui.addFolder('Environment');
+    envFolder.add(Config, 'sunIntensity', 0, 10).name('Sun Intensity').onChange(v => {
+        if (world.dirLight) world.dirLight.intensity = v;
+    });
+    envFolder.add(Config, 'ambientIntensity', 0, 5).name('Ambient Intensity').onChange(v => {
+        if (world.ambientLight) world.ambientLight.intensity = v;
+    });
+    envFolder.add(Config, 'hemiIntensity', 0, 5).name('Hemisphere Intensity').onChange(v => {
+        if (world.hemiLight) world.hemiLight.intensity = v;
+    });
+    envFolder.close();
+
+    // Shadow Controls
+    const shadowFolder = gui.addFolder('Shadows ☀️');
+    shadowFolder.add(Config, 'shadowEnabled').name('Enable Shadows').onChange(v => {
+        // Note: In WebGPU, we can't toggle renderer.shadowMap.enabled at runtime
+        // Only toggle the light's castShadow property
+        if (world.dirLight) world.dirLight.castShadow = v;
+    });
+    shadowFolder.add(Config, 'shadowBias', -0.01, 0.01).name('Shadow Bias').onChange(v => {
+        if (world.dirLight) world.dirLight.shadow.bias = v;
+    });
+    shadowFolder.add(Config, 'shadowNormalBias', 0, 0.1).name('Normal Bias').onChange(v => {
+        if (world.dirLight) world.dirLight.shadow.normalBias = v;
+    });
+    shadowFolder.add(Config, 'shadowRadius', 0, 16).name('Blur Radius').onChange(v => {
+        if (world.dirLight) world.dirLight.shadow.radius = v;
+    });
+    shadowFolder.add(Config, 'shadowCameraSize', 10, 200).name('Camera Size').onChange(v => {
+        if (world.dirLight) {
+            world.dirLight.shadow.camera.left = -v;
+            world.dirLight.shadow.camera.right = v;
+            world.dirLight.shadow.camera.top = v;
+            world.dirLight.shadow.camera.bottom = -v;
+            world.dirLight.shadow.camera.updateProjectionMatrix();
+        }
+    });
+    shadowFolder.close();
+
+    // Sky & Fog Folder
+    const skyFolder = gui.addFolder('Sky & Fog ☁️');
+    skyFolder.addColor({ color: '#' + world.scene.background.getHexString() }, 'color').name('Background Color').onChange(v => {
+        world.scene.background.set(v);
+        world.scene.fog.color.set(v);
+    });
+    skyFolder.add(world.scene.fog, 'near', 0, 100).name('Fog Near');
+    skyFolder.add(world.scene.fog, 'far', 50, 500).name('Fog Far');
+    skyFolder.close();
+
+    // === SHADER FX CONTROLS (WebGPU TSL - Real-time) ===
+    const shaderFolder = gui.addFolder('Shader FX');
+
+    // Helper to update uniforms directly for real-time control
+    const updateUniform = (name, value) => {
+        if (world && world.ppUniforms && world.ppUniforms[name]) {
+            world.ppUniforms[name].value = value;
+        }
+    };
+
+    // Color Grading Sub-folder
+    const colorFolder = shaderFolder.addFolder('Color Grading');
+    colorFolder.add(Config, 'shaderSaturation', 0, 2).name('Saturation').onChange(v => {
+        updateUniform('saturationVal', v);
+    });
+    colorFolder.add(Config, 'shaderBrightness', -0.5, 0.5).name('Brightness').onChange(v => {
+        updateUniform('brightness', v);
+    });
+    colorFolder.add(Config, 'shaderContrast', 0.5, 2).name('Contrast').onChange(v => {
+        updateUniform('contrast', v);
+    });
+
+    // Color Tint / Temperature Sub-folder
+    const tintFolder = shaderFolder.addFolder('Color Tint');
+    tintFolder.add(Config, 'shaderTemperature', -1, 1).name('Temperature').onChange(v => {
+        updateUniform('temperature', v);
+    });
+    tintFolder.add(Config, 'shaderTintR', 0, 2).name('Red Tint').onChange(v => {
+        updateUniform('tintR', v);
+    });
+    tintFolder.add(Config, 'shaderTintG', 0, 2).name('Green Tint').onChange(v => {
+        updateUniform('tintG', v);
+    });
+    tintFolder.add(Config, 'shaderTintB', 0, 2).name('Blue Tint').onChange(v => {
+        updateUniform('tintB', v);
+    });
+    tintFolder.close();
+
+    // Vignette Sub-folder
+    const vignetteFolder = shaderFolder.addFolder('Vignette');
+    vignetteFolder.add(Config, 'vignetteEnabled').name('Enabled').onChange(v => {
+        updateUniform('vignetteEnabled', v ? 1.0 : 0.0);
+    });
+    vignetteFolder.add(Config, 'vignetteOffset', 0, 1).name('Offset').onChange(v => {
+        updateUniform('vignetteOffset', v);
+    });
+    vignetteFolder.add(Config, 'vignetteDarkness', 0.5, 2).name('Darkness').onChange(v => {
+        updateUniform('vignetteDarkness', v);
+    });
+    vignetteFolder.close();
+
+    // Chromatic Aberration Sub-folder
+    const chromaFolder = shaderFolder.addFolder('Chromatic Aberration');
+    chromaFolder.add(Config, 'chromaticEnabled').name('Enabled').onChange(v => {
+        updateUniform('chromaEnabled', v ? 1.0 : 0.0);
+    });
+    chromaFolder.add(Config, 'chromaticIntensity', 0, 0.05).name('Intensity').onChange(v => {
+        updateUniform('chromaStrength', v);
+    });
+    chromaFolder.close();
+
+    // Film Grain Sub-folder
+    const grainFolder = shaderFolder.addFolder('Film Grain');
+    grainFolder.add(Config, 'grainEnabled').name('Enabled').onChange(v => {
+        updateUniform('grainEnabled', v ? 1.0 : 0.0);
+    });
+    grainFolder.add(Config, 'grainIntensity', 0, 0.3).name('Intensity').onChange(v => {
+        updateUniform('grainStrength', v);
+    });
+    grainFolder.close();
+
+    // Bloom Sub-folder
+    const bloomFolder = shaderFolder.addFolder('Bloom');
+    bloomFolder.add(Config, 'bloomEnabled').name('Enabled').onChange(v => {
+        updateUniform('bloomEnabled', v ? 1.0 : 0.0);
+    });
+    bloomFolder.add(Config, 'bloomIntensity', 0, 3).name('Intensity').onChange(v => {
+        updateUniform('bloomStrength', v);
+        // Also update internal bloom pass if available
+        if (world && world.bloomPass && world.bloomPass.strength) {
+            world.bloomPass.strength.value = v;
+        }
+    });
+    bloomFolder.add(Config, 'bloomThreshold', 0, 1).name('Threshold').onChange(v => {
+        updateUniform('bloomThreshold', v);
+        if (world && world.bloomPass && world.bloomPass.threshold) {
+            world.bloomPass.threshold.value = v;
+        }
+    });
+    bloomFolder.close();
+
+    // FXAA Anti-Aliasing
+    const fxaaFolder = shaderFolder.addFolder('FXAA Anti-Aliasing');
+    fxaaFolder.add(Config, 'fxaaEnabled').name('Enabled').onChange(v => {
+        updateUniform('fxaaEnabled', v ? 1.0 : 0.0);
+    });
+    fxaaFolder.close();
+
+    // GTAO - Ambient Occlusion
+    const gtaoFolder = shaderFolder.addFolder('Ambient Occlusion (GTAO)');
+    gtaoFolder.add(Config, 'gtaoEnabled').name('Enabled').onChange(v => {
+        updateUniform('gtaoEnabled', v ? 1.0 : 0.0);
+    });
+    gtaoFolder.close();
+
+    // DOF - Depth of Field (following official Three.js example pattern)
+    // Bind slider directly to the uniform's 'value' property
+    const dofFolder = shaderFolder.addFolder('Depth of Field');
+    dofFolder.add(Config, 'dofEnabled').name('Enabled').onChange(v => {
+        updateUniform('dofEnabled', v ? 1.0 : 0.0);
+    });
+    // Only add these sliders if ppUniforms exist
+    if (world.ppUniforms) {
+        dofFolder.add(world.ppUniforms.dofFocus, 'value', 10, 3000).name('Focus Distance');
+        dofFolder.add(world.ppUniforms.dofAperture, 'value', 50, 750).name('Focal Length');
+        dofFolder.add(world.ppUniforms.dofMaxBlur, 'value', 1, 20).name('Bokeh Scale');
+    }
+    dofFolder.close();
+
+    // Sepia Tone
+    const sepiaFolder = shaderFolder.addFolder('Sepia Tone');
+    sepiaFolder.add(Config, 'sepiaEnabled').name('Enabled').onChange(v => {
+        updateUniform('sepiaEnabled', v ? 1.0 : 0.0);
+    });
+    sepiaFolder.add(Config, 'sepiaIntensity', 0, 2).name('Intensity').onChange(v => {
+        updateUniform('sepiaIntensity', v);
+    });
+    sepiaFolder.close();
+
+    // RGB Shift
+    const rgbShiftFolder = shaderFolder.addFolder('RGB Shift');
+    rgbShiftFolder.add(Config, 'rgbShiftEnabled').name('Enabled').onChange(v => {
+        updateUniform('rgbShiftEnabled', v ? 1.0 : 0.0);
+    });
+    rgbShiftFolder.add(Config, 'rgbShiftAmount', 0, 0.02).name('Amount').onChange(v => {
+        if (world.rgbPass && world.rgbPass.amount) {
+            world.rgbPass.amount.value = v;
+        }
+    });
+    rgbShiftFolder.close();
+
+    // Dot Screen (Halftone)
+    const dotScreenFolder = shaderFolder.addFolder('Dot Screen (Halftone)');
+    dotScreenFolder.add(Config, 'dotScreenEnabled').name('Enabled').onChange(v => {
+        updateUniform('dotScreenEnabled', v ? 1.0 : 0.0);
+    });
+    dotScreenFolder.add(Config, 'dotScreenScale', 0.1, 5).name('Scale').onChange(v => {
+        if (world.dotPass && world.dotPass.scale) {
+            world.dotPass.scale.value = v;
+        }
+    });
+    dotScreenFolder.close();
+
+    // Sobel Edge Detection
+    const sobelFolder = shaderFolder.addFolder('Sobel Edge Detection');
+    sobelFolder.add(Config, 'sobelEnabled').name('Enabled').onChange(v => {
+        updateUniform('sobelEnabled', v ? 1.0 : 0.0);
+    });
+    sobelFolder.close();
+
+    // Camera Controls
+    const cameraFolder = gui.addFolder('Camera');
+    cameraFolder.add(Config, 'cameraDistance', Config.cameraMinDistance, Config.cameraMaxDistance).name('Distance').onChange(v => {
+        world.cameraDistance = v;
+    });
+    cameraFolder.add(Config, 'cameraMinDistance', 1, 20).name('Min Zoom');
+    cameraFolder.add(Config, 'cameraMaxDistance', 20, 100).name('Max Zoom');
+    cameraFolder.add(Config, 'cameraZoomSpeed', 0.5, 5).name('Zoom Speed');
+    cameraFolder.add(Config, 'cameraRotateSpeed', 0.001, 0.02).name('Rotate Speed');
+    cameraFolder.add(Config, 'cameraLerp', 0.01, 0.3).name('Smoothness');
+    cameraFolder.add({
+        resetCamera: () => {
+            world.cameraOrbitAngle = 0;
+            world.cameraPitchAngle = 0.6;
+            world.cameraDistance = Config.cameraDistance;
+        }
+    }, 'resetCamera').name('🔄 Reset View');
+    cameraFolder.close();
+
+    // Spectator Camera (Login Screen Background)
+    const spectatorFolder = gui.addFolder('Spectator Camera 👁️');
+    spectatorFolder.add(Config, 'spectatorDistance', 20, 200).name('Distance');
+    spectatorFolder.add(Config, 'spectatorPitch', 0.1, 1.5).name('Pitch');
+    spectatorFolder.add(Config, 'spectatorSpeed', 0.01, 0.3).name('Orbit Speed');
+    spectatorFolder.add(Config, 'spectatorHeight', -20, 50).name('Look At Height');
+    spectatorFolder.close();
+
+    // Jiggle Physics
+    const jiggleFolder = gui.addFolder('Jiggle Physics 🍑');
+    jiggleFolder.add(Config, 'jiggleEnabled').name('Enable Jiggle');
+    jiggleFolder.add(Config, 'jiggleIntensity', 0, 0.5).name('Intensity');
+    jiggleFolder.add(Config, 'jiggleSpeed', 1, 30).name('Speed');
+    jiggleFolder.add(Config, 'jiggleDamping', 1, 15).name('Damping');
+    jiggleFolder.add(Config, 'jiggleBounce', 0, 2).name('Bounce');
+    jiggleFolder.add(Config, 'jiggleMovementResponse', 0, 3).name('Movement Response');
+    jiggleFolder.add(Config, 'jiggleWalkWobble', 0, 0.3).name('Walk Wobble (Z)');
+    jiggleFolder.add(Config, 'jiggleWalkSpeed', 1, 25).name('Walk Speed');
+    jiggleFolder.add(Config, 'jiggleReturnSpeed', 1, 20).name('Return Speed');
+    jiggleFolder.close();
+
+    // Punch/Kick Animation
+    const punchFolder = gui.addFolder('Punch/Kick 🦵');
+    punchFolder.add(Config, 'punchSwingDistance', 0.5, 4).name('Swing Distance');
+    punchFolder.add(Config, 'punchSwingSpeed', 5, 30).name('Swing Speed');
+    punchFolder.add(Config, 'punchReturnSpeed', 2, 20).name('Return Speed');
+    punchFolder.add(Config, 'punchCooldown', 0.1, 1).name('Cooldown');
+    punchFolder.add(Config, 'punchLegRotation', 0, 0.5).name('Leg Rotation');
+    punchFolder.add(Config, 'punchHitRadius', 1, 5).name('Hit Radius');
+    punchFolder.close();
+
+    // Tongue Mechanics
+    const tongueFolder = gui.addFolder('Tongue 👅');
+    tongueFolder.add(Config, 'tongueRange', 5, 50).name('Range');
+    tongueFolder.add(Config, 'tongueExtendDuration', 0.05, 0.5).name('Extend Time');
+    tongueFolder.add(Config, 'tongueRetractDuration', 0.05, 0.5).name('Retract Time');
+    tongueFolder.add(Config, 'tongueConeAngle', 5, 90).name('Cone Angle');
+    tongueFolder.add(Config, 'tongueAssistRadius', 0.5, 10).name('Assist Radius');
+    tongueFolder.add(Config, 'tongueMagnetRadius', 0.1, 5).name('Magnet Radius');
+    tongueFolder.add(Config, 'tongueLaserSight').name('Enable Laser');
+    tongueFolder.add(Config, 'tongueLaserIntensity', 0, 1).name('Laser Intensity').onChange(v => {
+        if (world.localFrog && world.localFrog.laserLine) {
+            world.localFrog.laserLine.material.opacity = v;
+        }
+    });
+    tongueFolder.add(Config, 'tongueGrappleForce', 10, 300).name('Grapple Force');
+    tongueFolder.add(Config, 'tongueSwingForce', 10, 200).name('Swing Force');
+    tongueFolder.add(Config, 'tongueGrabForce', 5, 100).name('Grab/Pull Force');
+    tongueFolder.add(Config, 'tongueCooldown', 0, 2).name('Cooldown');
+    tongueFolder.add(Config, 'tongueAngleWeight', 0, 1).name('Target Angle Weight');
+    tongueFolder.add(Config, 'tongueDistanceWeight', 0, 1).name('Target Dist Weight');
+    tongueFolder.close();
+
+    // VFX Settings
+    const vfxFolder = gui.addFolder('VFX ✨');
+    vfxFolder.add(Config, 'vfxEnabled').name('Enable VFX');
+    vfxFolder.add(Config, 'vfxDustCount', 1, 15, 1).name('Dust Count');
+    vfxFolder.add(Config, 'vfxDustSize', 0.05, 0.5).name('Dust Size');
+    vfxFolder.add(Config, 'vfxDustLife', 0.1, 1.5).name('Dust Life');
+    vfxFolder.add(Config, 'vfxImpactCount', 2, 20, 1).name('Impact Count');
+    vfxFolder.add(Config, 'vfxImpactSize', 0.1, 0.5).name('Impact Size');
+    vfxFolder.add(Config, 'vfxImpactLife', 0.1, 1).name('Impact Life');
+    vfxFolder.add(Config, 'vfxWalkInterval', 0.05, 0.5).name('Walk Interval');
+    vfxFolder.close();
+
+    // Combat Settings
+    const combatFolder = gui.addFolder('Combat ⚔️');
+    combatFolder.add(Config, 'maxHealth', 50, 200, 10).name('Max Health');
+    combatFolder.add(Config, 'punchDamageMin', 1, 20, 1).name('Base Damage Min');
+    combatFolder.add(Config, 'punchDamageMax', 5, 30, 1).name('Base Damage Max');
+    combatFolder.add(Config, 'criticalDamageMin', 10, 40, 1).name('Crit Damage Min');
+    combatFolder.add(Config, 'criticalDamageMax', 15, 50, 1).name('Crit Damage Max');
+    combatFolder.add(Config, 'criticalChance', 0, 0.5).name('Crit Chance');
+    combatFolder.add(Config, 'knockbackForce', 5, 30).name('Knockback Force');
+    combatFolder.add(Config, 'knockbackUpward', 0, 15).name('Knockback Up');
+    combatFolder.add(Config, 'respawnTime', 1, 10).name('Respawn Time');
+    combatFolder.add(Config, 'deathFadeDuration', 0.5, 3).name('Death Fade');
+    combatFolder.close();
+
+    // Scooter Settings
+    const scooterFolder = gui.addFolder('Scooter 🛴');
+    scooterFolder.add(Config, 'scooterSpeed', 5, 40).name('Speed');
+    scooterFolder.add(Config, 'scooterTurnSpeed', 1, 10).name('Turn Speed');
+    scooterFolder.add(Config, 'scooterMaxTurn', 0.1, 1).name('Max Turn Angle');
+    scooterFolder.add(Config, 'scooterWheelSpeed', 5, 30).name('Wheel Spin Speed');
+    scooterFolder.add(Config, 'scooterAcceleration', 2, 20).name('Acceleration');
+    scooterFolder.add(Config, 'scooterDeceleration', 1, 15).name('Deceleration');
+    scooterFolder.add(Config, 'scooterSpawnRadius', 1, 5).name('Spawn Radius');
+    scooterFolder.close();
+
+    // Water Pattern Settings
+    const waterFolder = gui.addFolder('Water Pattern 🌊');
+    waterFolder.addColor(Config, 'waterColor').name('Color').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.color.value.set(v);
+    });
+    waterFolder.add(Config, 'waterOpacity', 0, 1).name('Opacity').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.opacity.value = v;
+    });
+    waterFolder.add(Config, 'waterScale', 0.1, 5).name('UV Scale').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.scale.value = v;
+    });
+    waterFolder.add(Config, 'waterFrequency1', 0, 100).name('Freq 1').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.frequency1.value = v;
+    });
+    waterFolder.add(Config, 'waterFrequency2', 0, 100).name('Freq 2').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.frequency2.value = v;
+    });
+    waterFolder.add(Config, 'waterFrequency3', 0, 100).name('Freq 3').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.frequency3.value = v;
+    });
+    waterFolder.add(Config, 'waterSpeed1', -5, 5).name('Speed 1').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.speed1.value = v;
+    });
+    waterFolder.add(Config, 'waterSpeed2', -5, 5).name('Speed 2').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.speed2.value = v;
+    });
+    waterFolder.add(Config, 'waterSpeed3', -5, 5).name('Speed 3').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.speed3.value = v;
+    });
+    waterFolder.add(Config, 'waterDistortion', 0, 1).name('Distortion').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.distortion.value = v;
+    });
+    waterFolder.add(Config, 'waterShimmerIntensity', 0, 1).name('Shimmer Intent').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.shimmerIntensity.value = v;
+    });
+    waterFolder.add(Config, 'waterShimmerThreshold', -1, 1).name('Shimmer Threshold').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.shimmerThreshold.value = v;
+    });
+    waterFolder.add(Config, 'waterShimmerSoftness', 0, 1).name('Shimmer Softness').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.shimmerSoftness.value = v;
+    });
+    waterFolder.add(Config, 'waterFoamIntensity', 0, 1).name('Foam Intensity').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.foamIntensity.value = v;
+    });
+    waterFolder.add(Config, 'waterFoamRange', 0, 2).name('Foam Range').onChange(v => {
+        if (world.waterUniforms) world.waterUniforms.foamRange.value = v;
+    });
+    waterFolder.close();
+
+    // Ball Physics
+    const ballFolder = gui.addFolder('Ball ⚽');
+
+    addTooltip(
+        ballFolder.add(Config, 'ballRadius', 0.2, 2).name('Radius').onChange(v => {
+            if (world.ball) {
+                if (world.ball.fallbackSphere) {
+                    world.ball.fallbackSphere.geometry.dispose();
+                    world.ball.fallbackSphere.geometry = new THREE.SphereGeometry(v, 32, 32);
+                }
             }
-        });
-    }
+        }),
+        'Ball size. Low=small, High=big. Double-click to reset.'
+    );
 
-    return controller;
-}
+    addTooltip(
+        ballFolder.add(Config, 'ballMass', 0.1, 2).name('Mass').onChange(v => {
+            if (world.ball && world.ball.body) {
+                world.ball.body.mass = v;
+                world.ball.body.updateMassProperties();
+            }
+        }),
+        'Ball weight. Low=flies far, High=hard to kick. Double-click to reset.'
+    );
 
+    addTooltip(
+        ballFolder.add(Config, 'ballLinearDamping', 0, 1).name('Linear Damping').onChange(v => {
+            if (world.ball && world.ball.body) {
+                world.ball.body.linearDamping = v;
+            }
+        }),
+        'How fast ball slows. Low=rolls forever, High=stops quick. Double-click to reset.'
+    );
 
+    addTooltip(
+        ballFolder.add(Config, 'ballAngularDamping', 0, 1).name('Angular Damping').onChange(v => {
+            if (world.ball && world.ball.body) {
+                world.ball.body.angularDamping = v;
+            }
+        }),
+        'How fast spin stops. Low=spins long, High=stops spinning. Double-click to reset.'
+    );
 
-const physicsFolder = gui.addFolder('Physics');
-physicsFolder.add(Config, 'gravity', -30, 0);
-physicsFolder.add(Config, 'friction', 0, 1);
-physicsFolder.add(Config, 'restitution', 0, 1);
+    addTooltip(
+        ballFolder.add(Config, 'ballBounciness', 0, 1).name('Bounciness'),
+        'Bounce amount. Low=dead ball, High=super bouncy. Double-click to reset.'
+    );
 
-const moveFolder = gui.addFolder('Movement');
-moveFolder.add(Config, 'moveSpeed', 100, 5000);
-moveFolder.add(Config, 'jumpVelocity', 0, 20);
-moveFolder.add(Config, 'rotationSpeed', 1, 30);
+    addTooltip(
+        ballFolder.add(Config, 'ballFriction', 0, 1).name('Friction'),
+        'Ground grip. Low=slides, High=rolls properly. Double-click to reset.'
+    );
 
-const animFolder = gui.addFolder('Animation');
-animFolder.add(Config, 'hopHeight', 0, 1);
-animFolder.add(Config, 'hopSpeed', 1, 30);
-animFolder.add(Config, 'talkSpeed', 1, 30);
-animFolder.add(Config, 'legKickForce', 0, 1).name('Kick Force');
-animFolder.add(Config, 'legKickDecay', 0.1, 10).name('Kick Decay');
-animFolder.add(Config, 'walkLegSpeed', 0.1, 2).name('Walk Speed Mult');
-animFolder.add(Config, 'walkLegHeight', 0, 1).name('Walk Height');
+    addTooltip(
+        ballFolder.add(Config, 'ballKickForce', 5, 30).name('Kick Force'),
+        'Kick power. Low=weak kicks, High=powerful kicks. Double-click to reset.'
+    );
 
-physicsFolder.add(Config, 'linearDamping', 0, 1).name('Sliding (Damping)').onChange(v => {
-    if (world.localFrog && world.localFrog.body) {
-        world.localFrog.body.linearDamping = v;
-    }
-});
+    addTooltip(
+        ballFolder.add(Config, 'ballKickUpward', 0, 15).name('Kick Upward'),
+        'Upward kick force. Low=ground shot, High=pop fly. Double-click to reset.'
+    );
 
-const envFolder = gui.addFolder('Environment');
-envFolder.add(Config, 'sunIntensity', 0, 5).onChange(v => {
-    // Need to find light in world
-    // We didn't store it in a public var, but we can traverse or just find by type
-    world.scene.traverse(obj => {
-        if (obj.isDirectionalLight) obj.intensity = v;
-    });
-});
-envFolder.add(Config, 'ambientIntensity', 0, 2).onChange(v => {
-    world.scene.traverse(obj => {
-        if (obj.isAmbientLight) obj.intensity = v;
-    });
-});
-// Update light immediately to sync with initial Config (only if world is ready)
-if (world && world.scene) {
-    world.scene.traverse(obj => {
-        if (obj.isDirectionalLight) obj.intensity = Config.sunIntensity;
-        if (obj.isAmbientLight) obj.intensity = Config.ambientIntensity;
-    });
-}
+    addTooltip(
+        ballFolder.add(Config, 'ballSpawnHeight', 5, 50).name('Spawn Height'),
+        'Ball spawn/reset height. Low=near ground, High=from sky. Double-click to reset.'
+    );
 
-// Hemisphere Light Folder
-const hemiFolder = gui.addFolder('Hemisphere Light 🌓');
-hemiFolder.add(Config, 'hemiIntensity', 0, 3).name('Intensity').onChange(v => {
-    if (world.hemiLight) world.hemiLight.intensity = v;
-});
-hemiFolder.addColor(Config, 'hemiSkyColor').name('Sky Color').onChange(v => {
-    if (world.hemiLight) world.hemiLight.color.set(v);
-});
-hemiFolder.addColor(Config, 'hemiGroundColor').name('Ground Color').onChange(v => {
-    if (world.hemiLight) world.hemiLight.groundColor.set(v);
-});
-hemiFolder.close();
+    addTooltip(
+        ballFolder.add(Config, 'ballResetHeight', -50, 0).name('Reset Height'),
+        'Y position that triggers reset. Lower=can fall far. Double-click to reset.'
+    );
 
-// Rim Light Folder
-const rimFolder = gui.addFolder('Rim Light 💡');
-rimFolder.add(Config, 'rimIntensity', 0, 5).name('Intensity').onChange(v => {
-    if (world.rimLight) world.rimLight.intensity = v;
-});
-rimFolder.addColor(Config, 'rimColor').name('Color').onChange(v => {
-    if (world.rimLight) world.rimLight.color.set(v);
-});
-rimFolder.add(Config, 'rimPosX', -100, 100).name('Pos X').onChange(v => {
-    if (world.rimLight) world.rimLight.position.x = v;
-});
-rimFolder.add(Config, 'rimPosY', 0, 100).name('Pos Y').onChange(v => {
-    if (world.rimLight) world.rimLight.position.y = v;
-});
-rimFolder.add(Config, 'rimPosZ', -100, 100).name('Pos Z').onChange(v => {
-    if (world.rimLight) world.rimLight.position.z = v;
-});
-rimFolder.close();
-
-// Player Aura Folder
-const auraFolder = gui.addFolder('Player Aura 🌟');
-auraFolder.add(Config, 'auraIntensity', 0, 10).name('Intensity');
-auraFolder.add(Config, 'auraDistance', 1, 20).name('Distance');
-auraFolder.addColor(Config, 'auraColor').name('Color');
-auraFolder.close();
-
-// Sky & Fog Folder
-const skyFolder = gui.addFolder('Sky & Fog ☁️');
-skyFolder.addColor({ color: '#' + world.scene.background.getHexString() }, 'color').name('Background Color').onChange(v => {
-    world.scene.background.set(v);
-    world.scene.fog.color.set(v);
-    // Update shader uniform to match sky for toon masking
-    if (world.composer) {
-        const pass = world.composer.passes.find(p => p.uniforms && p.uniforms.uSkyColor);
-        if (pass) {
-            const c = new THREE.Color(v);
-            pass.uniforms.uSkyColor.value.set(c.r, c.g, c.b);
-        }
-    }
-});
-skyFolder.add(world.scene.fog, 'near', 0, 100).name('Fog Near');
-skyFolder.add(world.scene.fog, 'far', 50, 500).name('Fog Far');
-skyFolder.close();
-
-// === SHADER FX CONTROLS ===
-const shaderFolder = gui.addFolder('Shader FX');
-shaderFolder.add(Config, 'useShader').name('Enable Post-FX');
-
-// Cycles Rendering Quality (SAO)
-const cyclesFolder = shaderFolder.addFolder('Cycles Mode (SAO) 💎');
-cyclesFolder.add(Config, 'saonEnabled').name('Enable SAO').onChange(v => {
-    if (world.saoPass) world.saoPass.enabled = v;
-});
-
-if (world.saoPass && world.saoPass.params) {
-    cyclesFolder.add(world.saoPass.params, 'saoIntensity', 0, 0.1).name('AO Strength');
-    cyclesFolder.add(world.saoPass.params, 'saoBias', -1, 1).name('AO Bias');
-    cyclesFolder.add(world.saoPass.params, 'saoKernelRadius', 1, 100).name('AO Radius');
-    cyclesFolder.add(world.saoPass.params, 'saoScale', 1, 50).name('AO Scale');
-}
-cyclesFolder.close();
-
-// Toon/Cel-Shade Toggles
-const toonFolder = shaderFolder.addFolder('Toon Style 🎨');
-toonFolder.add(Config, 'toonEnabled').name('Enable Cel-Shade').onChange(v => {
-    if (world.customPass) world.customPass.uniforms.uToonEnabled.value = v ? 1.0 : 0.0;
-});
-toonFolder.add(Config, 'outlineEnabled').name('Enable Outlines').onChange(v => {
-    if (world.customPass) world.customPass.uniforms.uOutlineEnabled.value = v ? 1.0 : 0.0;
-});
-toonFolder.add(Config, 'outlineIntensity', 0, 1).name('Outline Darkness').onChange(v => {
-    if (world.customPass) world.customPass.uniforms.uOutlineIntensity.value = v;
-});
-toonFolder.close();
-
-// Color Grading Sub-folder
-const colorFolder = shaderFolder.addFolder('Color Grading');
-colorFolder.add(Config, 'shaderSaturation', 0, 2).name('Saturation');
-colorFolder.add(Config, 'shaderBrightness', -0.5, 0.5).name('Brightness');
-colorFolder.add(Config, 'shaderContrast', 0.5, 2).name('Contrast');
-colorFolder.add(Config, 'shaderGamma', 0.5, 2).name('Gamma');
-
-// Color Tint / Temperature Sub-folder
-const tintFolder = shaderFolder.addFolder('Color Tint');
-tintFolder.add(Config, 'shaderTemperature', -1, 1).name('Temperature');
-tintFolder.add(Config, 'shaderTintR', 0, 2).name('Red Tint');
-tintFolder.add(Config, 'shaderTintG', 0, 2).name('Green Tint');
-tintFolder.add(Config, 'shaderTintB', 0, 2).name('Blue Tint');
-tintFolder.close();
-
-// Vignette Sub-folder
-const vignetteFolder = shaderFolder.addFolder('Vignette');
-vignetteFolder.add(Config, 'vignetteEnabled').name('Enabled');
-vignetteFolder.add(Config, 'vignetteIntensity', 0, 1).name('Intensity');
-vignetteFolder.add(Config, 'vignetteRadius', 0, 1).name('Radius');
-vignetteFolder.add(Config, 'vignetteSoftness', 0, 1).name('Softness');
-vignetteFolder.close();
-
-// Chromatic Aberration Sub-folder
-const chromaFolder = shaderFolder.addFolder('Chromatic Aberration');
-chromaFolder.add(Config, 'chromaticEnabled').name('Enabled');
-chromaFolder.add(Config, 'chromaticIntensity', 0, 0.02).name('Intensity');
-chromaFolder.add(Config, 'chromaticRadial').name('Radial Mode');
-chromaFolder.close();
-
-// Film Grain Sub-folder
-const grainFolder = shaderFolder.addFolder('Film Grain');
-grainFolder.add(Config, 'grainEnabled').name('Enabled');
-grainFolder.add(Config, 'grainIntensity', 0, 0.3).name('Intensity');
-grainFolder.add(Config, 'grainSpeed', 0.1, 5).name('Speed');
-grainFolder.add(Config, 'grainSize', 0.5, 5).name('Size');
-grainFolder.close();
-
-// Sharpen Sub-folder
-const sharpenFolder = shaderFolder.addFolder('Sharpen');
-sharpenFolder.add(Config, 'sharpenEnabled').name('Enabled');
-sharpenFolder.add(Config, 'sharpenIntensity', 0, 1).name('Intensity');
-sharpenFolder.close();
-
-// Bloom Sub-folder
-const bloomFolder = shaderFolder.addFolder('Bloom');
-bloomFolder.add(Config, 'bloomEnabled').name('Enabled');
-bloomFolder.add(Config, 'bloomIntensity', 0, 2).name('Intensity');
-bloomFolder.add(Config, 'bloomThreshold', 0, 1).name('Threshold');
-bloomFolder.add(Config, 'bloomRadius', 0, 1).name('Radius');
-bloomFolder.close();
-
-// Shadow Controls
-const shadowFolder = gui.addFolder('Shadows');
-shadowFolder.add(Config, 'shadowEnabled').name('Enable Shadows').onChange(v => {
-    world.renderer.shadowMap.enabled = v;
-    if (world.dirLight) world.dirLight.castShadow = v;
-    // Need to rebuild materials for shadow toggle
-    world.scene.traverse(obj => {
-        if (obj.material) obj.material.needsUpdate = true;
-    });
-});
-shadowFolder.add(Config, 'shadowMapSize', [512, 1024, 2048, 4096]).name('Map Resolution').onChange(v => {
-    if (world.dirLight) {
-        world.dirLight.shadow.mapSize.width = v;
-        world.dirLight.shadow.mapSize.height = v;
-        world.dirLight.shadow.map?.dispose();
-        world.dirLight.shadow.map = null;
-    }
-});
-shadowFolder.add(Config, 'shadowType', ['Basic', 'PCF', 'PCFSoft', 'VSM']).name('Shadow Type').onChange(v => {
-    world.renderer.shadowMap.type = world.getShadowMapType(v);
-    world.renderer.shadowMap.needsUpdate = true;
-    world.scene.traverse(obj => {
-        if (obj.material) obj.material.needsUpdate = true;
-    });
-});
-shadowFolder.add(Config, 'shadowRadius', 0, 16).name('Blur Radius').onChange(v => {
-    if (world.dirLight) world.dirLight.shadow.radius = v;
-});
-shadowFolder.add(Config, 'shadowBlurSamples', 1, 32, 1).name('Blur Samples').onChange(v => {
-    if (world.dirLight) world.dirLight.shadow.blurSamples = v;
-});
-shadowFolder.add(Config, 'shadowIntensity', 0, 1).name('Shadow Darkness').onChange(v => {
-    if (world.dirLight) world.dirLight.shadow.intensity = v;
-});
-shadowFolder.add(Config, 'shadowBias', -0.01, 0.01).name('Depth Bias').onChange(v => {
-    if (world.dirLight) world.dirLight.shadow.bias = v;
-});
-shadowFolder.add(Config, 'shadowNormalBias', 0, 0.1).name('Normal Bias').onChange(v => {
-    if (world.dirLight) world.dirLight.shadow.normalBias = v;
-});
-
-// Shadow Camera bounds (advanced)
-const shadowCamFolder = shadowFolder.addFolder('Camera Bounds');
-shadowCamFolder.add(Config, 'shadowCameraNear', 0.1, 10).name('Near').onChange(v => {
-    if (world.dirLight) {
-        world.dirLight.shadow.camera.near = v;
-        world.dirLight.shadow.camera.updateProjectionMatrix();
-    }
-});
-shadowCamFolder.add(Config, 'shadowCameraFar', 10, 500).name('Far').onChange(v => {
-    if (world.dirLight) {
-        world.dirLight.shadow.camera.far = v;
-        world.dirLight.shadow.camera.updateProjectionMatrix();
-    }
-});
-shadowCamFolder.add(Config, 'shadowCameraSize', 10, 200).name('Frustum Size').onChange(v => {
-    if (world.dirLight) {
-        world.dirLight.shadow.camera.top = v;
-        world.dirLight.shadow.camera.bottom = -v;
-        world.dirLight.shadow.camera.left = -v;
-        world.dirLight.shadow.camera.right = v;
-        world.dirLight.shadow.camera.updateProjectionMatrix();
-    }
-});
-shadowCamFolder.close();
-
-// Camera Controls
-const cameraFolder = gui.addFolder('Camera');
-cameraFolder.add(Config, 'cameraDistance', Config.cameraMinDistance, Config.cameraMaxDistance).name('Distance').onChange(v => {
-    world.cameraDistance = v;
-});
-cameraFolder.add(Config, 'cameraMinDistance', 1, 20).name('Min Zoom');
-cameraFolder.add(Config, 'cameraMaxDistance', 20, 100).name('Max Zoom');
-cameraFolder.add(Config, 'cameraZoomSpeed', 0.5, 5).name('Zoom Speed');
-cameraFolder.add(Config, 'cameraRotateSpeed', 0.001, 0.02).name('Rotate Speed');
-cameraFolder.add(Config, 'cameraLerp', 0.01, 0.3).name('Smoothness');
-cameraFolder.add({
-    resetCamera: () => {
-        world.cameraOrbitAngle = 0;
-        world.cameraPitchAngle = 0.6;
-        world.cameraDistance = Config.cameraDistance;
-    }
-}, 'resetCamera').name('🔄 Reset View');
-cameraFolder.close();
-
-// Spectator Camera (Login Screen Background)
-const spectatorFolder = gui.addFolder('Spectator Camera 👁️');
-spectatorFolder.add(Config, 'spectatorDistance', 20, 200).name('Distance');
-spectatorFolder.add(Config, 'spectatorPitch', 0.1, 1.5).name('Pitch');
-spectatorFolder.add(Config, 'spectatorSpeed', 0.01, 0.3).name('Orbit Speed');
-spectatorFolder.add(Config, 'spectatorHeight', -20, 50).name('Look At Height');
-spectatorFolder.close();
-
-// Jiggle Physics
-const jiggleFolder = gui.addFolder('Jiggle Physics 🍑');
-jiggleFolder.add(Config, 'jiggleEnabled').name('Enable Jiggle');
-jiggleFolder.add(Config, 'jiggleIntensity', 0, 0.5).name('Intensity');
-jiggleFolder.add(Config, 'jiggleSpeed', 1, 30).name('Speed');
-jiggleFolder.add(Config, 'jiggleDamping', 1, 15).name('Damping');
-jiggleFolder.add(Config, 'jiggleBounce', 0, 2).name('Bounce');
-jiggleFolder.add(Config, 'jiggleMovementResponse', 0, 3).name('Movement Response');
-jiggleFolder.add(Config, 'jiggleWalkWobble', 0, 0.3).name('Walk Wobble (Z)');
-jiggleFolder.add(Config, 'jiggleWalkSpeed', 1, 25).name('Walk Speed');
-jiggleFolder.add(Config, 'jiggleReturnSpeed', 1, 20).name('Return Speed');
-jiggleFolder.close();
-
-// Punch/Kick Animation
-const punchFolder = gui.addFolder('Punch/Kick 🦵');
-punchFolder.add(Config, 'punchSwingDistance', 0.5, 4).name('Swing Distance');
-punchFolder.add(Config, 'punchSwingSpeed', 5, 30).name('Swing Speed');
-punchFolder.add(Config, 'punchReturnSpeed', 2, 20).name('Return Speed');
-punchFolder.add(Config, 'punchCooldown', 0.1, 1).name('Cooldown');
-punchFolder.add(Config, 'punchLegRotation', 0, 0.5).name('Leg Rotation');
-punchFolder.add(Config, 'punchHitRadius', 1, 5).name('Hit Radius');
-punchFolder.close();
-
-// VFX Settings
-const vfxFolder = gui.addFolder('VFX ✨');
-vfxFolder.add(Config, 'vfxEnabled').name('Enable VFX');
-vfxFolder.add(Config, 'vfxDustCount', 1, 15, 1).name('Dust Count');
-vfxFolder.add(Config, 'vfxDustSize', 0.05, 0.5).name('Dust Size');
-vfxFolder.add(Config, 'vfxDustLife', 0.1, 1.5).name('Dust Life');
-vfxFolder.add(Config, 'vfxImpactCount', 2, 20, 1).name('Impact Count');
-vfxFolder.add(Config, 'vfxImpactSize', 0.1, 0.5).name('Impact Size');
-vfxFolder.add(Config, 'vfxImpactLife', 0.1, 1).name('Impact Life');
-vfxFolder.add(Config, 'vfxWalkInterval', 0.05, 0.5).name('Walk Interval');
-vfxFolder.close();
-
-// Combat Settings
-const combatFolder = gui.addFolder('Combat ⚔️');
-combatFolder.add(Config, 'maxHealth', 50, 200, 10).name('Max Health');
-combatFolder.add(Config, 'punchDamageMin', 1, 20, 1).name('Base Damage Min');
-combatFolder.add(Config, 'punchDamageMax', 5, 30, 1).name('Base Damage Max');
-combatFolder.add(Config, 'criticalDamageMin', 10, 40, 1).name('Crit Damage Min');
-combatFolder.add(Config, 'criticalDamageMax', 15, 50, 1).name('Crit Damage Max');
-combatFolder.add(Config, 'criticalChance', 0, 0.5).name('Crit Chance');
-combatFolder.add(Config, 'knockbackForce', 5, 30).name('Knockback Force');
-combatFolder.add(Config, 'knockbackUpward', 0, 15).name('Knockback Up');
-combatFolder.add(Config, 'respawnTime', 1, 10).name('Respawn Time');
-combatFolder.add(Config, 'deathFadeDuration', 0.5, 3).name('Death Fade');
-combatFolder.close();
-
-// Scooter Settings
-const scooterFolder = gui.addFolder('Scooter 🛴');
-scooterFolder.add(Config, 'scooterSpeed', 5, 40).name('Speed');
-scooterFolder.add(Config, 'scooterTurnSpeed', 1, 10).name('Turn Speed');
-scooterFolder.add(Config, 'scooterMaxTurn', 0.1, 1).name('Max Turn Angle');
-scooterFolder.add(Config, 'scooterWheelSpeed', 5, 30).name('Wheel Spin Speed');
-scooterFolder.add(Config, 'scooterAcceleration', 2, 20).name('Acceleration');
-scooterFolder.add(Config, 'scooterDeceleration', 1, 15).name('Deceleration');
-scooterFolder.add(Config, 'scooterSpawnRadius', 1, 5).name('Spawn Radius');
-scooterFolder.close();
-
-// Ball Physics
-const ballFolder = gui.addFolder('Ball ⚽');
-
-addTooltip(
-    ballFolder.add(Config, 'ballRadius', 0.2, 2).name('Radius').onChange(v => {
-        if (world.ball) {
-            if (world.ball.fallbackSphere) {
-                world.ball.fallbackSphere.geometry.dispose();
-                world.ball.fallbackSphere.geometry = new THREE.SphereGeometry(v, 32, 32);
+    ballFolder.add({
+        resetBall: () => {
+            if (world.ball) {
+                world.ball.body.position.set(5, Config.ballSpawnHeight, 0);
+                world.ball.body.velocity.set(0, 0, 0);
+                world.ball.body.angularVelocity.set(0, 0, 0);
             }
         }
-    }),
-    'Ball size. Low=small, High=big. Double-click to reset.'
-);
+    }, 'resetBall').name('🔄 Reset Ball Position');
 
-addTooltip(
-    ballFolder.add(Config, 'ballMass', 0.1, 2).name('Mass').onChange(v => {
-        if (world.ball && world.ball.body) {
-            world.ball.body.mass = v;
-            world.ball.body.updateMassProperties();
-        }
-    }),
-    'Ball weight. Low=flies far, High=hard to kick. Double-click to reset.'
-);
+    ballFolder.close();
 
-addTooltip(
-    ballFolder.add(Config, 'ballLinearDamping', 0, 1).name('Linear Damping').onChange(v => {
-        if (world.ball && world.ball.body) {
-            world.ball.body.linearDamping = v;
-        }
-    }),
-    'How fast ball slows. Low=rolls forever, High=stops quick. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballAngularDamping', 0, 1).name('Angular Damping').onChange(v => {
-        if (world.ball && world.ball.body) {
-            world.ball.body.angularDamping = v;
-        }
-    }),
-    'How fast spin stops. Low=spins long, High=stops spinning. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballBounciness', 0, 1).name('Bounciness'),
-    'Bounce amount. Low=dead ball, High=super bouncy. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballFriction', 0, 1).name('Friction'),
-    'Ground grip. Low=slides, High=rolls properly. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballKickForce', 5, 30).name('Kick Force'),
-    'Kick power. Low=weak kicks, High=powerful kicks. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballKickUpward', 0, 15).name('Kick Upward'),
-    'Upward kick force. Low=ground shot, High=pop fly. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballSpawnHeight', 5, 50).name('Spawn Height'),
-    'Ball spawn/reset height. Low=near ground, High=from sky. Double-click to reset.'
-);
-
-addTooltip(
-    ballFolder.add(Config, 'ballResetHeight', -50, 0).name('Reset Height'),
-    'Y position that triggers reset. Lower=can fall far. Double-click to reset.'
-);
-
-ballFolder.add({
-    resetBall: () => {
-        if (world.ball) {
-            world.ball.body.position.set(5, Config.ballSpawnHeight, 0);
-            world.ball.body.velocity.set(0, 0, 0);
-            world.ball.body.angularVelocity.set(0, 0, 0);
-        }
-    }
-}, 'resetBall').name('🔄 Reset Ball Position');
-
-ballFolder.close();
-
-// Scooter Rider Position (only applies when riding scooter)
-const scooterRiderFolder = gui.addFolder('Scooter Rider Position');
-scooterRiderFolder.add(Config, 'scooterRiderY', -1, 2, 0.05).name('Frog Y Offset');
-scooterRiderFolder.add(Config, 'scooterLegOffsetX', -1, 1, 0.05).name('Leg X Offset');
-scooterRiderFolder.add(Config, 'scooterLegOffsetY', -1, 1, 0.05).name('Leg Y Offset');
-scooterRiderFolder.add(Config, 'scooterLegOffsetZ', -1, 1, 0.05).name('Leg Z Offset');
-scooterRiderFolder.add(Config, 'scooterLegRotationX', -Math.PI, Math.PI, 0.05).name('Leg Rotation X');
-scooterRiderFolder.add(Config, 'scooterLegRotationY', -Math.PI, Math.PI, 0.05).name('Leg Rotation Y');
-scooterRiderFolder.add(Config, 'scooterLegRotationZ', -Math.PI, Math.PI, 0.05).name('Leg Rotation Z');
-scooterRiderFolder.close();
-
-const grassFolder = gui.addFolder('🌿 Grass Interaction');
-grassFolder.add(Config, 'grassBendingStrength', 0, 10).name('Bending Strength');
-grassFolder.add(Config, 'grassBendingRadius', 1, 10).name('Bending Radius');
-grassFolder.add(Config, 'grassWindSpeed', 0, 5).name('Wind Speed');
-grassFolder.add(Config, 'grassWindStrength', 0, 1).name('Wind Strength');
-grassFolder.close();
+    // Scooter Rider Position (only applies when riding scooter)
+    const scooterRiderFolder = gui.addFolder('Scooter Rider Position');
+    scooterRiderFolder.add(Config, 'scooterRiderY', -1, 2, 0.05).name('Frog Y Offset');
+    scooterRiderFolder.add(Config, 'scooterLegOffsetX', -1, 1, 0.05).name('Leg X Offset');
+    scooterRiderFolder.add(Config, 'scooterLegOffsetY', -1, 1, 0.05).name('Leg Y Offset');
+    scooterRiderFolder.add(Config, 'scooterLegOffsetZ', -1, 1, 0.05).name('Leg Z Offset');
+    scooterRiderFolder.add(Config, 'scooterLegRotationX', -Math.PI, Math.PI, 0.05).name('Leg Rotation X');
+    scooterRiderFolder.add(Config, 'scooterLegRotationY', -Math.PI, Math.PI, 0.05).name('Leg Rotation Y');
+    scooterRiderFolder.add(Config, 'scooterLegRotationZ', -Math.PI, Math.PI, 0.05).name('Leg Rotation Z');
+    scooterRiderFolder.close();
 
 
 
-const exportObj = {
-    exportSettings: () => {
-        // Find changed values only
-        const changed = {};
-        for (const key in Config) {
-            if (Config[key] !== DefaultConfig[key]) {
-                changed[key] = Config[key];
+
+    const exportObj = {
+        exportSettings: () => {
+            // Find changed values only
+            const changed = {};
+            for (const key in Config) {
+                if (Config[key] !== DefaultConfig[key]) {
+                    changed[key] = Config[key];
+                }
             }
-        }
 
-        if (Object.keys(changed).length === 0) {
-            console.log("--- NO CHANGES ---");
-            alert("No settings have been changed from defaults.");
-        } else {
-            console.log("--- CHANGED SETTINGS ---");
-            console.log(JSON.stringify(changed, null, 4));
-            alert(`${Object.keys(changed).length} settings changed! Check Console (F12)`);
+            if (Object.keys(changed).length === 0) {
+                console.log("--- NO CHANGES ---");
+                alert("No settings have been changed from defaults.");
+            } else {
+                console.log("--- CHANGED SETTINGS ---");
+                console.log(JSON.stringify(changed, null, 4));
+                alert(`${Object.keys(changed).length} settings changed! Check Console (F12)`);
+            }
+        },
+        exportAll: () => {
+            console.log("--- FULL CONFIG ---");
+            console.log(JSON.stringify(Config, null, 4));
+            alert("Full config exported to Console! (Press F12)");
         }
-    },
-    exportAll: () => {
-        console.log("--- FULL CONFIG ---");
-        console.log(JSON.stringify(Config, null, 4));
-        alert("Full config exported to Console! (Press F12)");
-    }
-};
-gui.add(exportObj, 'exportSettings').name('💾 Log Changed Settings');
-gui.add(exportObj, 'exportAll').name('📋 Log All Settings');
+    };
+    gui.add(exportObj, 'exportSettings').name('💾 Log Changed Settings');
+    gui.add(exportObj, 'exportAll').name('📋 Log All Settings');
+}
 
 // Dev Config Toggle - Alt + V
 let guiVisible = false;
@@ -676,19 +679,6 @@ function animate(time) {
     // This fixes the "freeze" issue when switching tabs
     if (dt > 0.1) dt = 0.1; // Max 100ms per frame
 
-    // Update drawing system (for placement preview and selection)
-    // --- DEBUG HUD START ---
-    const debugIsPlacing = (drawingSystem && drawingSystem.isPlacingArt) || (noteSystem && noteSystem.isPlacing);
-    let debugHud = document.getElementById('debug-hud');
-    if (!debugHud) {
-        debugHud = document.createElement('div');
-        debugHud.id = 'debug-hud';
-        debugHud.style.cssText = 'position:fixed;top:10px;left:10px;background:rgba(0,0,0,0.7);color:#0f0;padding:5px;font-family:monospace;z-index:99999;pointer-events:none;';
-        document.body.appendChild(debugHud);
-    }
-    debugHud.innerHTML = `Mode: ${debugIsPlacing ? 'PLACING 🛑' : 'PLAYING ▶️'}<br>Click: ${input.leftClickPunch ? 'YES' : 'NO'}<br>Note: ${noteSystem && noteSystem.isPlacing}`;
-    // --- DEBUG HUD END ---
-
     if (drawingSystem) {
         drawingSystem.update(input);
     }
@@ -707,18 +697,6 @@ function animate(time) {
         world._poseEditorInitialized = true;
     }
 
-    // Send local updates if player exists
-    // DEBUG: Log every frame if in placement mode
-    if (noteSystem && noteSystem.isPlacing) {
-        if (!window._lastPlacingLog || Date.now() - window._lastPlacingLog > 1000) {
-            console.log('[FRAME DEBUG] Placing mode active', {
-                hasLocalFrog: !!world.localFrog,
-                leftClickPunch: input.leftClickPunch,
-                noteIsPlacing: noteSystem.isPlacing
-            });
-            window._lastPlacingLog = Date.now();
-        }
-    }
 
     if (world.localFrog) {
         const lookTarget = world.getMouseIntersection(input);
@@ -726,13 +704,7 @@ function animate(time) {
         // Try placing art/notes (do this BEFORE frog update so it can consume the punch input)
         const isPlacing = drawingSystem.isPlacingArt || noteSystem.isPlacing;
 
-        // DEBUG: Log every click
         if (input.leftClickPunch) {
-            console.log('[MAIN.JS] LEFT CLICK DETECTED!', {
-                isPlacing,
-                noteIsPlacing: noteSystem.isPlacing,
-                artIsPlacing: drawingSystem.isPlacingArt
-            });
 
             // If we are in placement mode, we ALWAYS consume the click so the frog doesn't punch.
             if (drawingSystem.isPlacingArt) {
@@ -743,16 +715,14 @@ function animate(time) {
                 console.log('[MAIN.JS] Calling noteSystem.tryPlace');
                 noteSystem.tryPlace(input);
                 input.consumePunch();
-            } else {
-                console.log('[MAIN.JS] Not in placement mode, allowing normal punch');
             }
         }
 
         world.localFrog.update(dt, input, lookTarget, world.cameraOrbitAngle, isPlacing);
 
         // Handle tongue input (only if not in placement mode)
-        if (!drawingSystem.isPlacingArt && !noteSystem.isPlacing && input.consumeTongue() && lookTarget) {
-            world.localFrog.shootTongue(lookTarget, world);
+        if (!drawingSystem.isPlacingArt && !noteSystem.isPlacing && input.consumeTongue()) {
+            world.localFrog.shootTongue(input, world);
         }
 
         // Release grapple when right mouse released
@@ -1098,6 +1068,7 @@ if (tableHeader) {
 // Update player list
 function updatePlayerList() {
     if (!playerList) return;
+    if (!world) return;
 
     playerList.innerHTML = '';
 
@@ -1146,27 +1117,31 @@ function updatePlayerList() {
     }
 }
 
-// Update player list when players change
-const originalAddRemoteFrog = world.addRemoteFrog.bind(world);
-world.addRemoteFrog = function (id, data) {
-    const result = originalAddRemoteFrog(id, data);
-    updatePlayerList();
-    return result;
-};
+// Update player list when players change - setup function to be called after world init
+function setupPlayerListUpdates() {
+    if (!world) return;
 
-const originalAddLocalFrog = world.addLocalFrog.bind(world);
-world.addLocalFrog = function (id, color, data) {
-    const result = originalAddLocalFrog(id, color, data);
-    updatePlayerList();
-    return result;
-};
+    const originalAddRemoteFrog = world.addRemoteFrog.bind(world);
+    world.addRemoteFrog = function (id, data) {
+        const result = originalAddRemoteFrog(id, data);
+        updatePlayerList();
+        return result;
+    };
 
-const originalRemoveFrog = world.removeFrog.bind(world);
-world.removeFrog = function (id) {
-    const result = originalRemoveFrog(id);
-    updatePlayerList();
-    return result;
-};
+    const originalAddLocalFrog = world.addLocalFrog.bind(world);
+    world.addLocalFrog = function (id, color, data) {
+        const result = originalAddLocalFrog(id, color, data);
+        updatePlayerList();
+        return result;
+    };
+
+    const originalRemoveFrog = world.removeFrog.bind(world);
+    world.removeFrog = function (id) {
+        const result = originalRemoveFrog(id);
+        updatePlayerList();
+        return result;
+    };
+}
 
 // Update player list periodically to refresh ping values
 setInterval(updatePlayerList, 2000);
@@ -1263,13 +1238,13 @@ window.addEventListener('keydown', (e) => {
 // Respawn button
 if (btnRespawn) {
     btnRespawn.addEventListener('click', () => {
-        if (world.localFrog && !world.localFrog.isDead) {
+        if (world && world.localFrog && !world.localFrog.isDead) {
             // Clear lastAttackerId to prevent XP award for suicide
             world.localFrog.lastAttackerId = null;
             // Force respawn by dying (no kill credit)
             world.localFrog.takeDamage(999, null, false, false, null);
             closeSettings();
-        } else if (world.localFrog && world.localFrog.isDead) {
+        } else if (world && world.localFrog && world.localFrog.isDead) {
             // Already dead, just close settings
             closeSettings();
         }
@@ -1459,7 +1434,7 @@ if (profileEditorBtn && profileEditorOverlay) {
         }
 
         // Fetch fresh data from server to avoid stale state (crucial for bio/badges)
-        if (network && network.socket && world.localFrog.userId) {
+        if (network && network.socket && world && world.localFrog && world.localFrog.userId) {
             network.socket.emit('getProfile', world.localFrog.userId, (data) => {
                 if (data) {
 
@@ -1510,7 +1485,7 @@ if (profileEditorBtn && profileEditorOverlay) {
 
         function openEditorWithCache() {
             // Load current color from local frog
-            if (world.localFrog) {
+            if (world && world.localFrog) {
                 const color = world.localFrog.color || '#4CAF50';
                 if (profileColorPicker) profileColorPicker.value = color;
 
@@ -1564,7 +1539,7 @@ if (btnSaveProfile) {
         const newBio = profileBioInput.value.trim();
 
         // Update local frog color and bio
-        if (world.localFrog) {
+        if (world && world.localFrog) {
             world.localFrog.color = newColor;
             world.localFrog.bio = newBio;
             world.localFrog.badges = selectedBadges;
@@ -1650,7 +1625,7 @@ profileColorCircles.forEach(circle => {
         if (profileColorPicker) profileColorPicker.value = color;
 
         // Live preview
-        if (world.localFrog && world.localFrog.setColor) {
+        if (world && world.localFrog && world.localFrog.setColor) {
             world.localFrog.setColor(color);
         }
     });
@@ -1663,7 +1638,7 @@ if (btnSaveOutfit) {
         const newColor = profileColorPicker?.value || '#4CAF50';
 
         // Update local frog
-        if (world.localFrog) {
+        if (world && world.localFrog) {
             world.localFrog.color = newColor;
         }
 
@@ -2364,3 +2339,56 @@ function setupPoseEditor(frog) {
     // Initial build
     buildPartsGUI();
 }
+
+// Async initialization for WebGPU support - Moved to end to avoid TDZ errors
+(async () => {
+    try {
+        // Initialize core systems
+        world = new World();
+        input = new Input();
+
+        // Wait for WebGPU renderer to initialize
+        await world.init();
+
+        // Initialize network after renderer is ready
+        network = new Network(world);
+        world.network = network;
+
+        // Initialize Drawing System
+        drawingSystem = new DrawingSystem(world, network);
+        world.drawingSystem = drawingSystem;
+
+        // Setup UI hooks
+        if (typeof setupPlayerListUpdates === 'function') setupPlayerListUpdates();
+
+        // Initialize Note System
+        noteSystem = new NoteSystem(world, network);
+        world.noteSystem = noteSystem;
+
+        // Initialize GUI
+        if (typeof initDevGUI === 'function') initDevGUI();
+
+        // Expose for debugging
+        window.world = world;
+        window.game = { world, input, network };
+
+        gameReady = true;
+        console.log('🐸 Frog Game initialized with WebGPU!');
+
+        // Start game loop
+        animate(0);
+    } catch (error) {
+        console.error('❌ Failed to initialize game:', error);
+        // Show error to user
+        const container = document.getElementById('canvas-container');
+        if (container) {
+            container.innerHTML = `
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#fff;font-family:sans-serif;background:rgba(0,0,0,0.8);padding:40px;border-radius:16px;">
+                    <h1 style="color:#ff4444;">⚠️ WebGPU Not Supported</h1>
+                    <p style="font-size:18px;">${error.message}</p>
+                    <p style="opacity:0.7;">Please use a modern browser with WebGPU support.</p>
+                </div>
+            `;
+        }
+    }
+})();

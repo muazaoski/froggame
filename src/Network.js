@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { Config } from './Config.js';
 
 export class Network {

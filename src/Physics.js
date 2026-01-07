@@ -8,6 +8,11 @@ export class Physics {
         this.world.broadphase = new CANNON.NaiveBroadphase();
         this.world.solver.iterations = 30; // Increased for better stability with fast movement
 
+        // Collision Groups
+        this.FILTER_TERRAIN = 1;
+        this.FILTER_FROG = 2;
+        this.FILTER_INTERACTIVE = 4; // Ball, Scooters, etc
+
         // Materials
         this.groundMaterial = new CANNON.Material('ground');
         this.frogMaterial = new CANNON.Material('frog');

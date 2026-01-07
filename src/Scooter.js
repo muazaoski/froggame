@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three-stdlib';
@@ -15,6 +15,7 @@ export class Scooter {
 
     static setLoaderManager(manager) {
         Scooter.loader = new GLTFLoader(manager);
+        Scooter.loader.setMeshoptDecoder(MeshoptDecoder);
     }
 
     constructor(id, color, scene, physicsWorld) {
@@ -86,6 +87,7 @@ export class Scooter {
         this.mesh.add(placeholder);
 
         Scooter.loader.load('/models/scooter.glb', (gltf) => {
+            if (!gltf || !gltf.scene) return;
             // Remove placeholder
             this.mesh.remove(placeholder);
             placeholder.geometry.dispose();

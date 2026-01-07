@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import { WebGPURenderer } from 'three/webgpu';
+import * as THREE from 'three/webgpu';
+import { WebGPURenderer, PostProcessing } from 'three/webgpu';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three-stdlib';
@@ -8,8 +8,35 @@ import { Physics } from './Physics.js';
 import { Frog } from './Frog.js';
 import { Ball } from './Ball.js';
 import { Scooter } from './Scooter.js';
-import { createVegetationMaterial, updateVegetationPlayerPos } from './VegetationMaterial.js';
 import { createWaterMaterial } from './WaterMaterial.js';
+import {
+    pass,
+    saturation,
+    viewportSafeUV,
+    color,
+    float,
+    mix,
+    smoothstep,
+    distance,
+    vec2,
+    vec3,
+    add,
+    mul,
+    sub,
+    fract,
+    sin,
+    clamp,
+    time,
+    dot,
+    uniform
+} from 'three/tsl';
+// WebGPU Post-Processing Effects (from three.js addons)
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
+import { dof } from 'three/addons/tsl/display/DepthOfFieldNode.js';
+import { dotScreen } from 'three/addons/tsl/display/DotScreenNode.js';
+import { rgbShift } from 'three/addons/tsl/display/RGBShiftNode.js';
+import { sobel } from 'three/addons/tsl/display/SobelOperatorNode.js';
 import { Config } from './Config.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { AudioManager } from './AudioManager.js';
@@ -20,8 +47,8 @@ export class World {
 
         // SCENE
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xff8800); // Warmer Sunset Orange
-        this.scene.fog = new THREE.Fog(0xff8800, 40, 120);
+        this.scene.background = new THREE.Color(0xffffff); // White sky
+        this.scene.fog = new THREE.Fog(0xffffff, 40, 120);
 
         // CAMERA
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
@@ -61,21 +88,17 @@ export class World {
         // LIGHTS
         const ambientLight = new THREE.AmbientLight(0xffffff, Config.ambientIntensity);
         this.scene.add(ambientLight);
+        this.ambientLight = ambientLight;
 
         // Hemisphere Light for natural sky/ground contrast
         const hemiLight = new THREE.HemisphereLight(Config.hemiSkyColor, Config.hemiGroundColor, Config.hemiIntensity);
         this.scene.add(hemiLight);
         this.hemiLight = hemiLight;
 
+        // Main Directional Light (Sun)
         const dirLight = new THREE.DirectionalLight(0xffffff, Config.sunIntensity);
         dirLight.position.set(20, 30, 10);
-        this.dirLight = dirLight; // Store reference for config updates
-
-        // Rim Light (Opposite side) for better definition
-        const rimLight = new THREE.DirectionalLight(Config.rimColor, Config.rimIntensity);
-        rimLight.position.set(Config.rimPosX, Config.rimPosY, Config.rimPosZ);
-        this.scene.add(rimLight);
-        this.rimLight = rimLight;
+        this.dirLight = dirLight;
 
         // Shadow settings from Config
         dirLight.castShadow = Config.shadowEnabled;
@@ -83,18 +106,17 @@ export class World {
         dirLight.shadow.mapSize.height = Config.shadowMapSize;
         dirLight.shadow.camera.near = Config.shadowCameraNear;
         dirLight.shadow.camera.far = Config.shadowCameraFar;
-        dirLight.shadow.camera.left = -100; // Increased for broader coverage
-        dirLight.shadow.camera.right = 100;
-        dirLight.shadow.camera.top = 100;
-        dirLight.shadow.camera.bottom = -100;
+        dirLight.shadow.camera.left = -Config.shadowCameraSize;
+        dirLight.shadow.camera.right = Config.shadowCameraSize;
+        dirLight.shadow.camera.top = Config.shadowCameraSize;
+        dirLight.shadow.camera.bottom = -Config.shadowCameraSize;
         dirLight.shadow.bias = Config.shadowBias;
         dirLight.shadow.normalBias = Config.shadowNormalBias;
         dirLight.shadow.radius = Config.shadowRadius;
         dirLight.shadow.blurSamples = Config.shadowBlurSamples;
-        dirLight.shadow.intensity = Config.shadowIntensity;
 
         this.scene.add(dirLight);
-        this.scene.add(dirLight.target); // Required for target tracking
+        this.scene.add(dirLight.target);
 
         // PHYSICS
         this.physics = new Physics();
@@ -111,6 +133,7 @@ export class World {
         // COLLISION GROUPS
         this.terrainMeshes = []; // For scooter alignment & dust
         this.wallMeshes = [];    // For camera occlusion
+        this.waterMeshes = [];   // For water detection
 
         // LOAD LEVEL
         this.loadLevel();
@@ -128,9 +151,6 @@ export class World {
         // WATER / DIVING
         this.waterLevel = null; // Will be set when water mesh is detected
 
-        // STEALTH / BUSHES
-        this.bushZones = []; // [{ position: Vector3, radius: number }]
-        this.bushMeshes = []; // The InstancedMeshes themselves
 
         // RESIZE
         window.addEventListener('resize', () => this.onWindowResize());
@@ -144,31 +164,31 @@ export class World {
         this.frameCount = 0;
         this.lastFpsUpdate = performance.now();
 
-        // GRASS INTERACTION
-        this.grassMeshes = [];
-        this.grassUniforms = {
-            uTime: { value: 0 },
-            uPlayerPos: { value: new THREE.Vector3() },
-            uBendingStrength: { value: Config.grassBendingStrength },
-            uBendingRadius: { value: Config.grassBendingRadius },
-            uWindSpeed: { value: Config.grassWindSpeed },
-            uWindStrength: { value: Config.grassWindStrength }
-        };
 
         // WATER ANIMATION
-        this.waterMeshes = [];
+        // WATER UNIFORMS (TSL) - For real-time pattern adjustments
         this.waterUniforms = {
-            uTime: { value: 0 },
-            uWaveSpeed: { value: 0.8 },
-            uWaveHeight: { value: 0.15 },
-            uWaveFrequency: { value: 3.0 },
-            uDeepColor: { value: new THREE.Color(0x0a3d5c) },
-            uShallowColor: { value: new THREE.Color(0x1a8ccc) },
-            uFoamColor: { value: new THREE.Color(0xffffff) }
+            color: uniform(new THREE.Color(Config.waterColor)),
+            opacity: uniform(Config.waterOpacity),
+            scale: uniform(Config.waterScale),
+            frequency1: uniform(Config.waterFrequency1),
+            frequency2: uniform(Config.waterFrequency2),
+            frequency3: uniform(Config.waterFrequency3),
+            speed1: uniform(Config.waterSpeed1),
+            speed2: uniform(Config.waterSpeed2),
+            speed3: uniform(Config.waterSpeed3),
+            distortion: uniform(Config.waterDistortion),
+            shimmerIntensity: uniform(Config.waterShimmerIntensity),
+            shimmerThreshold: uniform(Config.waterShimmerThreshold),
+            shimmerSoftness: uniform(Config.waterShimmerSoftness),
+            foamIntensity: uniform(Config.waterFoamIntensity),
+            foamRange: uniform(Config.waterFoamRange)
         };
 
         // Initialize Particle System for VFX
         this.particles = new ParticleSystem(this.scene);
+
+        this.waterLevel = null;
 
         // Initialize Soccer Ball - spawn from sky in a random area
         const spawnX = (Math.random() - 0.5) * Config.ballSpawnRangeX * 2;
@@ -200,11 +220,137 @@ export class World {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
 
+        // Enable Shadow Maps for WebGPU
+        this.renderer.shadowMap.enabled = Config.shadowEnabled;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
         this.container.appendChild(this.renderer.domElement);
 
         this.rendererReady = true;
-        console.log('✅ WebGPU Renderer ready!');
+        console.log('✅ WebGPU Renderer ready with shadows!');
+
+        // Setup TSL Post-Processing
+        this.setupPostProcessing();
+
         return this;
+    }
+
+    setupPostProcessing() {
+        if (!this.renderer) return;
+
+        // First call: Build the shader graph with uniform nodes
+        if (!this.postProcessing) {
+            this.postProcessing = new PostProcessing(this.renderer);
+
+            // Create all uniforms for real-time control
+            this.ppUniforms = {
+                // Bloom
+                bloomStrength: uniform(Config.bloomIntensity || 1.0),
+                bloomThreshold: uniform(Config.bloomThreshold || 0.5),
+                bloomEnabled: uniform(Config.bloomEnabled ? 1.0 : 0.0),
+                // Chromatic Aberration
+                chromaStrength: uniform(Config.chromaticIntensity || 0.005),
+                chromaEnabled: uniform(Config.chromaticEnabled ? 1.0 : 0.0),
+                // Film Grain
+                grainStrength: uniform(Config.grainIntensity || 0.1),
+                grainEnabled: uniform(Config.grainEnabled ? 1.0 : 0.0),
+                // Vignette
+                vignetteOffset: uniform(Config.vignetteOffset || 0.5),
+                vignetteDarkness: uniform(Config.vignetteDarkness || 1.2),
+                vignetteEnabled: uniform(Config.vignetteEnabled ? 1.0 : 0.0),
+                // Color Grading
+                saturationVal: uniform(Config.shaderSaturation || 1.0),
+                brightness: uniform(Config.shaderBrightness || 0.0),
+                contrast: uniform(Config.shaderContrast || 1.0),
+                tintR: uniform(Config.shaderTintR || 1.0),
+                tintG: uniform(Config.shaderTintG || 1.0),
+                tintB: uniform(Config.shaderTintB || 1.0),
+                temperature: uniform(Config.shaderTemperature || 0.0),
+                // New Effects
+                fxaaEnabled: uniform(Config.fxaaEnabled ? 1.0 : 0.0),
+                dofEnabled: uniform(Config.dofEnabled ? 1.0 : 0.0),
+                dofFocus: uniform(Config.dofFocus !== undefined ? Config.dofFocus : 500),
+                dofAperture: uniform(Config.dofAperture !== undefined ? Config.dofAperture : 200),
+                dofMaxBlur: uniform(Config.dofMaxBlur !== undefined ? Config.dofMaxBlur : 10),
+                gtaoEnabled: uniform(Config.gtaoEnabled ? 1.0 : 0.0),
+                sepiaEnabled: uniform(Config.sepiaEnabled ? 1.0 : 0.0),
+                sepiaIntensity: uniform(Config.sepiaIntensity || 1.0),
+                rgbShiftEnabled: uniform(Config.rgbShiftEnabled ? 1.0 : 0.0),
+                rgbShiftAmount: uniform(Config.rgbShiftAmount || 0.005),
+                dotScreenEnabled: uniform(Config.dotScreenEnabled ? 1.0 : 0.0),
+                dotScreenScale: uniform(Config.dotScreenScale || 1.0),
+                sobelEnabled: uniform(Config.sobelEnabled ? 1.0 : 0.0)
+            };
+
+            const u = this.ppUniforms;
+
+            // Create scene pass (following official Three.js WebGPU pattern)
+            const scenePass = pass(this.scene, this.camera);
+            const scenePassColor = scenePass.getTextureNode();
+            const scenePassViewZ = scenePass.getViewZNode();
+
+            // Start with scene color
+            let postFX = scenePassColor;
+
+            // --- DOF (Depth of Field) - Early in chain before color grading ---
+            // dof(colorNode, viewZNode, focusDistance, focalLength, bokehScale)
+            this.dofPass = dof(postFX, scenePassViewZ, u.dofFocus, u.dofAperture, u.dofMaxBlur);
+            postFX = mix(postFX, this.dofPass, u.dofEnabled);
+
+            // --- BLOOM ---
+            this.bloomPass = bloom(scenePassColor, u.bloomStrength, 0, u.bloomThreshold);
+            postFX = add(postFX, mul(this.bloomPass, u.bloomEnabled));
+
+            // --- VIGNETTE ---
+            const uvNode = viewportSafeUV();
+            const dist = distance(uvNode, vec2(0.5));
+            const vignetteAmt = smoothstep(u.vignetteOffset, u.vignetteDarkness, dist);
+            const vignetteColor = mix(postFX, color(0x000000), vignetteAmt);
+            postFX = mix(postFX, vignetteColor, u.vignetteEnabled);
+
+            // --- SATURATION ---
+            postFX = saturation(postFX, u.saturationVal);
+
+            // --- BRIGHTNESS ---
+            postFX = add(postFX, u.brightness);
+
+            // --- CONTRAST ---
+            postFX = add(mul(sub(postFX, float(0.5)), u.contrast), float(0.5));
+
+            // --- COLOR TINT (RGB multiplier) ---
+            const tint = vec3(u.tintR, u.tintG, u.tintB);
+            postFX = mul(postFX, tint);
+
+            // --- TEMPERATURE (warm/cool shift) ---
+            const tempShift = vec3(mul(u.temperature, float(0.1)), float(0.0), mul(u.temperature, float(-0.1)));
+            postFX = add(postFX, tempShift);
+
+            // Clamp before stylization effects
+            postFX = clamp(postFX, float(0.0), float(1.0));
+
+            // --- DOT SCREEN (Halftone) ---
+            this.dotPass = dotScreen(postFX);
+            this.dotPass.scale.value = Config.dotScreenScale || 1.0;
+            postFX = mix(postFX, this.dotPass, u.dotScreenEnabled);
+
+            // --- RGB SHIFT ---
+            this.rgbPass = rgbShift(postFX);
+            this.rgbPass.amount.value = Config.rgbShiftAmount || 0.005;
+            postFX = mix(postFX, this.rgbPass, u.rgbShiftEnabled);
+
+            // --- SOBEL EDGE DETECTION ---
+            const sobelPass = sobel(postFX);
+            postFX = mix(postFX, sobelPass, u.sobelEnabled);
+
+            // --- FXAA (apply to final output) ---
+            const fxaaPass = fxaa(postFX);
+            const finalOutput = mix(postFX, fxaaPass, u.fxaaEnabled);
+
+            // Set output
+            this.postProcessing.outputNode = finalOutput;
+            console.log('📺 Post-Processing initialized!');
+        }
+        // Note: GUI controls now update uniforms directly via world.ppUniforms
     }
 
     setupLoadingManager() {
@@ -270,75 +416,10 @@ export class World {
         }
     }
 
-    setupVegetationMaterial(material, type = 'grass') {
-        if (!material) return null;
-
-        // Create WebGPU-compatible TSL material
-        const tslMaterial = createVegetationMaterial({
-            type,
-            color: material.color ? material.color.getHex() : (type === 'bush' ? 0x2d5a27 : 0x3ea331),
-            windStrength: type === 'bush' ? Config.grassWindStrength * 1.3 : Config.grassWindStrength,
-            windSpeed: this.grassUniforms.uWindSpeed.value,
-            bendingStrength: type === 'bush' ? Config.grassBendingStrength * 1.5 : Config.grassBendingStrength,
-            bendingRadius: type === 'bush' ? Config.grassBendingRadius * 1.8 : Config.grassBendingRadius,
-            playerPosRef: this.grassUniforms.uPlayerPos.value
-        });
-
-        // Copy map/texture from original material if exists
-        if (material.map) {
-            tslMaterial.map = material.map;
-        }
-
-        return tslMaterial;
-    }
-
-    setupInstancedVegetation(templateMesh, instances, type = 'grass') {
-        const geometry = templateMesh.geometry.clone();
-
-        // Create TSL-based material for WebGPU
-        const tslMaterial = this.setupVegetationMaterial(templateMesh.material, type);
-
-        // Fallback if TSL material creation failed
-        const material = tslMaterial || templateMesh.material.clone();
-
-        // Color enhancements
-        if (type === 'bush') {
-            material.color.setHex(0x2d5a27);
-            material.transparent = true;
-        } else {
-            material.color.setHex(0x3ea331);
-        }
-
-        const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length);
-        instancedMesh.name = type === 'bush' ? 'InstancedBush' : 'InstancedGrass';
-        instancedMesh.castShadow = true;
-        instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = true;
-
-        for (let i = 0; i < instances.length; i++) {
-            instancedMesh.setMatrixAt(i, instances[i]);
-        }
-
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        this.scene.add(instancedMesh);
-
-        if (type === 'bush') {
-            // Use grass system for interaction tracking
-            this.grassMeshes.push(instancedMesh);
-            this.bushMeshes.push(instancedMesh);
-        } else {
-            this.grassMeshes.push(instancedMesh);
-        }
-
-        return instancedMesh;
-    }
 
     setupWaterMaterial(mesh) {
         // Enhanced translucent blue water with subtle shimmer using TSL
-        const waterMaterial = createWaterMaterial({
-            waterColor: 0x1a8ccc,
-            opacity: 0.6
-        });
+        const waterMaterial = createWaterMaterial(this.waterUniforms);
 
         mesh.material = waterMaterial;
         mesh.renderOrder = 1;
@@ -351,7 +432,7 @@ export class World {
         const worldPos = new THREE.Vector3();
         mesh.getWorldPosition(worldPos);
         this.waterLevel = worldPos.y;
-        console.log(`[WATER] Water surface detected at Y = ${this.waterLevel} (Collision DISABLED)`);
+        console.log(`[WATER] Water surface detected at Y = ${this.waterLevel} (Basic Material)`);
     }
 
     loadLevel() {
@@ -367,7 +448,9 @@ export class World {
         // These will be cached by their respective classes for instant cloning later
         Frog.loader.setMeshoptDecoder(MeshoptDecoder);
         Frog.loader.load('/models/frog.glb', (gltf) => {
+            if (!gltf) return;
             const model = gltf.scene;
+            if (!model) return;
             model.scale.set(0.5, 0.5, 0.5);
             model.position.y = -0.6;
             model.rotation.y = Math.PI;
@@ -375,7 +458,9 @@ export class World {
             console.log('🐸 Frog model preloaded');
         });
         Frog.loader.load('/models/frog_draw.glb', (gltf) => {
+            if (!gltf) return;
             const model = gltf.scene;
+            if (!model) return;
             model.scale.set(0.5, 0.5, 0.5);
             model.position.y = -0.6;
             model.rotation.y = Math.PI;
@@ -384,25 +469,32 @@ export class World {
         });
         Scooter.loader.setMeshoptDecoder(MeshoptDecoder);
         Scooter.loader.load('/models/scooter.glb', (gltf) => {
+            if (!gltf || !gltf.scene) return;
             Scooter.modelCache = gltf.scene.clone();
             console.log('🛴 Scooter model preloaded');
         });
+        Ball.loader.setMeshoptDecoder(MeshoptDecoder);
         Ball.loader.load('/models/ball.glb', (gltf) => {
+            if (!gltf || !gltf.scene) return;
             Ball.modelCache = gltf.scene.clone();
             console.log('⚽ Ball model preloaded');
         });
 
         loader.load('/models/world.glb', (gltf) => {
+            if (!gltf || !gltf.scene) {
+                console.error('World model loaded but gltf.scene is missing');
+                return;
+            }
             const level = gltf.scene;
             this.scene.add(level);
 
             level.traverse((child) => {
                 if (child.isMesh) {
                     const nameLower = child.name.toLowerCase();
-                    const isGrass = nameLower.includes('grass');
-                    const isBush = nameLower.includes('bush');
+                    const isWater = nameLower.includes('water');
+                    const isSpawn = nameLower.includes('scooterspawn');
 
-                    child.castShadow = !isGrass;
+                    child.castShadow = true;
                     child.receiveShadow = true;
 
                     // Make material support transparency for camera occlusion
@@ -419,45 +511,14 @@ export class World {
                             child.material.emissiveIntensity = 0.0;
                             child.material.roughness = 0.8;
                         }
-                        if (nameLower.includes('water')) {
+                        if (isWater) {
                             this.setupWaterMaterial(child);
                             this.waterMeshes.push(child);
-                        }
-
-                        // SETUP VEGETATION (Collect for instancing)
-                        if (isGrass) {
-                            child.updateMatrixWorld();
-                            grassInstances.push(child.matrixWorld.clone());
-                            if (!grassTemplate) grassTemplate = child;
-                            child.visible = false;
-                        }
-                        if (isBush) {
-                            child.updateMatrixWorld();
-                            const worldMatrix = child.matrixWorld.clone();
-                            bushInstances.push(worldMatrix);
-
-                            // Track position and approximate radius for stealth mechanic
-                            const pos = new THREE.Vector3();
-                            pos.setFromMatrixPosition(worldMatrix);
-
-                            // Get radius from geometry bonding sphere (scaled by largest axis of matrix)
-                            child.geometry.computeBoundingSphere();
-                            const scale = new THREE.Vector3();
-                            scale.setFromMatrixScale(worldMatrix);
-                            const radius = child.geometry.boundingSphere.radius * Math.max(scale.x, scale.y, scale.z);
-
-                            this.bushZones.push({ position: pos, radius: radius * 0.8 }); // 0.8 multiplier for stricter hiding
-
-                            if (!bushTemplate) bushTemplate = child;
-                            child.visible = false;
                         }
                     }
 
                     // Track terrain for physics/alignment
-                    const isWater = nameLower.includes('water');
-                    const isSpawn = nameLower.includes('scooterspawn');
-
-                    if (!isWater && !isGrass && !isBush && !isSpawn) {
+                    if (!isWater && !isSpawn) {
                         this.terrainMeshes.push(child);
                     }
 
@@ -478,41 +539,13 @@ export class World {
                     }
 
                     // Physics Generation
-                    const isWaterPhysics = nameLower.includes('water');
-                    if (child.name.startsWith('Ghost_') || isGrass || isBush || isWaterPhysics) {
-                        // Pass (No physics for foliage or water)
+                    if (child.name.startsWith('Ghost_') || isWater || nameLower.includes('bush')) {
+                        // Pass (No physics for markers, water, or bushes)
                     } else if (!isSpawn) {
                         this.createPhysicsForMesh(child);
                     }
                 }
             });
-
-            // Create Instanced Vegetation
-            if (grassTemplate && grassInstances.length > 0) {
-                console.log(`[PERF] Creating instanced grass from ${grassInstances.length} individual pieces`);
-                this.setupInstancedVegetation(grassTemplate, grassInstances, 'grass');
-            }
-            if (bushTemplate && bushInstances.length > 0) {
-                console.log(`[PERF] Creating instanced bush from ${bushInstances.length} individual pieces`);
-                this.setupInstancedVegetation(bushTemplate, bushInstances, 'bush');
-            }
-
-            // COMPLETELY REMOVE original foliage from scene to save memory
-            const toRemove = [];
-            level.traverse((child) => {
-                if (child.isMesh && (child.name.toLowerCase().includes('grass') || child.name.toLowerCase().includes('bush'))) {
-                    toRemove.push(child);
-                }
-            });
-
-            for (const mesh of toRemove) {
-                if (mesh.parent) mesh.parent.remove(mesh);
-                if (mesh.geometry) mesh.geometry.dispose();
-                if (mesh.material) {
-                    if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
-                    else mesh.material.dispose();
-                }
-            }
         }, undefined, (err) => {
             console.error('Error loading world:', err);
             // Fallback ground if load fails
@@ -630,22 +663,17 @@ export class World {
 
         // Check if any interactive targets are in the cone
         const potentialTargets = this.getPotentialTongueTargets(targetDir);
-        const hasTargets = potentialTargets.length > 0;
 
-        // Calculate direction to mouse (horizontal check for body rotation)
-        const toMouse = new THREE.Vector3().subVectors(mouseWorldPos, frogPos);
-        const horizontalToMouse = new THREE.Vector3(toMouse.x, 0, toMouse.z).normalize();
-        const frogForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.localFrog.mesh.quaternion);
-        const horizontalForward = new THREE.Vector3(frogForward.x, 0, frogForward.z).normalize();
+        // Find if we hit a physics object
+        const wallTarget = this.localFrog.getWallTarget(this, tongueStart, targetDir);
 
-        // Check if within frontal cone (use spec's 18 degree cone)
-        const angle = Math.acos(Math.max(-1, Math.min(1, horizontalToMouse.dot(horizontalForward))));
-        const maxAngle = THREE.MathUtils.degToRad(Config.tongueConeAngle);
-
-        if (angle > maxAngle * 2.5 || isNaN(angle)) { // Wider check for cursor, actual cone is tighter
+        // If neither a snappy target nor a wall hit exists, HIDE the cursor (Stop sticking with air)
+        if (potentialTargets.length === 0 && !wallTarget) {
             this.tongueCursorIndicator.visible = false;
             return;
         }
+
+        const hasTargets = potentialTargets.length > 0;
 
         // Use physics raycast
         const from = new CANNON.Vec3(tongueStart.x, tongueStart.y, tongueStart.z);
@@ -657,7 +685,10 @@ export class World {
 
         const result = new CANNON.RaycastResult();
         const ray = new CANNON.Ray(from, to);
-        ray.intersectWorld(this.physics.world, { result });
+        ray.intersectWorld(this.physics.world, {
+            result,
+            collisionFilterMask: ~this.physics.FILTER_FROG // Ignore all frogs for cursor placement
+        });
 
         if (result.hasHit) {
             const hitPoint = new THREE.Vector3(
@@ -676,17 +707,13 @@ export class World {
 
                 // --- Modern Snap Logic ---
                 // If a target is close to this wall hit, snap the reticle to the target!
+                let snappedToTarget = false;
                 if (hasTargets) {
                     const bestTarget = potentialTargets[0];
                     const assistRadius = Config.tongueAssistRadius || 2.0;
                     if (bestTarget.point.distanceTo(hitPoint) < assistRadius) {
                         this.tongueCursorIndicator.position.copy(bestTarget.point);
                         this.tongueCursorIndicator.quaternion.set(0, 0, 0, 1); // Face camera for floating targets
-                    } else {
-                        // Orient to wall
-                        const normal = new THREE.Vector3(hitNormal.x, hitNormal.y, hitNormal.z);
-                        this.tongueCursorIndicator.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-                        this.tongueCursorIndicator.position.add(normal.multiplyScalar(0.05));
                     }
                 } else {
                     // Normal wall orientation
@@ -1015,7 +1042,8 @@ export class World {
 
             const body = new CANNON.Body({
                 mass: 0,
-                material: this.physics.groundMaterial
+                material: this.physics.groundMaterial,
+                collisionFilterGroup: this.physics.FILTER_TERRAIN
             });
             body.addShape(shape);
 
@@ -1038,8 +1066,11 @@ export class World {
         // Setup raycaster from camera through mouse position
         this.raycaster.setFromCamera(input.mouse, this.camera);
 
-        // First try to hit actual scene geometry (walls, objects)
-        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+        // Optimized raycasting: Only intersect with terrain and wall meshes
+        if (!this._raycastTargets) {
+            this._raycastTargets = [...this.terrainMeshes, ...this.wallMeshes];
+        }
+        const intersects = this.raycaster.intersectObjects(this._raycastTargets, false);
 
         // Filter to only include valid targets (not tongue, not particles, etc)
         for (const hit of intersects) {
@@ -1069,21 +1100,15 @@ export class World {
             return hit.point.clone();
         }
 
-        // If no geometry hit, use a smart plane that follows the frog
-        // This gives a reasonable target when clicking on sky/empty space
+        // Free Aim Fallback: If no geometry hit, use a point far away in the ray direction
+        // This allows 'shooting the sky' and aiming anywhere like a gun.
         if (this.localFrog) {
-            const frogY = this.localFrog.mesh.position.y;
-            const dynamicPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -frogY);
             const target = new THREE.Vector3();
-            this.raycaster.ray.intersectPlane(dynamicPlane, target);
-            if (target) {
-                return target;
-            }
+            this.raycaster.ray.at(Config.tongueRange || 15, target);
+            return target;
         }
 
-        // Last fallback: project ray forward
-        const target = new THREE.Vector3();
-        return this.raycaster.ray.at(15, target);
+        return null;
     }
 
     addLocalFrog(id, color, startData) {
@@ -1358,9 +1383,26 @@ transform - origin: right center;
             }
         }
 
+        // DYNAMIC CAMERA: Adjust for swing state
+        let dynamicDistance = this.cameraDistance;
+        let cameraLerpSpeed = Config.cameraLerp;
+
+        if (this.localFrog.isSwinging && this.localFrog.body) {
+            // Get swing speed
+            const vel = this.localFrog.body.velocity;
+            const swingSpeed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+
+            // Zoom out when swinging fast (up to 30% more distance)
+            const zoomOutFactor = Math.min(swingSpeed * 0.02, 0.3);
+            dynamicDistance = this.cameraDistance * (1 + zoomOutFactor);
+
+            // Smoother camera follow during swing (less jerky)
+            cameraLerpSpeed = Config.cameraLerp * 0.6;
+        }
+
         // Calculate camera position based on orbit angles
-        const horizontalDistance = this.cameraDistance * Math.cos(this.cameraPitchAngle);
-        const verticalOffset = this.cameraDistance * Math.sin(this.cameraPitchAngle);
+        const horizontalDistance = dynamicDistance * Math.cos(this.cameraPitchAngle);
+        const verticalOffset = dynamicDistance * Math.sin(this.cameraPitchAngle);
 
         const cameraX = targetPos.x + horizontalDistance * Math.sin(this.cameraOrbitAngle);
         const cameraY = targetPos.y + verticalOffset;
@@ -1371,7 +1413,7 @@ transform - origin: right center;
         if (this.shakeOffset) {
             targetCameraPos.add(this.shakeOffset);
         }
-        this.camera.position.lerp(targetCameraPos, Config.cameraLerp);
+        this.camera.position.lerp(targetCameraPos, cameraLerpSpeed);
 
         // Always look at the frog
         this.camera.lookAt(targetPos);
@@ -1437,15 +1479,10 @@ transform - origin: right center;
             this.particles.update(dt);
         }
 
-        // Update Grass Uniforms
-        this.grassUniforms.uTime.value += dt;
+        // Update direction light to follow player
         if (this.localFrog && this.localFrog.mesh) {
-            this.grassUniforms.uPlayerPos.value.copy(this.localFrog.mesh.position);
-
-            // Update Directional Light to follow player (for high-fidelity shadows)
             if (this.dirLight) {
                 const targetPos = this.localFrog.mesh.position;
-                // Offset light position from player but keep it at a fixed relative distance
                 const offset = new THREE.Vector3(20, 30, 10);
                 this.dirLight.position.copy(targetPos).add(offset);
                 this.dirLight.target.position.copy(targetPos);
@@ -1461,11 +1498,6 @@ transform - origin: right center;
             // Update frog's underwater state
             if (this.localFrog.isUnderwater !== isUnderwater) {
                 this.localFrog.isUnderwater = isUnderwater;
-                if (isUnderwater) {
-                    console.log('[DIVING] Player entered water!');
-                } else {
-                    console.log('[DIVING] Player surfaced!');
-                }
             }
         }
 
@@ -1473,9 +1505,7 @@ transform - origin: right center;
         if (this.ball) {
             this.ball.update(dt, this.waterLevel);
 
-            // If we're the ball authority, send updates to other players
             if (this.isBallAuthority && this.network && this.ball.body) {
-                // Only send if ball is moving
                 const vel = this.ball.body.velocity;
                 const isMoving = Math.abs(vel.x) > 0.1 || Math.abs(vel.y) > 0.1 || Math.abs(vel.z) > 0.1;
                 if (isMoving) {
@@ -1490,59 +1520,10 @@ transform - origin: right center;
         }
 
         // Update Frogs (Visuals & Network interpolation)
-        const lookTarget = this.localFrog ? this.getMouseIntersection(input) : null;
         for (const id in this.frogs) {
             const frog = this.frogs[id];
-
-            // Determine if hidden in bush
-            let isInsideBush = false;
-            if (!frog.isDead) {
-                for (const zone of this.bushZones) {
-                    const dist = frog.mesh.position.distanceTo(zone.position);
-                    if (dist < zone.radius) {
-                        isInsideBush = true;
-                        break;
-                    }
-                }
-            }
-            frog.setHidden(isInsideBush);
-
-            if (frog.isLocal) {
-                // Local frog is updated in main.js with isPlacing parameter
-                // Do NOT call frog.update here or it will consume input before placement handling
-            } else {
+            if (!frog.isLocal) {
                 frog.update(dt, null, frog.targetLook);
-            }
-        }
-
-        // Fade specific bush if local player is hidden (Client-side only)
-        if (this.localFrog) {
-            let playerHidingZone = null;
-            if (this.localFrog.isHidden) {
-                // Find which zone specifically
-                for (const zone of this.bushZones) {
-                    const dist = this.localFrog.mesh.position.distanceTo(zone.position);
-                    if (dist < zone.radius) {
-                        playerHidingZone = zone;
-                        break;
-                    }
-                }
-            }
-
-            // Update all zones opacities
-            for (const zone of this.bushZones) {
-                const target = (playerHidingZone === zone) ? 0.7 : 1.0;
-
-                if (Math.abs(zone.currentOpacity - target) > 0.01) {
-                    zone.currentOpacity = THREE.MathUtils.lerp(zone.currentOpacity, target, 10 * dt);
-
-                    // Update attribute in instanced mesh
-                    if (zone.mesh && zone.mesh.geometry.attributes.instanceOpacity) {
-                        const attr = zone.mesh.geometry.attributes.instanceOpacity;
-                        attr.setX(zone.index, zone.currentOpacity);
-                        attr.needsUpdate = true;
-                    }
-                }
             }
         }
 
@@ -1579,8 +1560,10 @@ transform - origin: right center;
         // Update Camera (Orbital follow)
         this.updateCamera(input);
 
-        // Update Tongue Cursor Indicator
-        this.updateTongueCursorIndicator(input);
+        // Update Tongue Cursor Indicator (Throttled)
+        if (this.frameCount % 3 === 0) {
+            this.updateTongueCursorIndicator(input);
+        }
 
         // Update Tongue Debug Visualization (Phase 7)
         this.updateTongueDebug();
@@ -1616,9 +1599,10 @@ transform - origin: right center;
             this.checkFrogClick(input);
         }
 
-        // WebGPU: Render directly (EffectComposer is WebGL-only)
-        // TODO: Implement WebGPU-native post-processing using three/webgpu Postprocessing class
-        if (this.renderer) {
+        // WebGPU: Render with Post-Processing
+        if (this.postProcessing) {
+            this.postProcessing.render();
+        } else if (this.renderer) {
             this.renderer.render(this.scene, this.camera);
         }
 
@@ -2064,6 +2048,10 @@ transition: opacity 0.3s ease;
 
     updateLocalFrogAura() {
         if (!this.localFrog || !this.localFrog.mesh) return;
+
+        // Throttle update for performance
+        this._auraUpdateFrame = (this._auraUpdateFrame || 0) + 1;
+        if (this._auraUpdateFrame % 4 !== 0) return;
 
         // Create aura light if it doesn't exist
         if (!this.localAura) {

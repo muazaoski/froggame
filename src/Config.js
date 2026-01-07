@@ -25,8 +25,8 @@ export const Config = {
     walkLegHeight: 0.754,
 
     // Environment
-    sunIntensity: 2.97,
-    ambientIntensity: 2.0,
+    sunIntensity: 1.35,
+    ambientIntensity: 4.365,
 
     // Shadows
     shadowEnabled: true,
@@ -34,12 +34,12 @@ export const Config = {
     shadowType: 'Basic',
     shadowRadius: 4.0,
     shadowBlurSamples: 32,
-    shadowBias: 0.0000800000000000002,
-    shadowNormalBias: 0.0428,
+    shadowBias: -0.01,
+    shadowNormalBias: 0.0644,
     shadowIntensity: 0.8, // Increased for visibility
     shadowCameraNear: 1.6444,
     shadowCameraFar: 119.27,
-    shadowCameraSize: 55.03,
+    shadowCameraSize: 144.33,
     shadowCameraLeft: -50,
     shadowCameraRight: 50,
     shadowCameraTop: 50,
@@ -56,7 +56,7 @@ export const Config = {
     // Hemisphere Light
     hemiSkyColor: 1427122,
     hemiGroundColor: 12198177,
-    hemiIntensity: 3,
+    hemiIntensity: 0.94,
 
     // Rim Light
     rimColor: 16763402,
@@ -74,29 +74,31 @@ export const Config = {
     useShader: true,
 
     // Color Grading
-    shaderSaturation: 1.15, // Cinematic saturation
-    shaderBrightness: 0.05,
-    shaderContrast: 1.1,  // Natural contrast
+    shaderSaturation: 1.132,
+    shaderBrightness: -0.5,
+    shaderContrast: 0.656,
     shaderGamma: 1.0,
-    shaderTintR: 1.0,
-    shaderTintG: 1.0,
+    shaderTintR: 0.996,
+    shaderTintG: 0.968,
     shaderTintB: 1.0,
-    shaderTemperature: 0.0,
+    shaderTemperature: -0.44,
 
     // Vignette Effect
-    vignetteEnabled: true,
+    vignetteEnabled: false,
     vignetteIntensity: 0.267,
     vignetteRadius: 0.661,
     vignetteSoftness: 0.35,
+    vignetteOffset: 1,
+    vignetteDarkness: 1.2,    // TSL: Outer radius where vignette is fully dark
 
     // Chromatic Aberration
     chromaticEnabled: false,
-    chromaticIntensity: 0.005,
+    chromaticIntensity: 0.0364,
     chromaticRadial: true,
 
     // Film Grain
     grainEnabled: false, // Cleaner toon look
-    grainIntensity: 0.02,
+    grainIntensity: 0.1533,
     grainSpeed: 0.1,
     grainSize: 3.5,
 
@@ -105,10 +107,39 @@ export const Config = {
     sharpenIntensity: 1, // Full sharpen
 
     // Bloom (glow effect)
-    bloomEnabled: false,
-    bloomIntensity: 1.566,
-    bloomThreshold: 0.2,
+    bloomEnabled: true,
+    bloomIntensity: 0.027,
+    bloomThreshold: 1,
     bloomRadius: 0.05,
+
+    // FXAA Anti-Aliasing
+    fxaaEnabled: true,
+
+    // Depth of Field (values from user image)
+    dofEnabled: true,
+    dofFocus: 10,         // Focus distance: 10
+    dofAperture: 227.1,   // Focal length: 227.1
+    dofMaxBlur: 12.514,   // Bokeh scale: 12.514
+
+    // GTAO - Ambient Occlusion
+    gtaoEnabled: false,
+    gtaoRadius: 0.25,
+    gtaoIntensity: 1.0,
+
+    // Sepia Tone
+    sepiaEnabled: false,
+    sepiaIntensity: 1.0,
+
+    // RGB Shift
+    rgbShiftEnabled: false,
+    rgbShiftAmount: 0.005,
+
+    // Dot Screen (Halftone)
+    dotScreenEnabled: false,
+    dotScreenScale: 1.0,
+
+    // Sobel Edge Detection
+    sobelEnabled: false,
 
     // Camera
     cameraHeight: 15,
@@ -135,25 +166,32 @@ export const Config = {
     jiggleEnabled: true,
     jiggleIntensity: 0.15,
     jiggleSpeed: 12,
-    jiggleDamping: 5,
-    jiggleBounce: 0.8,
+    jiggleDamping: 10.198,
+    jiggleBounce: 1.746,
     jiggleMovementResponse: 1.0,
     jiggleWalkWobble: 0.1968,
     jiggleWalkSpeed: 10,
 
     // Tongue Mechanics (Reworked - ref1.md spec)
-    tongueRange: 16.0,              // Increased for more "Spider-Frog" feel
-    tongueExtendDuration: 0.12,     // Snappier extension
-    tongueRetractDuration: 0.08,    // Faster retraction
-    tongueConeAngle: 12,            // Tighter cone = more intent required
-    tongueAssistRadius: 2.0,        // NEW: Radius to look for targets around the cursor impact point
-    tongueMagnetRadius: 0.8,        // Sticky snap for interactive objects
-    tongueAngleWeight: 0.85,        // Heavily prioritize what's in the center of the crosshair
-    tongueDistanceWeight: 0.15,     // Distance matters much less than precision aim
-    tongueGrappleForce: 25,         // Pull force when attached to wall/hook
-    tongueSwingForce: 12,           // Sideways force from WASD during grapple
-    tongueGrabForce: 15,            // Pull force applied to grabbed frogs
-    tongueCooldown: 0.5,            // Seconds between tongue uses
+    tongueRange: 18.0,
+    tongueExtendDuration: 0.12,
+    tongueRetractDuration: 0.05,    // Faster retraction on misses
+    tongueConeAngle: 45,
+    tongueAssistRadius: 3.5,
+    tongueLaserSight: true,
+    tongueLaserIntensity: 0.4,
+
+    tongueMagnetRadius: 1.5,
+    tongueAngleWeight: 0.85,
+    tongueDistanceWeight: 0.15,
+    tongueGrappleForce: 120,        // Zipping force (Fast Zip Mode)
+    tongueSwingForce: 45,           // Swing steering force (Pendulum Mode)
+    tongueGrappleMaxForce: 2e4,     // Constraint max force
+    tongueMode: 'swing',            // 'zip' or 'swing'
+    tongueGrabForce: 35,
+    tongueCooldown: 0.15,
+
+
     tongueColor: '#ff6b9d',         // Pink tongue color
     tongueTipSize: 0.15,            // Size of tongue tip sphere
     tongueThicknessBase: 0.08,      // Base thickness near mouth
@@ -231,11 +269,23 @@ export const Config = {
     scooterAssOffsetZ: 0.0,
     scooterBanking: 0.18,
 
-    // Grass Interaction Settings
-    grassBendingStrength: 2.0,      // How much it pushes away
-    grassBendingRadius: 2.5,        // Detection radius
-    grassWindSpeed: 1.5,            // Wind speed
-    grassWindStrength: 0.15,        // Wind sway intensity
+    // Water Settings
+    waterColor: 0x1a8ccc,
+    waterOpacity: 0.758,
+    waterScale: 3.0057,
+    waterFrequency1: 8.029,
+    waterFrequency2: 100.0,
+    waterFrequency3: 18.6,
+    waterSpeed1: 2.46,
+    waterSpeed2: -3.27,
+    waterSpeed3: 2.46,
+    waterDistortion: 1.0,
+    waterShimmerIntensity: 0.059,
+    waterShimmerThreshold: -0.322,
+    waterShimmerSoftness: 0.796,
+    waterFoamIntensity: 0.071, // New setting for foam
+    waterFoamRange: 0.55,     // New setting for foam range
+
     showFPS: true,                  // Show FPS counter
 };
 

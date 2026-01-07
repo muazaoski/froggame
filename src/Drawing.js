@@ -1,5 +1,5 @@
 // Drawing.js - Drawing on paper and wall placement system
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import * as CANNON from 'cannon-es';
 
 export class DrawingSystem {

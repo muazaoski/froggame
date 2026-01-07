@@ -2,7 +2,7 @@
  * WebGPU-compatible Water Material using TSL (Three.js Shading Language)
  * Replaces GLSL ShaderMaterial with TSL nodes
  */
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { MeshStandardNodeMaterial, NodeMaterial } from 'three/webgpu';
 import {
     vec2,
@@ -17,45 +17,81 @@ import {
     mix,
     time,
     uv,
-    color
+    color,
+    viewportLinearDepth,
+    positionView
 } from 'three/tsl';
 
 /**
  * Creates a WebGPU-compatible water material with shimmer effect
- * @param {Object} options - Configuration options
+ * @param {Object} options - Configuration options (should contain TSL uniforms)
  * @returns {MeshStandardNodeMaterial}
  */
 export function createWaterMaterial(options = {}) {
     const {
-        waterColor = 0x1a8ccc,
-        opacity = 0.6
+        color: uColor,
+        opacity: uOpacity,
+        scale: uScale,
+        frequency1: uFreq1,
+        frequency2: uFreq2,
+        frequency3: uFreq3,
+        speed1: uSpeed1,
+        speed2: uSpeed2,
+        speed3: uSpeed3,
+        distortion: uDistortion,
+        shimmerIntensity: uShimmerIntensity,
+        shimmerThreshold: uShimmerThreshold,
+        shimmerSoftness: uShimmerSoftness,
+        foamIntensity: uFoamIntensity,
+        foamRange: uFoamRange
     } = options;
 
     const material = new MeshStandardNodeMaterial();
-    material.colorNode = color(new THREE.Color(waterColor));
-    material.opacityNode = float(opacity);
+    material.colorNode = uColor;
+    material.opacityNode = uOpacity;
     material.transparent = true;
     material.side = THREE.DoubleSide;
+    material.depthWrite = false; // Required for depth-based foam to "see" what's behind the plane
 
     // TSL Shimmer effect
-    const vUv = uv();
+    const vUv = uv().mul(uScale);
     const t = time;
 
-    // Two layers of scrolling diagonal lines for a "shimmer" effect
-    // ripple1 = sin((vUv.x + vUv.y) * 30.0 + t * 1.5)
-    const ripple1 = sin(add(mul(add(vUv.x, vUv.y), float(30.0)), mul(t, float(1.5))));
+    // Layer 1 - Vertical-ish
+    const waveShift = sin(add(mul(vUv.x, float(2.0)), mul(t, float(0.5)))).mul(uDistortion);
+    const ripple1 = sin(add(mul(add(vUv.x, vUv.y.add(waveShift)), uFreq1), mul(t, uSpeed1)));
 
-    // ripple2 = sin((vUv.x - vUv.y) * 25.0 - t * 1.2)
-    const ripple2 = sin(sub(mul(sub(vUv.x, vUv.y), float(25.0)), mul(t, float(1.2))));
+    // Layer 2 - Diagonal
+    const ripple2 = sin(sub(mul(sub(vUv.x, vUv.y), uFreq2), mul(t, uSpeed2)));
 
-    // shimmer = (ripple1 * 0.5 + ripple2 * 0.5)
-    const shimmerValue = add(mul(ripple1, float(0.5)), mul(ripple2, float(0.5)));
+    // Layer 3 - Large scale slow movement
+    const ripple3 = sin(add(mul(vUv.y, uFreq3), mul(t, uSpeed3)));
 
-    // shimmer = smoothstep(0.7, 1.0, shimmer)
-    const shimmerFinal = smoothstep(float(0.7), float(1.0), shimmerValue);
+    // Combined Shimmer - 3 Layer mix
+    const shimmerValue = add(
+        mul(ripple1, float(0.4)),
+        add(mul(ripple2, float(0.4)), mul(ripple3, float(0.2)))
+    );
 
-    // finalColor = mix(uColor, vec3(1.0), shimmer * 0.15)
-    material.colorNode = mix(color(new THREE.Color(waterColor)), color(new THREE.Color(0xffffff)), mul(shimmerFinal, float(0.15)));
+    // shimmer = smoothstep(threshold, threshold + softness, shimmer)
+    const shimmerFinal = smoothstep(uShimmerThreshold, add(uShimmerThreshold, uShimmerSoftness), shimmerValue);
+
+    // --- DEPTH FOAM ---
+    // Compare scene depth behind water with water's own depth
+    const sceneDepth = viewportLinearDepth;
+    const waterDepth = positionView.z.negate();
+    const depthDiff = sceneDepth.sub(waterDepth);
+
+    // Foam at edges / intersections
+    const foamEdge = smoothstep(uFoamRange, float(0.0), depthDiff);
+    const foamColorNode = color(0xffffff);
+
+    // Combine base water color with shimmer highlights
+    const shimmeredColor = mix(uColor, foamColorNode, mul(shimmerFinal, uShimmerIntensity));
+
+    // Final combine with edge foam
+    material.colorNode = mix(shimmeredColor, foamColorNode, mul(foamEdge, uFoamIntensity));
 
     return material;
 }
+

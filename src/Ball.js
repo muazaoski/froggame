@@ -1,6 +1,7 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three-stdlib';
 import { Config } from './Config.js';
 
 export class Ball {
@@ -9,6 +10,7 @@ export class Ball {
 
     static setLoaderManager(manager) {
         Ball.loader = new GLTFLoader(manager);
+        Ball.loader.setMeshoptDecoder(MeshoptDecoder);
     }
 
     constructor(physicsWorld, scene, position = { x: 0, y: 2, z: 0 }) {
@@ -38,6 +40,7 @@ export class Ball {
             this.setupModel(Ball.modelCache.clone());
         } else {
             Ball.loader.load('/models/ball.glb', (gltf) => {
+                if (!gltf || !gltf.scene) return;
                 Ball.modelCache = gltf.scene.clone();
                 this.setupModel(gltf.scene);
             }, undefined, (error) => {

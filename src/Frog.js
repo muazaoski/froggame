@@ -1,10 +1,31 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import * as CANNON from 'cannon-es';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three-stdlib';
 import { Config } from './Config.js';
 import { Scooter } from './Scooter.js';
+
+// Shared objects for efficient target acquisition
+const _raycaster = new THREE.Raycaster();
+const _mouthRaycaster = new THREE.Raycaster();
+const _tmpV3 = new THREE.Vector3();
+const _tmpV3_2 = new THREE.Vector3();
+const _tmpV2 = new THREE.Vector2();
+
+function ndcToPx(ndc, w, h) {
+    return new THREE.Vector2(
+        (ndc.x * 0.5 + 0.5) * w,
+        (1 - (ndc.y * 0.5 + 0.5)) * h
+    );
+}
+
+function worldToScreenPx(worldPos, camera, w, h) {
+    // Project requires a copy or will modify in-place? Actually project returns new vector but uses internally as well.
+    // three.js docs: .project(camera) projects this vector from world space to NDC space.
+    const p = _tmpV3_2.copy(worldPos).project(camera);
+    return ndcToPx(p, w, h);
+}
 
 export class Frog {
     static modelGeometry = null;
@@ -17,6 +38,7 @@ export class Frog {
 
     static setLoaderManager(manager) {
         Frog.loader = new GLTFLoader(manager);
+        Frog.loader.setMeshoptDecoder(MeshoptDecoder);
     }
 
     constructor(id, color, physicsWorld, isLocal = false) {
@@ -39,6 +61,7 @@ export class Frog {
             this.bodyMesh.add(model);
         } else {
             Frog.loader.load('/models/frog.glb', (gltf) => {
+                if (!gltf || !gltf.scene) return;
                 const model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
                 model.position.y = -0.6;
@@ -54,6 +77,7 @@ export class Frog {
             this.initDrawingModel(Frog.drawingModelGeometry.clone());
         } else {
             Frog.loader.load('/models/frog_draw.glb', (gltf) => {
+                if (!gltf || !gltf.scene) return;
                 const model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
                 model.position.y = -0.6;
@@ -85,7 +109,9 @@ export class Frog {
                     mass: 1, // Dynamic
                     shape: shape,
                     material: physicsWorld.frogMaterial,
-                    fixedRotation: true
+                    fixedRotation: true,
+                    collisionFilterGroup: physicsWorld.FILTER_FROG,
+                    collisionFilterMask: physicsWorld.FILTER_TERRAIN | physicsWorld.FILTER_FROG | physicsWorld.FILTER_INTERACTIVE
                 });
                 this.body.linearDamping = Config.linearDamping;
             } else {
@@ -94,7 +120,9 @@ export class Frog {
                 this.body = new CANNON.Body({
                     type: CANNON.Body.KINEMATIC,
                     shape: shape,
-                    material: physicsWorld.frogMaterial
+                    material: physicsWorld.frogMaterial,
+                    collisionFilterGroup: physicsWorld.FILTER_FROG,
+                    collisionFilterMask: physicsWorld.FILTER_TERRAIN | physicsWorld.FILTER_FROG | physicsWorld.FILTER_INTERACTIVE
                 });
             }
 
@@ -154,10 +182,26 @@ export class Frog {
             cooldownTimer: 0            // Cooldown between uses
         };
         this.tongueStartPos = new THREE.Vector3();  // Mouth position (updates each frame)
+
+        // Tongue proxy collider (invisible mesh for better raycasting)
+        const proxyGeo = new THREE.SphereGeometry(0.8, 8, 8);
+        const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+        this.tongueProxy = new THREE.Mesh(proxyGeo, proxyMat);
+        this.tongueProxy.position.y = 0.5; // Center of body
+        this.mesh.add(this.tongueProxy);
+
         this.flies = 0;                 // Currency
         this.tongueLine = null;         // Visual line
         this.tongueTip = null;          // Visual tip sphere
         this.tongueTube = null;         // Visual tube geometry (for thickness)
+        this.laserLine = null;          // Visual laser sight guide
+        this.laserDot = null;           // End of laser dot
+        this.grappleAnchorBody = null;  // Physics anchor for swing
+        this.grappleConstraint = null; // Distance constraint for swing
+        this.isSwinging = false;        // Track swing state
+        this.lockTimer = 0;             // Stability timer
+        this.lockedTarget = null;       // Sticky target lock
+        this.lastTargetId = null;       // For hysteresis tracking
 
         // Health Bar UI
         this.healthBarContainer = document.createElement('div');
@@ -236,6 +280,14 @@ export class Frog {
                 this.respawn();
             }
             return; // Don't process input while dead
+        }
+
+        // Update Laser Sight (Local only)
+        if (this.isLocal && Config.tongueLaserSight) {
+            this.updateLaserSight(input, dt);
+        } else if (this.laserLine) {
+            this.laserLine.visible = false;
+            if (this.laserDot) this.laserDot.visible = false;
         }
 
         // Update health bar
@@ -426,13 +478,32 @@ export class Frog {
             let angleDiff = targetAngle - this.facingAngle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-            this.facingAngle += angleDiff * Config.rotationSpeed * dt;
+
+            // HYBRID ROTATION: 
+            // - Default: Face movement direction (natural walking)
+            // - When aiming (tongueHeld or tongue active): Face cursor
+            const isAiming = (input.tongueHeld || this.tongue.state !== 'idle');
+
+            if (isAiming && lookTarget && !isPlacing) {
+                // Aiming mode: Smoothly rotate toward cursor
+                const toTarget = new THREE.Vector3().subVectors(lookTarget, this.mesh.position);
+                const lookAngle = Math.atan2(toTarget.x, toTarget.z);
+                let lookDiff = lookAngle - this.facingAngle;
+                while (lookDiff > Math.PI) lookDiff -= Math.PI * 2;
+                while (lookDiff < -Math.PI) lookDiff += Math.PI * 2;
+
+                // Smooth but responsive rotation toward aim
+                this.facingAngle += lookDiff * 15.0 * dt;
+            } else {
+                // Normal mode: Face movement direction
+                this.facingAngle += angleDiff * Config.rotationSpeed * dt;
+            }
 
             // Apply movement acceleration toward target velocity
             // This is MUCH snappier than raw force and prevents "speedster" teleportation
             const isGrappling = this.tongue.state === 'attached';
-            const accelScale = this.onGround ? 12.0 : (Config.airControl * 5.0);
-            const grappleMult = isGrappling ? 0.3 : 1.0;
+            const accelScale = this.onGround ? 12.0 : (isGrappling ? 1.0 : (Config.airControl * 5.0)); // Less fighting while grappling
+            const grappleMult = isGrappling ? 0.2 : 1.0;
 
             const targetVelX = moveVec.x * targetSpeed * grappleMult;
             const targetVelZ = moveVec.z * targetSpeed * grappleMult;
@@ -1356,23 +1427,19 @@ export class Frog {
             Math.abs(this.lastVelocityY) * 0.1 * Config.jiggleBounce : 0;
 
         // Detect movement start/stop
-        const movementImpulse = (isMoving !== this.wasMoving) ? Config.jiggleMovementResponse * 0.5 : 0;
+        const deltaVelY = Math.abs(currentVelY - this.lastVelocityY);
 
-        // Add continuous movement jiggle
-        const movementJiggle = isMoving ? Math.sin(Date.now() * 0.01 * Config.jiggleSpeed) * 0.3 : 0;
+        // Add bounce based on landing impact
+        if (deltaVelY > 0.5) {
+            this.jiggleOffset += deltaVelY * Config.jiggleBounce;
+        }
 
-        // Apply impulses to velocity
-        this.jiggleVelocity += landingImpact + movementImpulse;
+        // Apply damping
+        this.jiggleOffset -= this.jiggleOffset * Config.jiggleDamping * dt;
+        if (this.jiggleOffset < 0) this.jiggleOffset = 0;
 
-        // Spring physics: acceleration toward rest position
-        const springForce = -this.jiggleOffset * Config.jiggleSpeed * Config.jiggleSpeed;
-        const dampingForce = -this.jiggleVelocity * Config.jiggleDamping;
-
-        this.jiggleVelocity += (springForce + dampingForce) * dt;
-        this.jiggleOffset += this.jiggleVelocity * dt;
-
-        // Clamp to prevent extreme values
-        this.jiggleOffset = Math.max(-1, Math.min(1, this.jiggleOffset));
+        // Add movement wobble
+        const movementJiggle = isMoving ? Math.sin(Date.now() * 0.01 * Config.jiggleSpeed) * Config.jiggleMovementResponse : 0;
 
         // Calculate final jiggle effect
         const jiggleAmount = (this.jiggleOffset + movementJiggle) * Config.jiggleIntensity;
@@ -1550,200 +1617,110 @@ export class Frog {
     }
 
     /**
-     * PHASE 1: AIM & TARGET LOCK
-     * Runs once, in 1 frame, when tongue is fired.
-     * Uses cone-based candidate gathering and scoring.
-     * Returns: { type, id, object, point, distance, angle } or null
+     * Simple, reliable tongue target acquisition
+     * Raycasts from camera with multiple fallbacks for maximum reliability
      */
-    selectTongueTarget(world, customAimDir = null) {
-        const mouthPos = this.getMouthPosition();
-        const forward = customAimDir || this.getForwardDirection();
+    selectTongueTarget(world, input, camera, dt) {
+        if (!world || !input || !camera) return null;
 
-        const candidates = [];
-        const maxRange = Config.tongueRange;
-        const coneAngleRad = THREE.MathUtils.degToRad(Config.tongueConeAngle);
+        const MAX_RANGE = Config.tongueRange || 25;
+        const playerY = this.mesh?.position?.y || 0;
+        const isAirborne = !this.onGround;
 
-        // === CANDIDATE GATHERING ===
+        // Simple raycast from camera through mouse position
+        _raycaster.setFromCamera(input.mouse, camera);
 
-        // 1. Other Players (Frogs)
+        // First try: Raycast against specific interactive objects
+        const interactiveObjects = [];
+
+        // Add grapple hooks (high priority)
+        if (world.grappleHooks) interactiveObjects.push(...world.grappleHooks);
+
+        // Add ball
+        if (world.ball && world.ball.mesh) interactiveObjects.push(world.ball.mesh);
+
+        // Add other frogs
         if (world.frogs) {
             for (const [id, frog] of Object.entries(world.frogs)) {
-                if (id === this.id) continue;           // Skip self
-                if (frog.isDead) continue;              // Skip dead frogs
-
-                const targetPos = frog.mesh.position.clone();
-                targetPos.y += 0.3; // Aim at body center, not feet
-
-                const toTarget = new THREE.Vector3().subVectors(targetPos, mouthPos);
-                const distance = toTarget.length();
-
-                if (distance > maxRange) continue;      // Out of range
-
-                // Check if behind (dot product < 0)
-                const normalizedDir = toTarget.clone().normalize();
-                if (normalizedDir.dot(forward) < 0) continue;
-
-                // Cone angle check
-                const angle = normalizedDir.angleTo(forward);
-                if (angle > coneAngleRad) continue;
-
-                candidates.push({
-                    type: 'frog',
-                    id: id,
-                    object: frog,
-                    point: targetPos,
-                    distance,
-                    angle
-                });
-            }
-        }
-
-        // 2. Grapple Hooks
-        if (world.grappleHooks) {
-            for (const hook of world.grappleHooks) {
-                const toTarget = new THREE.Vector3().subVectors(hook.position, mouthPos);
-                const distance = toTarget.length();
-
-                if (distance > maxRange) continue;
-
-                const normalizedDir = toTarget.clone().normalize();
-                if (normalizedDir.dot(forward) < 0) continue;
-
-                const angle = normalizedDir.angleTo(forward);
-                if (angle > coneAngleRad) continue;
-
-                candidates.push({
-                    type: 'hook',
-                    id: null,
-                    object: hook,
-                    point: hook.position.clone(),
-                    distance,
-                    angle
-                });
-            }
-        }
-
-        // 3. Ball
-        if (world.ball && world.ball.mesh) {
-            const ballPos = world.ball.mesh.position.clone();
-            const toTarget = new THREE.Vector3().subVectors(ballPos, mouthPos);
-            const distance = toTarget.length();
-
-            if (distance <= maxRange) {
-                const normalizedDir = toTarget.clone().normalize();
-                if (normalizedDir.dot(forward) >= 0) {
-                    const angle = normalizedDir.angleTo(forward);
-                    if (angle <= coneAngleRad) {
-                        candidates.push({
-                            type: 'ball',
-                            id: null,
-                            object: world.ball,
-                            point: ballPos,
-                            distance,
-                            angle
-                        });
-                    }
+                if (id !== this.id && !frog.isDead && frog.mesh) {
+                    interactiveObjects.push(frog.tongueProxy || frog.mesh);
                 }
             }
         }
 
-        // 4. Scooters
-        if (world.scooters) {
-            for (const scooter of world.scooters) {
-                if (scooter.rider) continue; // Skip occupied scooters
+        // Check interactive objects first
+        let hits = _raycaster.intersectObjects(interactiveObjects, true);
 
-                const scooterPos = scooter.mesh.position.clone();
-                const toTarget = new THREE.Vector3().subVectors(scooterPos, mouthPos);
-                const distance = toTarget.length();
+        if (hits.length > 0 && hits[0].distance <= MAX_RANGE) {
+            return this._processHit(hits[0], world);
+        }
 
-                if (distance > maxRange) continue;
+        // Second try: Raycast against terrain/walls
+        const staticObjects = [];
+        if (world.terrainMeshes) staticObjects.push(...world.terrainMeshes);
+        if (world.wallMeshes) staticObjects.push(...world.wallMeshes);
 
-                const normalizedDir = toTarget.clone().normalize();
-                if (normalizedDir.dot(forward) < 0) continue;
+        hits = _raycaster.intersectObjects(staticObjects, true);
 
-                const angle = normalizedDir.angleTo(forward);
-                if (angle > coneAngleRad) continue;
+        // Filter: When airborne, skip floor/ground hits (surfaces facing up)
+        if (isAirborne && hits.length > 0) {
+            hits = hits.filter(h => {
+                // Skip if hit is below player (probably floor)
+                if (h.point.y < playerY - 1) return false;
+                // Skip if surface normal faces up (floor-like)
+                if (h.face && h.face.normal) {
+                    const worldNormal = h.face.normal.clone();
+                    if (h.object.matrixWorld) {
+                        worldNormal.transformDirection(h.object.matrixWorld);
+                    }
+                    if (worldNormal.y > 0.7) return false; // Mostly facing up = floor
+                }
+                return true;
+            });
+        }
 
-                candidates.push({
-                    type: 'scooter',
-                    id: null,
-                    object: scooter,
-                    point: scooterPos,
-                    distance,
-                    angle
-                });
+        if (hits.length > 0 && hits[0].distance <= MAX_RANGE) {
+            return this._processHit(hits[0], world);
+        }
+
+        // Third try: Raycast against ENTIRE scene (catches everything)
+        if (world.scene) {
+            hits = _raycaster.intersectObjects(world.scene.children, true);
+
+            // Filter out non-physical objects and floors when airborne
+            const validHit = hits.find(h => {
+                if (h.distance > MAX_RANGE) return false;
+                if (!h.object.isMesh || !h.object.visible) return false;
+                if (h.object.name.includes('helper') || h.object.name.includes('light')) return false;
+
+                // Skip floors when airborne
+                if (isAirborne) {
+                    if (h.point.y < playerY - 1) return false;
+                    if (h.face && h.face.normal && h.face.normal.y > 0.7) return false;
+                }
+
+                return true;
+            });
+
+            if (validHit) {
+                return this._processHit(validHit, world);
             }
         }
 
-        // === SCORING & SELECTION ===
-        // We always check for a wall target simultaneously to allow for 'Assist' logic
-        const wallTarget = this.getWallTarget(world, mouthPos, forward);
-
-        // If we have a wall hit, check if any interactive targets are close to that hit point (Snap Assist)
-        if (wallTarget && candidates.length > 0) {
-            const assistRadius = Config.tongueAssistRadius || 2.0;
-            const bestAssist = candidates.find(c => c.point.distanceTo(wallTarget.point) < assistRadius);
-            if (bestAssist) {
-
-                return bestAssist;
-            }
-        }
-
-        if (candidates.length === 0) {
-            return wallTarget;
-        }
-
-        // Score candidates: lower = better
-        const scoredCandidates = candidates.map(c => ({
-            ...c,
-            score: (Config.tongueAngleWeight * (c.angle / coneAngleRad)) +
-                (Config.tongueDistanceWeight * (c.distance / maxRange))
-        }));
-
-        scoredCandidates.sort((a, b) => a.score - b.score);
-        return scoredCandidates[0];
-    }
-
-    /**
-     * Find a wall target using physics raycasting
-     * Used when no interactive targets are found
-     */
-    getWallTarget(world, mouthPos, forward) {
-        if (!world || !world.physics) return null;
-
-        // Modern Bundle Casting: Fire 5 rays in a tight cross pattern
-        // This makes hitting edges, poles, and thin surfaces much easier.
-        const rayRange = Config.tongueRange;
-        const bundleOffsets = [
-            new THREE.Vector3(0, 0, 0),        // Center
-            new THREE.Vector3(0.1, 0, 0),     // Right
-            new THREE.Vector3(-0.1, 0, 0),    // Left
-            new THREE.Vector3(0, 0.1, 0),     // Top
-            new THREE.Vector3(0, -0.1, 0)     // Bottom
-        ];
-
-        // Create a basis for the offsets (perpendicular to forward)
-        const up = new THREE.Vector3(0, 1, 0);
-        const rightAxis = new THREE.Vector3().crossVectors(forward, up).normalize();
-        const upAxis = new THREE.Vector3().crossVectors(rightAxis, forward).normalize();
-
-        let bestHit = null;
-
-        for (const offset of bundleOffsets) {
-            const startPoint = mouthPos.clone()
-                .add(rightAxis.clone().multiplyScalar(offset.x))
-                .add(upAxis.clone().multiplyScalar(offset.y));
-
-            const from = new CANNON.Vec3(startPoint.x, startPoint.y, startPoint.z);
+        // Final fallback: Physics raycast (always works)
+        if (world.physics && world.physics.world) {
+            const ray = _raycaster.ray;
+            const from = new CANNON.Vec3(ray.origin.x, ray.origin.y, ray.origin.z);
+            const dir = ray.direction.clone().multiplyScalar(MAX_RANGE);
             const to = new CANNON.Vec3(
-                startPoint.x + forward.x * rayRange,
-                startPoint.y + forward.y * rayRange,
-                startPoint.z + forward.z * rayRange
+                ray.origin.x + dir.x,
+                ray.origin.y + dir.y,
+                ray.origin.z + dir.z
             );
 
             const result = new CANNON.RaycastResult();
-            const ray = new CANNON.Ray(from, to);
-            ray.intersectWorld(world.physics.world, { result });
+            const cannonRay = new CANNON.Ray(from, to);
+            cannonRay.intersectWorld(world.physics.world, { result });
 
             if (result.hasHit) {
                 const hitPoint = new THREE.Vector3(
@@ -1752,26 +1729,203 @@ export class Frog {
                     result.hitPointWorld.z
                 );
 
-                const hitNormal = result.hitNormalWorld;
-                const isGround = hitNormal.y > 0.8 || hitPoint.y < 0.5;
+                // Skip floor hits when airborne
+                if (isAirborne && hitPoint.y < playerY - 1) {
+                    return null;
+                }
 
-                if (!isGround) {
-                    const dist = mouthPos.distanceTo(hitPoint);
-                    if (!bestHit || dist < bestHit.distance) {
-                        bestHit = {
-                            type: 'wall',
-                            id: null,
-                            object: null,
-                            point: hitPoint,
-                            distance: dist,
-                            angle: 0
-                        };
-                    }
+                return {
+                    type: 'wall',
+                    id: null,
+                    object: null,
+                    point: hitPoint,
+                    confidence: 1.0
+                };
+            }
+        }
+
+        return null; // Truly nothing
+    }
+
+    /**
+     * Process a raycast hit and determine what type of object it is
+     */
+    _processHit(hit, world) {
+        let targetType = 'wall';
+        let targetObject = hit.object;
+        let targetId = null;
+
+        // Check if it's a grapple hook
+        if (world.grappleHooks && world.grappleHooks.includes(hit.object)) {
+            targetType = 'hook';
+        }
+        // Check if it's the ball
+        else if (world.ball && (hit.object === world.ball.mesh || hit.object.parent === world.ball.mesh)) {
+            targetType = 'ball';
+            targetObject = world.ball;
+        }
+        // Check if it's a frog
+        else if (world.frogs) {
+            for (const [id, frog] of Object.entries(world.frogs)) {
+                if (frog.mesh && (hit.object === frog.mesh || hit.object === frog.tongueProxy || hit.object.parent === frog.mesh)) {
+                    targetType = 'frog';
+                    targetObject = frog;
+                    targetId = id;
+                    break;
                 }
             }
         }
 
-        return bestHit;
+        return {
+            type: targetType,
+            id: targetId,
+            object: targetObject,
+            point: hit.point.clone(),
+            confidence: 1.0
+        };
+    }
+
+    /**
+     * Verifies if a locked target is still viable for sticky aim
+     */
+    _stillValid(locked, mouthPos) {
+        if (!locked || !locked.object) return false;
+
+        const objPos = _tmpV3;
+        if (locked.object.mesh) locked.object.mesh.getWorldPosition(objPos);
+        else if (locked.object.getWorldPosition) locked.object.getWorldPosition(objPos);
+        else objPos.copy(locked.point);
+
+        const dist = mouthPos.distanceTo(objPos);
+        if (dist > (Config.tongueRange * 1.2 || 30)) return false; // Extra slack for lock
+
+        if (locked.type === 'frog' && locked.object.isDead) return false;
+
+        return true;
+    }
+
+    /**
+     * Gather all possible interactive targets into a unified array
+     */
+    _gatherTongueCandidates(world) {
+        const candidates = [];
+
+        // 1. Other Players
+        if (world.frogs) {
+            for (const [id, frog] of Object.entries(world.frogs)) {
+                if (id === this.id || frog.isDead) continue;
+                candidates.push({ type: 'frog', id, object: frog, point: frog.mesh.position });
+            }
+        }
+
+        // 2. Grapple Hooks
+        if (world.grappleHooks) {
+            for (const hook of world.grappleHooks) {
+                candidates.push({ type: 'hook', id: `hook_${hook.uuid}`, object: hook, point: hook.position });
+            }
+        }
+
+        // 3. Ball
+        if (world.ball && world.ball.mesh) {
+            candidates.push({ type: 'ball', id: 'ball', object: world.ball, point: world.ball.mesh.position });
+        }
+
+        // 4. Scooters
+        if (world.scooters) {
+            for (const scooter of world.scooters) {
+                if (scooter.rider) continue;
+                candidates.push({ type: 'scooter', id: `scooter_${scooter.id}`, object: scooter, point: scooter.mesh.position });
+            }
+        }
+
+        return candidates;
+    }
+
+    getWallTarget() {
+        // Obsolete: functionality merged into selectTongueTarget
+        return null;
+    }
+
+    /**
+     * Create or update the laser sight visual
+     */
+    updateLaserSight(input, dt) {
+        if (!this.world || !this.world.camera) return;
+
+        // Hide laser if tongue is active or drawing/placing
+        if (this.tongue.state !== 'idle' || this.isRidingScooter) {
+            if (this.laserLine) this.laserLine.visible = false;
+            if (this.laserDot) this.laserDot.visible = false;
+            return;
+        }
+
+        if (!this.laserLine) {
+            // Create laser line
+            const laserGeo = new THREE.BufferGeometry();
+            const positions = new Float32Array(6);
+            laserGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const laserMat = new THREE.LineBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: Config.tongueLaserIntensity || 0.4,
+                depthWrite: false
+            });
+            this.laserLine = new THREE.Line(laserGeo, laserMat);
+            this.laserLine.frustumCulled = false;
+            this.world.scene.add(this.laserLine);
+
+            // Create laser dot
+            const dotGeo = new THREE.SphereGeometry(0.1, 8, 8);
+            const dotMat = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.8,
+                depthTest: false
+            });
+            this.laserDot = new THREE.Mesh(dotGeo, dotMat);
+            this.world.scene.add(this.laserDot);
+        }
+
+        const mouthPos = this.getMouthPosition();
+
+        // Find actual target to "Stick" to using modern acquisition
+        const bestTarget = this.selectTongueTarget(this.world, input, this.world.camera, dt);
+
+        // "Remove Stick with Air": If we hit nothing (Sky), hide the laser dot and potentially the line
+        if (!bestTarget) {
+            if (this.laserLine) this.laserLine.visible = false;
+            if (this.laserDot) this.laserDot.visible = false;
+            return;
+        }
+
+        const targetPoint = bestTarget.point;
+
+        this.laserLine.visible = true;
+        this.laserDot.visible = true;
+
+        // Update line positions
+        const positions = this.laserLine.geometry.attributes.position.array;
+        positions[0] = mouthPos.x;
+        positions[1] = mouthPos.y;
+        positions[2] = mouthPos.z;
+        positions[3] = targetPoint.x;
+        positions[4] = targetPoint.y;
+        positions[5] = targetPoint.z;
+        this.laserLine.geometry.attributes.position.needsUpdate = true;
+
+        // Update dot
+        this.laserDot.position.copy(targetPoint);
+
+        // Color feedback: Green if locked on target
+        if (bestTarget.type !== 'wall' && bestTarget.type !== 'miss') {
+            this.laserLine.material.color.setHex(0x00ff88);
+            this.laserDot.material.color.setHex(0x00ff88);
+            this.laserDot.scale.set(1.5, 1.5, 1.5);
+        } else {
+            this.laserLine.material.color.setHex(0xff0000);
+            this.laserDot.material.color.setHex(0xff0000);
+            this.laserDot.scale.set(1, 1, 1);
+        }
     }
 
     /**
@@ -1813,7 +1967,7 @@ export class Frog {
      * Main tongue fire method
      * PHASE 1 happens here - target is selected and LOCKED
      */
-    shootTongue(targetWorldPos, world) {
+    shootTongue(input, world) {
         if (this.tongue.state !== 'idle') return;
         if (this.tongue.cooldownTimer > 0) return;
         if (this.isRidingScooter) return; // Can't use tongue while riding
@@ -1823,12 +1977,16 @@ export class Frog {
 
         // === PHASE 1: AIM & LOCK (happens instantly in 1 frame) ===
         const mouthPos = this.getMouthPosition();
-        const aimDir = new THREE.Vector3().subVectors(targetWorldPos, mouthPos).normalize();
-        const target = this.selectTongueTarget(world, aimDir);
+
+        // Use modern acquisition
+        const target = this.selectTongueTarget(world, input, world.camera, 0);
 
         if (!target) {
             // No valid target - play quick "miss" poke animation
-            this.playTongueMiss();
+            // Calculate a default aim direction from mouse
+            _raycaster.setFromCamera(input.mouse, world.camera);
+            const aimDir = _raycaster.ray.direction.clone();
+            this.playTongueMiss(aimDir);
             return;
         }
 
@@ -1851,16 +2009,19 @@ export class Frog {
     /**
      * Play a quick tongue poke for misses (no target found)
      */
-    playTongueMiss() {
+    playTongueMiss(customAimDir = null) {
         // Quick visible poke forward then retract
         this.createTongueVisual();
+
+        const aimDir = customAimDir || this.getForwardDirection();
+        const range = Config.tongueRange || 15;
 
         this.tongue.target = {
             type: 'miss',
             id: null,
             object: null,
-            point: this.getMouthPosition().add(this.getForwardDirection().multiplyScalar(2)),
-            distance: 2,
+            point: this.getMouthPosition().add(aimDir.clone().multiplyScalar(range)),
+            distance: range,
             angle: 0
         };
         this.tongue.lockedPoint.copy(this.tongue.target.point);
@@ -1999,6 +2160,12 @@ export class Frog {
                 // Snap locked point to current position (magnet effect)
                 this.tongue.lockedPoint.copy(currentPos);
                 this.playHitEffect();
+
+                // Start physics swing if enabled
+                if (Config.tongueMode === 'swing') {
+                    this.startSwingGrapple(currentPos);
+                    // No abrupt velocity pop - let the rope do the lifting naturally
+                }
                 break;
 
             case 'ball':
@@ -2088,6 +2255,12 @@ export class Frog {
     updateGrapplePull(dt, input) {
         if (!this.tongue.target) return;
 
+        // If in swing mode, use stable pendulum physics
+        if (Config.tongueMode === 'swing' && this.grappleConstraint) {
+            this.updateSwingSteer(dt, input);
+            return;
+        }
+
         const grapplePoint = this.tongue.lockedPoint;
         const pullDirection = new THREE.Vector3()
             .subVectors(grapplePoint, this.mesh.position)
@@ -2110,13 +2283,11 @@ export class Frog {
             this.body.velocity.y += pullDirection.y * pullForce * dt * 10;
             this.body.velocity.z += pullDirection.z * pullForce * dt * 10;
 
-            // --- Swing Mechanics ---
-            // Apply sideways force if using keys during grapple
+            // --- Swing Mechanics (Zip Mode) ---
             if (input && input.keys) {
                 const forward = this.getForwardDirection();
                 const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-
-                const swingForce = Config.tongueSwingForce || 10;
+                const swingForce = Config.tongueSwingForce;
 
                 if (input.keys.left) {
                     this.body.velocity.x -= right.x * swingForce * dt * 10;
@@ -2126,44 +2297,118 @@ export class Frog {
                     this.body.velocity.x += right.x * swingForce * dt * 10;
                     this.body.velocity.z += right.z * swingForce * dt * 10;
                 }
-                // Air forward/backward
-                if (input.keys.forward) {
-                    this.body.velocity.x += forward.x * swingForce * 0.5 * dt * 10;
-                    this.body.velocity.z += forward.z * swingForce * 0.5 * dt * 10;
-                }
-                if (input.keys.backward) {
-                    this.body.velocity.x -= forward.x * swingForce * 0.5 * dt * 10;
-                    this.body.velocity.z -= forward.z * swingForce * 0.5 * dt * 10;
-                }
-            }
-
-            // Cap max grapple velocity to prevent tunneling
-            const maxGrappleVel = 35.0; // Slightly higher for swinging
-            const currentSpeed = this.body.velocity.length();
-            if (currentSpeed > maxGrappleVel) {
-                this.body.velocity.scale(maxGrappleVel / currentSpeed, this.body.velocity);
             }
         }
 
-        // Release check
-        const isHolding = input ? input.tongueHeld : true;
-
-        // Release only if NOT holding or extremely close
-        if ((!isHolding && distToTarget < 2.5) || distToTarget < 1.0) {
-            this.tongue.state = 'retracting';
-            this.tongue.startTime = performance.now();
-
-            // Kill velocity towards the wall to prevent "sinking" into it
-            if (this.body) {
-                this.body.velocity.scale(0.5, this.body.velocity);
+        // Release check (Zip mode only - Swing released by main.js)
+        if (Config.tongueMode !== 'swing') {
+            const isHolding = input ? input.tongueHeld : true;
+            if ((!isHolding && distToTarget < 2.5) || distToTarget < 1.0) {
+                this.releaseTongue();
             }
         }
+    }
+
+    /**
+     * Physics Pendulum Swing Steer - Camera-Relative Directional Control
+     */
+    updateSwingSteer(dt, input) {
+        if (!this.body || !this.grappleAnchorBody) return;
+
+        // Lower damping so momentum builds
+        this.body.linearDamping = 0.3;
+
+        if (!input || !input.keys) return;
+
+        const mass = this.body.mass || 1;
+        const swingForce = 60;
+
+        // Get raw input direction
+        let inputX = 0;
+        let inputZ = 0;
+        if (input.keys.forward) inputZ -= 1;
+        if (input.keys.backward) inputZ += 1;
+        if (input.keys.left) inputX -= 1;
+        if (input.keys.right) inputX += 1;
+
+        if (inputX === 0 && inputZ === 0) return;
+
+        // Rotate input by camera orbit angle (same as normal movement)
+        const camAngle = this.world?.cameraOrbitAngle || 0;
+        const cos = Math.cos(camAngle);
+        const sin = Math.sin(camAngle);
+
+        const forceX = (inputX * cos + inputZ * sin) * swingForce * mass;
+        const forceZ = (-inputX * sin + inputZ * cos) * swingForce * mass;
+
+        const f = new CANNON.Vec3(forceX, 0, forceZ);
+        this.body.applyForce(f, this.body.position);
+    }
+
+    startSwingGrapple(point) {
+        if (!this.body || !this.world || !this.world.physics) return;
+
+        this.stopSwingGrapple(); // Safety cleanup
+
+        // 1. Create static anchor at hit point
+        this.grappleAnchorBody = new CANNON.Body({ mass: 0 });
+        this.grappleAnchorBody.position.set(point.x, point.y, point.z);
+        this.world.physics.world.addBody(this.grappleAnchorBody);
+
+        // 2. Calculate rope length
+        const playerPos = this.body.position;
+        const anchorPos = this.grappleAnchorBody.position;
+        const currentDistance = playerPos.distanceTo(anchorPos);
+
+        // 3. Smart Rope Length: Ensure the lowest swing point clears the ground
+        const minGroundClearance = 2.0;
+        const lowestSwingPointY = anchorPos.y - currentDistance;
+
+        let ropeLength = currentDistance;
+
+        if (lowestSwingPointY < minGroundClearance) {
+            ropeLength = anchorPos.y - minGroundClearance;
+            if (ropeLength < 1.5) ropeLength = 1.5;
+        }
+
+        // 4. SOFT constraint: Much lower maxForce for an elastic, springy rope feel
+        // This prevents the jarring "snap" and allows the rope to stretch slightly.
+        const maxForce = 4000; // Down from 20000
+        this.grappleConstraint = new CANNON.DistanceConstraint(
+            this.body,
+            this.grappleAnchorBody,
+            ropeLength,
+            maxForce
+        );
+        this.grappleConstraint.collideConnected = false;
+        this.world.physics.world.addConstraint(this.grappleConstraint);
+        this.isSwinging = true;
+    }
+
+    stopSwingGrapple() {
+        if (!this.world || !this.world.physics) return;
+
+        if (this.grappleConstraint) {
+            this.world.physics.world.removeConstraint(this.grappleConstraint);
+            this.grappleConstraint = null;
+        }
+        if (this.grappleAnchorBody) {
+            this.world.physics.world.removeBody(this.grappleAnchorBody);
+            this.grappleAnchorBody = null;
+        }
+
+        // Restore normal damping when releasing
+        if (this.body) {
+            this.body.linearDamping = Config.linearDamping || 0.93;
+        }
+        this.isSwinging = false;
     }
 
     /**
      * Finish tongue action and reset state
      */
     finishTongue() {
+        this.stopSwingGrapple();
         this.tongue.state = 'idle';
         this.tongue.progress = 0;
         this.tongue.target = null;
@@ -2172,6 +2417,31 @@ export class Frog {
         // Hide tongue
         if (this.tongueLine) this.tongueLine.visible = false;
         if (this.tongueTip) this.tongueTip.visible = false;
+    }
+
+    /**
+     * Release tongue (called when player releases button)
+     */
+    releaseTongue() {
+        if (this.tongue.state === 'attached') {
+            // MOMENTUM BOOST: Catapult effect when releasing swing
+            if (this.body && this.isSwinging) {
+                const vel = this.body.velocity;
+                const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+
+                // Add 30% boost in current direction + slight upward pop
+                if (speed > 2) {
+                    const boostFactor = 0.3;
+                    this.body.velocity.x += vel.x * boostFactor;
+                    this.body.velocity.y += Math.max(vel.y * boostFactor, 3); // Ensure some upward boost
+                    this.body.velocity.z += vel.z * boostFactor;
+                }
+            }
+
+            this.stopSwingGrapple();
+            this.tongue.state = 'retracting';
+            this.tongue.startTime = performance.now();
+        }
     }
 
     /**
@@ -2193,36 +2463,58 @@ export class Frog {
 
         const time = performance.now() / 1000;
         const isAttached = this.tongue.state === 'attached';
+        const isExtending = this.tongue.state === 'extending';
 
         // --- High-End Visuals: Dynamic Sag & Wobble ---
         const dist = this.tongueStartPos.distanceTo(currentEnd);
 
-        // Sag amount increases when attached but close to the point (slack)
-        let sagBase = 0;
-        if (isAttached) {
-            const maxSlackDist = 6.0;
-            sagBase = Math.max(0, (maxSlackDist - dist) * 0.15);
+        // Get player velocity for swing-based effects
+        let swingSpeed = 0;
+        let velDir = new THREE.Vector3(0, 0, 0);
+        if (this.body && isAttached) {
+            const vel = this.body.velocity;
+            swingSpeed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+            velDir.set(vel.x, vel.y, vel.z).normalize();
         }
 
+        // Sag amount: More sag when attached and close (slack), less when stretched
+        let sagBase = 0;
+        if (isAttached) {
+            const maxSlackDist = 8.0;
+            sagBase = Math.max(0, (maxSlackDist - dist) * 0.2);
+            // Reduce sag when swinging fast (tension)
+            sagBase *= Math.max(0.2, 1 - swingSpeed * 0.05);
+        }
+
+        // Swing bow: Tongue bows opposite to movement direction
+        const swingBow = isAttached ? Math.min(swingSpeed * 0.08, 0.8) : 0;
+
         // Wobble amount (faster during extension)
-        const isExtending = this.tongue.state === 'extending';
-        const wobbleIntensity = isExtending ? 0.08 : (isAttached ? 0.02 : 0);
-        const wobbleSpeed = isExtending ? 25 : 10;
+        const wobbleIntensity = isExtending ? 0.12 : (isAttached ? 0.03 : 0);
+        const wobbleSpeed = isExtending ? 30 : 12;
         const wobble = Math.sin(time * wobbleSpeed) * wobbleIntensity;
 
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
             const p = new THREE.Vector3().lerpVectors(this.tongueStartPos, currentEnd, t);
 
-            // Apply Sag (Quadratic parabola)
+            // Parabola factor (strongest in middle of tongue)
+            const archFactor = Math.sin(t * Math.PI);
+
+            // Apply gravity sag
             if (sagBase > 0) {
-                const sagFactor = Math.sin(t * Math.PI); // Half-sine for arch
-                p.y -= sagFactor * sagBase;
+                p.y -= archFactor * sagBase;
+            }
+
+            // Apply swing bow (tongue bends opposite to velocity)
+            if (swingBow > 0) {
+                p.x -= velDir.x * archFactor * swingBow;
+                p.z -= velDir.z * archFactor * swingBow;
             }
 
             // Apply organic wobble wave
             if (isExtending || isAttached) {
-                const waveOffset = Math.sin(t * Math.PI * 2 + time * 10) * (wobble * Math.sin(t * Math.PI));
+                const waveOffset = Math.sin(t * Math.PI * 2 + time * 10) * (wobble * archFactor);
                 p.z += waveOffset;
                 p.x += waveOffset * 0.5;
             }
@@ -2237,19 +2529,10 @@ export class Frog {
         // Update tip position
         this.tongueTip.position.copy(currentEnd);
 
-        // Pulse tip scale slightly
-        const tipPulse = 1.0 + Math.sin(time * 15) * 0.1;
+        // Pulse tip scale - bigger pulse when extending
+        const pulseIntensity = isExtending ? 0.2 : 0.1;
+        const tipPulse = 1.0 + Math.sin(time * 15) * pulseIntensity;
         this.tongueTip.scale.setScalar(tipPulse);
-    }
-
-    /**
-     * Release tongue (called when player releases button)
-     */
-    releaseTongue() {
-        if (this.tongue.state === 'attached') {
-            this.tongue.state = 'retracting';
-            this.tongue.startTime = performance.now();
-        }
     }
 
     /**
@@ -2282,10 +2565,6 @@ export class Frog {
      * Visual feedback - MISS effect
      */
     playMissEffect() {
-        // Slight over-extension already handled by miss animation
-        // TODO: Add embarrassed retract animation
-        // TODO: Add funny sound cue
-
         // Small screen shake for feedback
         if (this.world && this.isLocal) {
             this.world.triggerScreenShake(0.2, 0.05);
@@ -2308,7 +2587,6 @@ export class Frog {
             const diff = new THREE.Vector3().subVectors(localTarget, startPos);
 
             // Lock Z axis (depth) to prevent popping out
-            // Assuming Z is the depth axis relative to the eye surface
             diff.z = 0;
 
             // Clamp radius
@@ -2327,7 +2605,7 @@ export class Frog {
         this.punchTimer = 0;
         this.isPunching = true;
         this.punchProgress = 0;
-        this.punchHitChecked = false; // Doesn't matter for remote but good reset
+        this.punchHitChecked = false;
     }
 
     takeDamage(amount, knockback, isNetworked = false, isCritical = false, attackerId = null) {
@@ -2338,40 +2616,30 @@ export class Frog {
         // Track last attacker for kill credit
         if (attackerId) {
             this.lastAttackerId = attackerId;
-
         }
 
-        // Show health bar when hit
         this.showHealthBar();
-
-        // Update health bar immediately
         this.updateHealthBar();
-
-        // Red tint effect - visible to all players
         this.showHitTint();
 
-        // Spawn hit VFX particles
         if (this.particles && this.mesh) {
             const hitPos = this.mesh.position.clone();
-            hitPos.y += 0.5; // Hit at body level
+            hitPos.y += 0.5;
             const hitDir = knockback
                 ? new THREE.Vector3(knockback.x, knockback.y, knockback.z).normalize()
                 : new THREE.Vector3(0, 1, 0);
             this.particles.spawnPunchImpact(hitPos, hitDir);
         }
 
-        // Screen shake when hit (for local player)
         if (this.isLocal && this.world) {
             const shakeAmount = isCritical ? 2.0 : 1.0;
             this.world.triggerScreenShake(shakeAmount, 0.50);
         }
 
-        // Apply knockback (only works on dynamic bodies, not kinematic)
-        if (knockback && this.body && this.body.type !== 2) { // 2 = KINEMATIC
+        if (knockback && this.body && this.body.type !== 2) {
             this.body.velocity.set(knockback.x, knockback.y, knockback.z);
         }
 
-        // Show damage toast
         this.showDamageToast(amount, isCritical);
 
         if (this.health <= 0) {
@@ -2381,17 +2649,13 @@ export class Frog {
     }
 
     showHitTint() {
-        // Store original colors and apply red tint
         this.bodyMesh.traverse((child) => {
             if (child.isMesh && child.material) {
-                // Store original if not stored
                 if (!child.userData.originalColor) {
                     if (child.material.color) {
                         child.userData.originalColor = child.material.color.clone();
                     }
                 }
-
-                // Apply red tint by blending with red
                 if (child.material.color) {
                     const red = new THREE.Color(0xff0000);
                     child.material.color.lerp(red, 0.6);
@@ -2399,12 +2663,10 @@ export class Frog {
             }
         });
 
-        // Fade back to original over 0.5s
         if (this.hitTintTimeout) clearTimeout(this.hitTintTimeout);
-
         this.hitTintTimeout = setTimeout(() => {
             this.fadeHitTint();
-        }, 100); // Start fading after 100ms
+        }, 100);
     }
 
     fadeHitTint() {
@@ -2420,21 +2682,19 @@ export class Frog {
 
             if (progress >= 1) {
                 clearInterval(fadeInterval);
-                // Ensure colors are fully restored
                 this.bodyMesh.traverse((child) => {
                     if (child.isMesh && child.material && child.userData.originalColor) {
                         child.material.color.copy(child.userData.originalColor);
                     }
                 });
             }
-        }, 50); // Fade over ~500ms
+        }, 50);
     }
 
     showHealthBar() {
         this.healthBarVisible = true;
-        this.healthBarVisibleTimer = 3.0; // 3 seconds
+        this.healthBarVisibleTimer = 3.0;
 
-        // Respect stealth
         if (this.isHidden) {
             this.healthBarContainer.style.opacity = this.isLocal ? '0.2' : '0';
         } else {
@@ -2453,7 +2713,6 @@ export class Frog {
             if (this.healthBarVisibleTimer <= 0) {
                 this.hideHealthBar();
             } else if (this.isHidden) {
-                // Ensure it stays at stealth opacity if visible
                 this.healthBarContainer.style.opacity = this.isLocal ? '0.2' : '0';
             }
         }
@@ -2462,7 +2721,6 @@ export class Frog {
     die(isNetworked = false) {
         if (this.isDead) return;
 
-        // Dismount from scooter if riding
         if (this.isRidingScooter && this.currentScooter) {
             this.currentScooter.dismount();
         }
@@ -2471,39 +2729,29 @@ export class Frog {
         this.deathTimer = 0;
         this.respawnTimer = Config.respawnTime;
 
-        // Disperse Effect
         if (this.particles) {
             this.particles.spawnDeathDisperse(this.mesh.position, this.color);
         }
 
-        // Hide mesh immediately (replaced by particles)
         this.setMeshOpacity(0);
         this.bodyMesh.visible = false;
 
-        // Disable physics temporarily
         if (this.body) {
             this.body.velocity.set(0, 0, 0);
-            // Move body away or disable collision to prevent invisible blocking?
-            // For now, simple velocity zero is fine, maybe move up high?
             this.body.position.y = 1000;
         }
 
-        // Hide health bar
         this.healthBarContainer.style.display = 'none';
 
-        // Show death screen for local player
         if (this.isLocal && window.showDeathScreen) {
             window.showDeathScreen();
         }
 
-        // Play Death Sound
         if (this.audio) {
             this.audio.play('death', { volume: 0.8, randomizePitch: false });
         }
 
-        // If this is OUR death (local frog) and NOT triggered by network event, send it
         if (this.isLocal && !isNetworked && this.world && this.world.network) {
-
             this.world.network.sendDeath(this.lastAttackerId || null);
         }
     }
@@ -2512,38 +2760,29 @@ export class Frog {
         this.isDead = false;
         this.health = Config.maxHealth;
         this.deathTimer = 0;
-        this.lastAttackerId = null; // Clear to prevent stale kill credit
+        this.lastAttackerId = null;
 
-        // Reset position
         if (this.body) {
             this.body.position.set(0, 10, 0);
             this.body.velocity.set(0, 0, 0);
-            // Immediately sync mesh position (important for when tab is inactive)
             this.mesh.position.set(0, 10, 0);
         }
 
-        // Reset stealth
         this.setHidden(false);
-
-        // Reset opacity & visibility
         this.setMeshOpacity(1);
         this.bodyMesh.visible = true;
 
-        // Show health bar & Update it!
         this.healthBarContainer.style.display = 'block';
         this.updateHealthBar();
 
-        // Hide death screen for local player
         if (this.isLocal && window.hideDeathScreen) {
             window.hideDeathScreen();
         }
 
-        // Play Respawn Sound
         if (this.audio) {
             this.audio.playSpatial('respawn', this.mesh.position);
         }
 
-        // If this is OUR respawn (local frog) and NOT triggered by network, send it
         if (this.isLocal && !isNetworked && this.world && this.world.network) {
             this.world.network.sendRespawn();
         }
@@ -2553,24 +2792,20 @@ export class Frog {
         if (this.isHidden === isHidden) return;
         this.isHidden = isHidden;
 
-        // Apply visual feedback for stealth
         const opacity = isHidden ? (this.isLocal ? '0.2' : '0') : '1';
         const display = isHidden && !this.isLocal ? 'none' : 'block';
 
-        // Nametag
         if (this.nameTagDiv) {
             this.nameTagDiv.style.opacity = opacity;
             this.nameTagDiv.style.display = display;
             this.nameTagDiv.style.transition = 'opacity 0.3s ease';
         }
 
-        // Health Bar (unless it's currently showing due to damage)
         if (this.healthBarContainer) {
             if (isHidden) {
                 this.healthBarContainer.style.opacity = this.isLocal ? '0.2' : '0';
                 if (!this.isLocal) this.healthBarContainer.style.display = 'none';
             } else {
-                // Return to normal health bar visibility logic
                 this.healthBarContainer.style.display = 'block';
                 if (this.healthBarVisibleTimer > 0) {
                     this.healthBarContainer.style.opacity = '1';
@@ -2580,13 +2815,11 @@ export class Frog {
             }
         }
 
-        // Chat Bubble
         if (this.chatBubbleDiv) {
             this.chatBubbleDiv.style.opacity = opacity;
             this.chatBubbleDiv.style.display = display;
         }
 
-        // Optional: darken the frog mesh slightly for local player to show they are "shadowed"
         if (this.isLocal) {
             this.setMeshOpacity(isHidden ? 0.7 : 1.0);
         }
@@ -2598,7 +2831,6 @@ export class Frog {
         const percent = (this.health / Config.maxHealth) * 100;
         this.healthBarFill.style.width = `${percent}%`;
 
-        // Update color based on health
         this.healthBarFill.classList.remove('low', 'critical');
         if (percent <= 25) {
             this.healthBarFill.classList.add('critical');
@@ -2617,31 +2849,25 @@ export class Frog {
     }
 
     showDamageToast(amount, isCritical = false) {
-        // Create toast as CSS2DObject so it follows the frog in 3D space
         const toastDiv = document.createElement('div');
         toastDiv.className = 'damage-toast' + (isCritical ? ' critical' : '');
         toastDiv.textContent = isCritical ? `CRIT! -${amount}` : `-${amount}`;
 
         const toast = new CSS2DObject(toastDiv);
         toast.position.set(
-            (Math.random() - 0.5) * 0.5,  // Random horizontal offset
-            2.5 + Math.random() * 0.5,     // Above health bar
+            (Math.random() - 0.5) * 0.5,
+            2.5 + Math.random() * 0.5,
             0
         );
         this.mesh.add(toast);
 
-        // Animate and remove
         setTimeout(() => {
             this.mesh.remove(toast);
             toastDiv.remove();
         }, 1000);
-
-
     }
 
-    // Cleanup method to properly dispose of CSS2D objects
     dispose() {
-        // Remove CSS2D DOM elements
         if (this.chatBubbleDiv && this.chatBubbleDiv.parentNode) {
             this.chatBubbleDiv.parentNode.removeChild(this.chatBubbleDiv);
         }
@@ -2652,13 +2878,11 @@ export class Frog {
             this.nameTagDiv.parentNode.removeChild(this.nameTagDiv);
         }
 
-        // Clear any pending timers
         if (this.chatTimer) {
             clearTimeout(this.chatTimer);
             this.chatTimer = null;
         }
 
-        // Dispose of materials and geometry if needed
         this.bodyMesh.traverse((child) => {
             if (child.isMesh) {
                 if (child.geometry) child.geometry.dispose();
@@ -2673,4 +2897,3 @@ export class Frog {
         });
     }
 }
-
